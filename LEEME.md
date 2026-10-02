@@ -3,11 +3,31 @@
 Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro de un orbe de vidrio. **Nadie los controla**: deciden solos qué sembrar, cuándo regar, sacar y filtrar agua, comer, dormir y cuidar a los animales. La idea es mirar cuánto duran y cómo avanzan.
 
 ## Cómo se ve
-- **Pantalla:** solo la escena, sin panel. Los datos flotan dentro de ella y se pueden ocultar.
-- **Velocidad:** abajo hay un control que se esconde solo (*Tiempo real*, ×60, ×600, ×3600; teclas `1`–`4`).
-- **Tiempo real:** por defecto un minuto de la granja es un minuto real, y el reloj arranca a la hora del equipo. Si es de noche donde estás, en el orbe también.
-- **Vida continua:** al volver a abrir la página se simula lo que pasó mientras estaba cerrada (hasta 120 días).
-- **Generaciones:** si mueren los dos humanos, a los 20 s empieza una generación nueva, y cada generación queda registrada en el historial.
+- **Pantalla:** la escena con los datos en dos columnas a los lados, fuera del orbe: habitantes a la izquierda y despensa, granja, hogar y diario a la derecha. Se ocultan con **Datos** o la tecla `D`. En celulares (menos de 480 px) los datos van abajo y el orbe se acomoda arriba.
+- **Velocidad:** por defecto ×120 (un día dura 12 minutos). También hay ×60, ×600 y ×3600; teclas `1`–`4`.
+- **Vida continua:** al volver a abrir la página se simula lo que pasó mientras estaba cerrada, al mismo ritmo y hasta 30 días.
+- **Generaciones:** si mueren los dos humanos, a los 20 s empieza una generación nueva.
+
+## El mundo
+Bloque de 44×44 dentro de un orbe de vidrio:
+- casa con terraza y huerto de 6 parcelas;
+- pozo y tanque de lluvia;
+- **corral**, con establo, pesebre y bebedero, para la vaca **Canela** y las ovejas **Algodón** y **Nieve**;
+- **gallinero**, con cuatro gallinas y el gallo **Kiko**;
+- **piscina**;
+- banca, tronco para tallar, mirador, caseta del perro y faroles.
+
+- **Granja:**
+  - se ordeña a la vaca en la mañana (leche) y se recogen huevos del nido;
+  - las ovejas se esquilan en primavera y verano (lana), y la lana se teje en **abrigos** (sin abrigo, el invierno cansa más y enferma);
+  - en verano y otoño se siega el pasto y se guarda **heno** para el invierno, cuando el pasto no crece;
+  - la leche y los huevos se comen junto con las verduras, pero se echan a perder rápido.
+- **Reacciones al entorno:**
+  - **lluvia:** todos se refugian. La pareja entra a la casa a leer, tejer o conversar, el perro va a su caseta, el gato a la casa, el ganado al establo y las gallinas al gallinero;
+  - **arcoíris** al escampar, que salen a contemplar;
+  - **calor de verano:** nadan o duermen la siesta;
+  - **frío de invierno:** más tiempo dentro.
+- **Rutas:** rodean la casa y entran al corral y al gallinero por sus puertas.
 
 ## Las fichas (`js/personajes.js`)
 Cada personaje tiene una ficha. Cada dato cambia su comportamiento real, no es solo texto:

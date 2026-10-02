@@ -6,61 +6,67 @@
 <title>Granja</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; overflow: hidden; font: 14px/1.4 "Inter", system-ui, -apple-system, Segoe UI, sans-serif; color: #f1eee8; }
+  html, body { height: 100%; overflow: hidden; font: 13px/1.35 "Inter", system-ui, -apple-system, Segoe UI, sans-serif; color: #f1eee8; }
   body { background: radial-gradient(ellipse at 50% 45%, #e9e5de 0%, #cfcac1 42%, #5d5952 100%); }
   #stage { position: fixed; inset: 0; }
   #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
   .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 50%, rgba(6,6,10,.5) 80%, rgba(4,4,8,.85) 100%); }
-
-  /* control de velocidad: discreto y se esconde solo */
-  .speeds { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 2px; padding: 4px;
-    background: rgba(18,18,22,.55); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; backdrop-filter: blur(8px);
-    transition: opacity .6s; z-index: 2; }
-  .speeds.hide { opacity: 0; pointer-events: none; }
-  .speeds button { white-space: nowrap; background: none; border: 0; color: inherit; font: 600 12px/1 inherit; padding: 7px 12px; border-radius: 99px; cursor: pointer; opacity: .75; }
-  .speeds button.on { background: rgba(231,196,106,.95); color: #1b1a17; opacity: 1; }
-
-  /* aviso breve al empezar una generación */
-  .caption { position: fixed; left: 50%; top: 28px; transform: translateX(-50%); font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
-    opacity: 0; transition: opacity 1.2s; pointer-events: none; text-shadow: 0 1px 10px rgba(0,0,0,.5); z-index: 2; }
-  .caption.on { opacity: .9; }
-
-  /* datos flotantes */
   .etiquetas { z-index: 1; }
-  .tag { pointer-events: none; }
-  .tag .in { transform: translateY(0); padding: 5px 8px 6px; border-radius: 9px; background: rgba(16,17,21,.74); will-change: transform; border: 1px solid rgba(255,255,255,.1);
-    font-size: 10.5px; line-height: 1.2; text-align: left; white-space: nowrap; margin-bottom: 30px; }
-  .tag b { font-size: 11.5px; margin-right: 6px; }
-  .tag .act { color: rgba(241,238,232,.72); font-size: 10px; }
-  .tag .bars { display: grid; grid-template-columns: repeat(4, 30px); gap: 5px; margin-top: 4px; }
-  .tag .bars i { display: flex; align-items: center; gap: 2px; font-style: normal; }
-  .tag .bars small { font-size: 8px; line-height: 1; }
-  .tag .bars u { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; display: block; }
-  .tag .bars em { display: block; height: 100%; background: #7cc36a; transition: width .4s; }
-  .tag .bars em.mid { background: #e3b341; } .tag .bars em.low { background: #e0574f; }
-  .tag.muerto .in { background: rgba(16,17,21,.45); }
-  .ptag { font-size: 10.5px; padding: 2px 7px; border-radius: 99px; background: rgba(16,17,21,.55); border: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
-  .ptag.lista { background: rgba(68,120,52,.85); } .ptag.muerta { background: rgba(120,52,46,.75); }
   .fx { font-size: 26px; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
 
-  .hud { position: fixed; left: 18px; top: 18px; z-index: 2; padding: 11px 14px; border-radius: 14px; background: rgba(16,17,21,.58);
-    border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(8px); font-size: 12.5px; display: grid; gap: 6px; min-width: 210px; transition: opacity .4s; }
-  .hud.off { opacity: 0; pointer-events: none; }
-  .hud .gen { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; }
-  .hud .fecha { font: 600 13px ui-monospace, Consolas, monospace; }
-  .hud .res { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
-  .hud .res span { color: rgba(241,238,232,.7); } .hud .res b.warn { color: #ff8a80; }
-  .hud .aviso { font-size: 11.5px; color: #ffcf8a; }
+  /* columnas de datos a los lados (fuera del orbe) */
+  .col { position: fixed; top: 16px; bottom: 76px; width: clamp(150px, 24vw, 232px); z-index: 2; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; scrollbar-width: none; transition: opacity .4s, transform .4s; }
+  .col::-webkit-scrollbar { display: none; }
+  .col.izq { left: 16px; --fuera: -30px; } .col.der { right: 16px; --fuera: 30px; }
+  .col.off { opacity: 0; pointer-events: none; transform: translateX(var(--fuera)); }
+  .card { background: rgba(16,17,21,.72); border: 1px solid rgba(255,255,255,.09); border-radius: 12px; padding: 9px 11px; }
+  .card h4 { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin-bottom: 6px; font-weight: 600; }
+  .pj .top { display: flex; align-items: baseline; gap: 6px; }
+  .pj b { font-size: 13px; } .pj .cara { font-size: 15px; }
+  .pj .act { color: rgba(241,238,232,.7); font-size: 11.5px; margin: 2px 0 6px; min-height: 15px; }
+  .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .bars i { display: flex; align-items: center; gap: 3px; font-style: normal; font-size: 9px; }
+  .bars u { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; display: block; }
+  .bars em { display: block; height: 100%; background: #7cc36a; transition: width .5s; }
+  .bars em.mid { background: #e3b341; } .bars em.low { background: #e0574f; }
+  .pj.muerto { opacity: .5; }
+  .gen { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #e7c46a; }
+  .fecha { font: 600 13px ui-monospace, Consolas, monospace; margin-top: 3px; }
+  .grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; }
+  .grid span { color: rgba(241,238,232,.7); } .grid b { text-align: right; font-weight: 600; } .grid b.warn { color: #ff8a80; }
+  .animales { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; }
+  .animales span.muerto { opacity: .4; text-decoration: line-through; }
+  .diario { list-style: none; display: grid; gap: 5px; font-size: 11.5px; color: rgba(241,238,232,.85); }
+  .diario li { padding-left: 8px; border-left: 2px solid rgba(255,255,255,.15); }
+  .diario li.bueno { border-color: #7cc36a; } .diario li.malo, .diario li.aviso { border-color: #e3b341; } .diario li.muerte { border-color: #e0574f; } .diario li.clima { border-color: #5aa0d8; } .diario li.logro { border-color: #e7c46a; }
+
+  /* control de velocidad */
+  .speeds { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 2px; padding: 4px;
+    background: rgba(18,18,22,.6); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; transition: opacity .6s; z-index: 3; }
+  .speeds.hide { opacity: 0; pointer-events: none; }
+  .speeds button { white-space: nowrap; background: none; border: 0; color: inherit; font: inherit; font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 99px; cursor: pointer; opacity: .75; }
+  .speeds button.on { background: rgba(231,196,106,.95); color: #1b1a17; opacity: 1; }
+  .caption { position: fixed; left: 50%; top: 22px; transform: translateX(-50%); font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+    opacity: 0; transition: opacity 1.2s; pointer-events: none; text-shadow: 0 1px 10px rgba(0,0,0,.5); z-index: 2; }
+  .caption.on { opacity: .9; }
   #loader { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: #1b1a17; color: #a3a09a; font: 600 12px ui-monospace, Consolas, monospace; letter-spacing: .12em; transition: opacity .6s; }
+
+  @media (max-width: 1000px) { .card { padding: 8px 9px; } .pj .act { font-size: 11px; } .grid { font-size: 11.5px; } }
+  @media (max-width: 700px) { .col { top: 10px; bottom: 64px; gap: 6px; } .col.izq { left: 8px; } .col.der { right: 8px; } .card { padding: 6px 8px; border-radius: 10px; } .card h4 { font-size: 9.5px; margin-bottom: 4px; } .pj b { font-size: 12px; } .pj .act { font-size: 10.5px; margin-bottom: 4px; } .grid, .animales, .diario { font-size: 10.5px; } .fecha { font-size: 11px; } .bars { gap: 4px; } }
+  @media (max-width: 480px) {
+    .col { top: auto; bottom: 64px; height: 38vh; width: calc(50% - 20px); }
+    .col.izq { left: 12px; } .col.der { right: 12px; }
+  }
 </style>
 </head>
 <body>
 <div id="loader">CARGANDO…</div>
 <div id="stage"></div>
 <div class="vignette"></div>
+<aside class="col izq" id="izq"></aside>
+<aside class="col der" id="der"></aside>
 <div class="speeds" id="speeds"></div>
 <div class="caption" id="caption"></div>
-<div class="hud" id="hud"></div>
 
 <script type="importmap">
 { "imports": {
@@ -72,78 +78,123 @@
 import * as Sim from './js/sim.js';
 import { crearEscena } from './js/escena.js';
 
-// velocidades en minutos de juego por segundo real
-const VELOCIDADES = [[1 / 60, 'Tiempo real'], [1, '×60'], [10, '×600'], [60, '×3600']];
-const MAX_AUSENCIA = 120 * Sim.MIN_DIA;   // lo máximo que se simula de lo que pasó con la página cerrada
+// velocidades: minutos de juego por segundo real (×120 → un día dura 12 minutos)
+const VELOCIDADES = [[1, '×60'], [2, '×120'], [10, '×600'], [60, '×3600']];
+const VEL_DEFECTO = 1;
+const MAX_AUSENCIA = 30 * Sim.MIN_DIA;
 
-const ahoraEnMinutos = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; };
+const ahoraEnMinutos = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const nueva = (generacion = 1) => Sim.nuevaPartida({ inicio: ahoraEnMinutos(), generacion });
+
+let vel = VEL_DEFECTO;
+try { const v = localStorage.getItem('granja3d-vel2'); if (v != null) vel = Math.max(0, Math.min(VELOCIDADES.length - 1, +v)); } catch { /* sin almacenamiento */ }
 
 let estado = Sim.cargar();
 if (estado && estado.guardadoReal && !estado.fin) {
-  // la granja siguió viviendo mientras la página estaba cerrada (a ritmo real)
-  const ausente = Math.min((Date.now() - estado.guardadoReal) / 60000, MAX_AUSENCIA);
+  // la granja siguió viviendo con la página cerrada, al mismo ritmo
+  const ausente = Math.min(((Date.now() - estado.guardadoReal) / 1000) * VELOCIDADES[vel][0], MAX_AUSENCIA);
   if (ausente > 0) Sim.avanzar(estado, ausente);
 }
 if (!estado) estado = nueva(1 + Math.max(0, ...Sim.historial().map((h) => h.generacion)));
 
-let vel = 0;
-try { vel = Math.max(0, Math.min(VELOCIDADES.length - 1, +localStorage.getItem('granja3d-vel') || 0)); } catch { /* sin almacenamiento */ }
-
 const escena = crearEscena(document.getElementById('stage'));
 
-// control de velocidad
+// ---------------------------------------------------------------- columnas de datos
+const izq = document.getElementById('izq'), der = document.getElementById('der');
+let datos = true;
+const angosto = () => innerWidth <= 480;
+function encuadre() {
+  if (!datos) return escena.encuadrar(0, 0, 0);
+  if (angosto()) return escena.encuadrar(0, 0, innerHeight * 0.38 + 74);   // en pantallas angostas los datos van abajo
+  const ancho = izq.getBoundingClientRect().width || 232;
+  escena.encuadrar(ancho + 44, ancho + 44, 0);
+}
+const NECS = [['comida', '🍽'], ['agua', '💧'], ['energia', '⚡'], ['salud', '❤']];
+const EMO = { tomas: '👨', lucia: '👩', nube: '🐕', esmoquin: '🐈‍⬛' };
+const EMO_G = { vaca: '🐄', oveja: '🐑', gallina: '🐔', gallo: '🐓' };
+const ICO = { lechuga: '🥬', papa: '🥔', frijol: '🫘', maiz: '🌽' };
+const tarjetas = {};
+function crearTarjetas() {
+  izq.replaceChildren();
+  for (const a of estado.agentes) {
+    const c = document.createElement('div'); c.className = 'card pj';
+    c.innerHTML = `<div class="top"><span class="cara"></span><b></b></div><div class="act"></div><div class="bars">${NECS.map(([k, ic]) => `<i title="${k}">${ic}<u><em data-k="${k}"></em></u></i>`).join('')}</div>`;
+    izq.append(c);
+    tarjetas[a.id] = c;
+  }
+}
+crearTarjetas();
+function pintarDatos() {
+  if (!datos) return;
+  const s = estado, R = s.rec;
+  for (const a of s.agentes) {
+    const c = tarjetas[a.id]; if (!c) continue;
+    c.classList.toggle('muerto', !a.vivo);
+    c.querySelector('.cara').textContent = a.tipo === 'humano' && a.vivo ? Sim.caraAnimo(a.animo) : EMO[a.id] || '•';
+    c.querySelector('b').textContent = (a.vivo ? '' : '† ') + a.nombre + (a.enfermo > 0 ? ' 🤒' : '');
+    c.querySelector('.act').textContent = a.vivo ? (a.dentro ? `En casa · ${a.accion.toLowerCase()}` : a.accion) : `Murió ${a.causa || ''}`;
+    c.querySelector('.bars').style.display = a.vivo ? '' : 'none';
+    c.querySelectorAll('em').forEach((em) => { const v = Math.max(0, Math.min(100, a.n[em.dataset.k])); em.style.width = v + '%'; em.className = v < 25 ? 'low' : v < 50 ? 'mid' : ''; });
+  }
+  const hum = s.agentes.filter((a) => a.vivo && a.tipo === 'humano').length;
+  const consumo = hum * 1.4 + s.agentes.filter((a) => a.vivo && a.tipo !== 'humano').length * 0.5;
+  const dias = consumo ? Math.floor(Sim.comidaTotal(s) / consumo) : 0;
+  const vividos = Sim.diasVividos(s), años = Math.floor(vividos / Sim.DIAS_ANIO);
+  const clima = s.sequia > 0 ? '☀️ sequía' : s.clima.lluvia ? '🌧️ lluvia' : s.clima.arcoiris > s.t ? '🌈 arcoíris' : '';
+  const sem = Object.entries(R.semillas).map(([k, v]) => `${ICO[k]}${v}`).join(' ');
+  const animales = s.ganado.map((g) => `<span class="${g.vivo ? '' : 'muerto'}">${EMO_G[g.tipo]} ${g.nombre}</span>`).join('');
+  const huerto = s.parcelas.map((p) => p.cultivo ? `${ICO[p.cultivo]}${p.estado === 'lista' ? '✓' : p.estado === 'muerta' ? '✗' : Math.floor(Math.min(1, p.crec / Sim.CULTIVOS[p.cultivo].dias) * 100) + '%'}` : '·').join('  ');
+  der.innerHTML = `
+    <div class="card"><div class="gen">Generación ${s.generacion} · ${años ? `${años} año${años > 1 ? 's' : ''} y ` : ''}${vividos % Sim.DIAS_ANIO} días</div>
+      <div class="fecha">${Sim.fechaTxt(s)}</div>${clima ? `<div style="margin-top:3px">${clima}</div>` : ''}</div>
+    <div class="card"><h4>Despensa</h4><div class="grid">
+      <span>🥔 Raciones</span><b class="${dias < 4 ? 'warn' : ''}">${Math.floor(R.raciones)} · ≈${dias} d</b>
+      <span>🥚 Huevos</span><b>${Math.floor(R.huevos)}</b>
+      <span>🥛 Leche</span><b>${R.leche.toFixed(1)} L</b>
+      <span>🚰 Potable</span><b class="${R.potable < 6 ? 'warn' : ''}">${Math.floor(R.potable)} L</b>
+      <span>🛢️ Tanque</span><b>${Math.floor(R.cruda)} L</b>
+      <span>🌱 Semillas</span><b>${sem}</b></div></div>
+    <div class="card"><h4>Granja</h4><div class="grid">
+      <span>🌾 Pasto</span><b>${Math.round(s.granja.pasto)} %</b>
+      <span>🟨 Heno</span><b>${Math.round(R.heno)}</b>
+      <span>🧶 Lana</span><b>${Math.round(R.lana)} · ${R.abrigos} abrigo${R.abrigos === 1 ? '' : 's'}</b></div>
+      <div class="animales" style="margin-top:6px">${animales}</div>
+      <div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Huerto: ${huerto}</div></div>
+    <div class="card"><h4>Hogar</h4><div class="grid">
+      ${hum === 2 ? `<span>💞 Relación</span><b class="${s.pareja.afinidad < 35 ? 'warn' : ''}">${Math.round(s.pareja.afinidad)} / 100</b>` : ''}
+      <span>🧹 Casa</span><b class="${s.casa.limpieza < 30 ? 'warn' : ''}">${Math.round(s.casa.limpieza)} %</b></div></div>
+    <div class="card"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
+    ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
+}
+setInterval(pintarDatos, 500);
+
+// ---------------------------------------------------------------- control de velocidad y botón de datos
 const speeds = document.getElementById('speeds');
 const pintar = () => [...speeds.querySelectorAll('button')].slice(0, VELOCIDADES.length).forEach((b, i) => b.classList.toggle('on', i === vel));
 VELOCIDADES.forEach(([, txt], i) => {
   const b = document.createElement('button'); b.textContent = txt;
-  b.onclick = () => { vel = i; pintar(); try { localStorage.setItem('granja3d-vel', i); } catch { /* sin almacenamiento */ } };
+  b.onclick = () => { vel = i; pintar(); try { localStorage.setItem('granja3d-vel2', i); } catch { /* sin almacenamiento */ } };
   speeds.append(b);
 });
-pintar();
-// mostrar u ocultar los datos flotantes
-let datos = true;   // los datos siempre arrancan visibles
 const bDatos = document.createElement('button');
-const aplicarDatos = () => { escena.datos = datos; bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; hud.classList.toggle('off', !datos); };
+function aplicarDatos() { bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
+pintar(); aplicarDatos();
+addEventListener('resize', encuadre);
 let idle;
 const mostrar = () => { speeds.classList.remove('hide'); clearTimeout(idle); idle = setTimeout(() => speeds.classList.add('hide'), 2500); };
 addEventListener('pointermove', mostrar); addEventListener('pointerdown', mostrar); mostrar();
-addEventListener('keydown', (e) => { const i = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code]; if (i != null) { vel = i; pintar(); mostrar(); } });
-addEventListener('keydown', (e) => { if (e.code === 'KeyD' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) { datos = !datos; aplicarDatos(); mostrar(); } });
+addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+  const i = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
+  if (i != null) { vel = i; pintar(); mostrar(); }
+  if (e.code === 'KeyD') { datos = !datos; aplicarDatos(); mostrar(); }
+});
 
 const caption = document.getElementById('caption');
 function aviso(txt) { caption.textContent = txt; caption.classList.add('on'); setTimeout(() => caption.classList.remove('on'), 5000); }
 if (estado.generacion > 1 && Sim.diasVividos(estado) < 1) aviso(`Generación ${estado.generacion}`);
-
-// tarjeta de datos generales
-const hud = document.getElementById('hud');
-aplicarDatos();
-function pintarHud() {
-  if (!datos) return;
-  const s = estado, R = s.rec;
-  const humanos = s.agentes.filter((a) => a.vivo && a.tipo === 'humano').length, animales = s.agentes.filter((a) => a.vivo && a.tipo !== 'humano').length;
-  const consumo = humanos * 1.4 + animales * 0.6;
-  const dias = consumo ? Math.floor(R.raciones / consumo) : 0;
-  const vividos = Sim.diasVividos(s), años = Math.floor(vividos / Sim.DIAS_ANIO);
-  const clima = s.sequia > 0 ? '☀️ sequía' : s.clima.lluvia ? '🌧️ lluvia' : '';
-  hud.innerHTML = `
-    <div class="gen">Generación ${s.generacion} · ${años ? `${años} año${años > 1 ? 's' : ''} y ` : ''}${vividos % Sim.DIAS_ANIO} días</div>
-    <div class="fecha">${Sim.fechaTxt(s)} ${clima}</div>
-    <div class="res">
-      <span>🥔 Comida</span><b class="${dias < 4 ? 'warn' : ''}">${Math.floor(R.raciones)} raciones · ≈ ${dias} días</b>
-      <span>🚰 Potable</span><b class="${R.potable < 6 ? 'warn' : ''}">${Math.floor(R.potable)} L</b>
-      <span>🛢️ Tanque</span><b>${Math.floor(R.cruda)} / ${Sim.TANQUE_MAX} L</b>
-      <span>🌱 Semillas</span><b>${Object.entries(R.semillas).map(([k, v]) => `${{ lechuga: '🥬', papa: '🥔', frijol: '🫘', maiz: '🌽' }[k]}${v}`).join(' ')}</b>
-      ${s.pareja && humanos === 2 ? `<span>💞 Relación</span><b class="${s.pareja.afinidad < 35 ? 'warn' : ''}">${Math.round(s.pareja.afinidad)} / 100</b>` : ''}
-      ${s.casa ? `<span>🧹 Casa</span><b class="${s.casa.limpieza < 30 ? 'warn' : ''}">${Math.round(s.casa.limpieza)} % limpia</b>` : ''}
-    </div>
-    ${s.escasez ? '<div class="aviso">⚠ Escasean las reservas</div>' : ''}
-    ${s.fin ? `<div class="aviso">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
-}
-pintarHud();
-setInterval(pintarHud, 500);
 
 // guardado
 const guardar = () => Sim.guardar(estado);
@@ -157,9 +208,8 @@ function loop(now) {
   const dt = Math.min((now - last) / 1000, 0.1); last = now; t += dt;
   if (!estado.fin) Sim.avanzar(estado, dt * VELOCIDADES[vel][0]);
   else {
-    // la granja quedó vacía: se registra y empieza una nueva generación
     if (finEn == null) { Sim.registrarGeneracion(estado); finEn = t + 20; guardar(); }
-    if (t > finEn) { estado = nueva(estado.generacion + 1); finEn = null; guardar(); aviso(`Generación ${estado.generacion}`); }
+    if (t > finEn) { estado = nueva(estado.generacion + 1); finEn = null; guardar(); crearTarjetas(); aviso(`Generación ${estado.generacion}`); }
   }
   escena.update(estado, t, dt);
   if (escena.cargada) { const l = document.getElementById('loader'); if (l) { l.style.opacity = 0; setTimeout(() => l.remove(), 600); } }

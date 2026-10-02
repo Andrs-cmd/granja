@@ -17,16 +17,16 @@
 //
 // HÁBITOS:
 //   cronotipo  'madrugador' (5:30 a 21:30) · 'normal' (6:30 a 22:30) · 'noctambulo' (8:00 a 00:30)
-//   ocio       actividades favoritas: 'leer' · 'tallar' · 'contemplar' · 'jugarGato' · 'pasearPerro'
+//   ocio       actividades favoritas: 'leer' · 'tallar' · 'contemplar' · 'jugarGato' · 'pasearPerro' · 'nadar' · 'tejer'
 //   comida     cultivo favorito: comerlo le sube el ánimo
 //   animales   afinidad con cada mascota (0 a 1)
 //   estres     cuando escasean las reservas: 'trabaja' (más rápido, se cansa más) · 'raciona' (aguanta más sin comer)
-//   rol        área que prefiere cuando hay varias tareas: 'agua' · 'huerto' · 'cuidado' · 'casa'
+//   rol        área que prefiere cuando hay varias tareas: 'agua' · 'huerto' · 'cuidado' · 'casa' · 'granja'
 //
 // FÍSICO: andar 'zancada' o 'cadera'; detalles 'sombrero' 'barba' 'pecas' 'diadema' 'collar' 'pañuelo'
 // =====================================================================
 
-export const CONFIG = '2026-10-02c';   // cambiarlo reinicia la granja con las fichas nuevas
+export const CONFIG = '2026-10-03a';   // cambiarlo reinicia la granja con las fichas nuevas
 
 export const RASGOS = {
   fuerte: { nombre: 'Fuerte', desc: 'Saca 50 % más agua del pozo.', mod: { pozo: 1.5 } },
@@ -41,7 +41,7 @@ export const PERSONAJES = [
   {
     id: 'tomas', tipo: 'humano', nombre: 'Tomás', rasgos: ['fuerte', 'comilon'],
     personalidad: { apertura: 0.35, responsabilidad: 0.8, extraversion: 0.4, amabilidad: 0.6, neuroticismo: 0.45 },
-    habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'pasearPerro', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'agua' },
+    habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'pasearPerro', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'granja' },
     fisico: { andar: 'zancada', detalles: ['sombrero', 'barba'] },
     motivacion: 'Proteger a su familia y que nunca falte el agua.',
     voz: 'Grave y pausada; postura abierta, habla poco y actúa.',
@@ -49,7 +49,7 @@ export const PERSONAJES = [
   {
     id: 'lucia', tipo: 'humano', nombre: 'Lucía', rasgos: ['manoVerde', 'ahorradora'],
     personalidad: { apertura: 0.8, responsabilidad: 0.55, extraversion: 0.75, amabilidad: 0.75, neuroticismo: 0.55 },
-    habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'jugarGato', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto' },
+    habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'tejer', 'jugarGato', 'nadar', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto' },
     fisico: { andar: 'cadera', detalles: ['pecas', 'diadema'] },
     motivacion: 'Que el huerto prospere y siempre haya reservas.',
     voz: 'Cálida y rápida; planifica en voz alta.',
@@ -64,4 +64,18 @@ export const PERSONAJES = [
     fisico: { detalles: [] },
     motivacion: 'Su independencia, los ratones y dormir con quien más lo necesite.',
   },
+];
+
+// Animales de granja: viven en el corral (vaca y ovejas) y en el gallinero (gallinas y gallo).
+//   vaca → leche cada mañana (hay que ordeñarla) · oveja → lana (se esquila en primavera/verano)
+//   gallina → huevos en el nido · gallo → canta al amanecer
+export const GANADO = [
+  { id: 'canela', tipo: 'vaca', nombre: 'Canela' },
+  { id: 'algodon', tipo: 'oveja', nombre: 'Algodón' },
+  { id: 'nieve', tipo: 'oveja', nombre: 'Nieve' },
+  { id: 'pinta', tipo: 'gallina', nombre: 'Pinta' },
+  { id: 'rubia', tipo: 'gallina', nombre: 'Rubia' },
+  { id: 'copo', tipo: 'gallina', nombre: 'Copo' },
+  { id: 'clueca', tipo: 'gallina', nombre: 'Clueca' },
+  { id: 'kiko', tipo: 'gallo', nombre: 'Kiko' },
 ];
