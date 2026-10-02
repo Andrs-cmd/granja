@@ -1,31 +1,28 @@
-# Granja 3D: simulación de supervivencia
+# Granja 3D: simulación autónoma
 
-Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro de un orbe de vidrio. Tienen que cultivar, sacar y filtrar agua y cuidarse entre ellos para sobrevivir durante años. **Tú das las órdenes, y si no se cuidan, mueren.**
+Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro de un orbe de vidrio. **Nadie los controla**: deciden solos qué sembrar, cuándo regar, sacar y filtrar agua, comer, dormir y cuidar a los animales. La idea es mirar cuánto duran y cómo avanzan.
 
-## Cómo se juega
-- **Tiempo:** un día dura 72 s a velocidad ×1. También están ×5, ×20 y ×100, para ver pasar años. Atajos: `espacio` pausa; `1`–`4` cambian la velocidad.
-- **Calendario:** cada estación dura 28 días, así que un año son 112 días. **En invierno no crece nada**: hay que guardar comida antes.
-- **Órdenes puntuales:** sembrar un cultivo en una parcela, regar, cosechar, limpiar, sacar agua del pozo, filtrar agua y alimentar a los animales. Se pueden asignar a *cualquiera*, a Tomás o a Lucía, y se cancelan desde la cola.
-- **Rutina (órdenes permanentes):** lo que hacen solos cuando no tienen órdenes:
-  - regar lo que esté seco, cosechar lo que esté listo y limpiar parcelas muertas;
-  - cuidar a los animales;
-  - resembrar un cultivo;
-  - mantener un mínimo de agua potable y de agua en el tanque.
-- **Supervivencia (lo deciden solos):** comen, beben y duermen cuando lo necesitan, siempre que haya con qué.
+## Cómo se ve
+- **Pantalla:** solo la escena, sin indicadores.
+- **Velocidad:** abajo hay un control que se esconde solo (*Tiempo real*, ×60, ×600, ×3600; teclas `1`–`4`).
+- **Tiempo real:** por defecto un minuto de la granja es un minuto real, y el reloj arranca a la hora del equipo. Si es de noche donde estás, en el orbe también.
+- **Vida continua:** al volver a abrir la página se simula lo que pasó mientras estaba cerrada (hasta 120 días).
+- **Generaciones:** si mueren los dos humanos, a los 20 s empieza una generación nueva, y cada generación queda registrada en el historial.
 
-## Reglas de la simulación (`js/sim.js`)
-- **Necesidades** (0–100): comida, agua, energía y salud. La salud baja si la comida, el agua o la energía llegan a 0, y en 0 de salud el personaje muere.
-  - Sin agua, alguien aguanta alrededor de un día y medio; sin comida, unos tres días.
-  - Si tomar agua del tanque sin filtrar es lo único que queda, tiene 40 % de probabilidad de enfermar.
-- **Rasgos:**
+## Las fichas (`js/personajes.js`)
+Las características de cada personaje se definen ahí y cambian su comportamiento real:
+- **Rasgos:** modifican números de la simulación (hambre, sed, cansancio, velocidad por área, agua del pozo, cosecha, aprendizaje, probabilidad de enfermar).
+- **Físico:** la forma de andar (*zancada* desde los hombros o *cadera* fluida) y detalles visibles (sombrero, barba, pecas, diadema, collar, pañuelo).
+- **Psique:**
+  - motivación;
+  - rol, que es el área que prefiere cuando hay varias tareas;
+  - reacción al estrés cuando escasea la comida o el agua: *trabaja* (20 % más rápido, pero se cansa más) o *raciona* (aguanta más antes de comer);
+  - estilo de comunicación.
+- **Para aplicar cambios:** al cambiar `CONFIG`, la granja empieza de cero con las fichas nuevas.
 
-  | Personaje | Rasgos |
-  |---|---|
-  | Tomás | *Fuerte* (+50 % de agua del pozo) y *Comilón* (+20 % de hambre) |
-  | Lucía | *Mano verde* (trabaja el huerto 40 % más rápido y cosecha 15 % más) y *Ahorradora* (−15 % de hambre) |
-  | Nube | *Leal* (sigue a la pareja) |
-  | Esmoquin | *Cazador* (caza ratones en el huerto si tiene hambre) |
-
+## Reglas
+- **Necesidades** (0–100): comida, agua, energía y salud. En 0 de salud el personaje muere.
+- **Habilidades:** huerto, agua y cuidado suben con la práctica hasta el nivel 10, y con cada nivel trabajan más rápido.
 - **Cultivos:**
 
   | Cultivo | Días | Raciones | Estaciones |
@@ -35,22 +32,21 @@ Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro 
   | Fríjol | 12 | 10 | primavera y verano |
   | Maíz | 18 | 20 | solo verano |
 
-  Una parcela sin agua o fuera de temporada muere a los 2 días. Lo que está listo y no se cosecha se pudre a los 6 días. Cada cosecha devuelve semillas.
-- **Agua:** la lluvia llena el tanque (600 L) y riega el huerto, con más lluvia en primavera. El pozo da 40 L por hora (60 L con Tomás). Filtrar convierte agua cruda en potable.
-- **Despensa:** la comida guardada se echa a perder un 0,4 % por día.
-- **Animales:** comen y beben del comedero y del bebedero, que la pareja tiene que llenar.
-
-El estado completo es un JSON que se guarda solo en el navegador (`localStorage`) cada día de juego y al cerrar la página.
+  En invierno no crece nada. Eligen qué sembrar según lo que alcance a madurar en la estación.
+- **Agua:** la lluvia llena el tanque (600 L) y el pozo da 40 L por hora. El agua sin filtrar puede enfermar.
+- **Riesgos:**
+  - sequías de verano;
+  - plagas, que el gato puede frenar;
+  - heladas a finales de otoño;
+  - enfermedades, más probables con la edad o la salud baja;
+  - vejez: los animales viven unos 13–16 años de la granja y los humanos unos 70.
+- **Despensa:** la comida guardada se pudre un 0,8 % por día.
+- **Calendario:** cada estación dura 28 días, así que un año son 112 días.
 
 ## Archivos
-- `js/sim.js`: el motor. Es lógica pura, sin gráficos, así que se puede probar con Node.
-- `js/escena.js`: el orbe 3D, que dibuja el estado: huerto, pozo, tanque, lluvia, personajes y lápidas.
-- `js/ui.js`: el panel de habitantes, recursos, huerto, órdenes, rutina y diario.
-- `index.html`: une todo y corre el bucle de tiempo.
+- `js/personajes.js`: las fichas.
+- `js/sim.js`: el motor. Es lógica pura, se puede probar con Node.
+- `js/escena.js`: el orbe 3D que dibuja el estado.
+- `index.html`: une todo y corre el reloj.
 
 Hay que servirlo con un servidor local (por ejemplo `php -S 127.0.0.1:8805 -t .`).
-
-## Próximas fases
-2. Personalidad: ánimo, habilidades que suben con la práctica y la relación de pareja.
-3. Granja: gallinas, el perro guardián y el gato contra las plagas.
-4. Eventos y progreso: sequías, plagas, enfermedades, construcciones (invernadero, compostera, más parcelas) e hijos.

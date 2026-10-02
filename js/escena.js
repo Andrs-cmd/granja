@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, hora, estacion } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -351,7 +351,7 @@ export function crearEscena(host, { onParcela } = {}) {
   }
 
   // ------------------------------------------------------------ personajes
-  function makePerson({ top, bottom, skin, hair, dress, longHair, h }) {
+  function makePerson({ top, bottom, skin, hair, dress, longHair, h, detalles = [] }) {
     const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true });
     const mTop = mat(top), mBottom = mat(bottom), mSkin = mat(skin), mHair = mat(hair), mShoe = mat(0x2a2422);
     const g = new THREE.Group(), add = (m, p) => { m.castShadow = true; p.add(m); return m; };
@@ -371,6 +371,20 @@ export function crearEscena(host, { onParcela } = {}) {
     add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.19, 2), mSkin), head);
     const hr = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.205, 2), mHair), head); hr.position.set(-0.035, 0.05, 0); hr.scale.set(1, 0.92, 1.03);
     if (longHair) { const lh = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.32, 4, 8), mHair), head); lh.position.set(-0.1, -0.2, 0); lh.scale.set(0.7, 1, 1.1); }
+    // detalles distintivos de la ficha
+    if (detalles.includes('sombrero')) {
+      const straw = mat(0xd8b56a);
+      const brim = add(new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.025, 16), straw), head); brim.position.y = 0.13;
+      const crown = add(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.17, 12), straw), head); crown.position.y = 0.22;
+      const band = add(new THREE.Mesh(new THREE.CylinderGeometry(0.202, 0.202, 0.04, 12), mat(0x6b3a22)), head); band.position.y = 0.165;
+    }
+    if (detalles.includes('barba')) { const b = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), mHair), head); b.position.set(0.06, -0.1, 0); b.scale.set(0.9, 0.7, 1.05); }
+    if (detalles.includes('pecas')) {
+      const pm = mat(0xb5704a);
+      for (const [y, z] of [[0.0, 0.07], [0.02, 0.1], [-0.02, 0.09], [0.0, -0.07], [0.02, -0.1], [-0.02, -0.09]]) { const d = new THREE.Mesh(new THREE.SphereGeometry(0.012, 5, 4), pm); d.position.set(0.18, y, z); head.add(d); }
+    }
+    if (detalles.includes('diadema')) { const d = add(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.022, 6, 20, Math.PI), mat(0xf2c94c)), head); d.position.set(0.0, 0.06, 0); d.rotation.set(0, Math.PI / 2, 0); }
+    if (detalles.includes('pañuelo')) { const k = add(new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.2, 3), mat(0xc0392b)), head); k.position.set(-0.05, -0.2, 0); k.rotation.z = Math.PI; }
     const arms = [];
     for (const s of [-1, 1]) {
       const p = new THREE.Group(); p.position.set(0, 0.78, s * 0.3); upper.add(p);
@@ -398,6 +412,7 @@ export function crearEscena(host, { onParcela } = {}) {
     }
     const tail = new THREE.Group(); tail.position.set(-0.08, 0.15, 0); torso.add(tail);
     { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.42, 6), fur); m.position.y = 0.21; tail.add(m); }
+    if ((PERSONAJES.find((p) => p.tipo === 'perro')?.fisico?.detalles || []).includes('collar')) { const c = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.03, 6, 16), LEAF(0xc0392b)); c.position.set(0.6, 0.22, 0); c.rotation.y = Math.PI / 2; torso.add(c); }
     g.scale.setScalar(2.2);
     return { g, torso, head, legs, tail, kind: 'perro' };
   }
@@ -422,33 +437,25 @@ export function crearEscena(host, { onParcela } = {}) {
     return { g, torso, head, legs, tail, kind: 'gato' };
   }
 
-  // íconos sobre las cabezas
-  const ICONO = { regar: '💧', sembrar: '🌱', cosechar: '🧺', limpiar: '🧹', sacarAgua: '🪣', alimentar: '🍖', descansar: '☕', cazar: '🐭', dormir: '💤', comer: '🍖', beber: '💧' };
-  const iconTex = {};
-  function iconSprite() { const s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); s.scale.setScalar(1.1); s.visible = false; root.add(s); return s; }
-  function setIcon(sprite, emoji) {
-    if (!emoji) { sprite.visible = false; return; }
-    if (!iconTex[emoji]) {
-      const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
-      g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.arc(48, 48, 40, 0, Math.PI * 2); g.fill();
-      g.font = '50px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(emoji, 48, 52);
-      iconTex[emoji] = new THREE.CanvasTexture(c); iconTex[emoji].colorSpace = THREE.SRGBColorSpace;
-    }
-    sprite.material.map = iconTex[emoji]; sprite.material.needsUpdate = true; sprite.visible = true;
-  }
   // lápidas
   const tombMat = new THREE.MeshStandardMaterial({ color: 0x9d9a94, roughness: 0.9 });
   const TOMBS = { tomas: [-7.9, 16.0], lucia: [-7.9, 17.6], nube: [-6.6, 16.6], esmoquin: [-6.6, 18.1] };
 
-  const vis = {
-    tomas: makePerson({ top: 0x3d6fb6, bottom: 0x2b2d3a, skin: 0xe0b08a, hair: 0x3b2a1e, h: 1.5 }),
-    lucia: makePerson({ top: 0xd64b6b, bottom: 0xd64b6b, skin: 0xf1c3a0, hair: 0x5a2e1a, dress: true, longHair: true, h: 1.41 }),
-    nube: makeDog(), esmoquin: makeCat(),
+  const LOOK = {
+    tomas: { top: 0x3d6fb6, bottom: 0x2b2d3a, skin: 0xe0b08a, hair: 0x3b2a1e, h: 1.5 },
+    lucia: { top: 0xd64b6b, bottom: 0xd64b6b, skin: 0xf1c3a0, hair: 0x5a2e1a, dress: true, longHair: true, h: 1.41 },
   };
+  const vis = {};
+  for (const p of PERSONAJES) {
+    if (p.tipo === 'humano') vis[p.id] = makePerson({ ...(LOOK[p.id] || { top: 0x6a8f4e, bottom: 0x3a3a40, skin: 0xe0b08a, hair: 0x2b2018, h: 1.45 }), detalles: p.fisico?.detalles || [] });
+    else if (p.tipo === 'perro') vis[p.id] = makeDog();
+    else vis[p.id] = makeCat();
+    vis[p.id].ficha = p;
+  }
   for (const id in vis) {
     const v = vis[id];
-    Object.assign(v, { icon: iconSprite(), last: V(0, 0, 0), yaw: 0, moving: 0, ready: false });
-    const [tx, tz] = TOMBS[id];
+    Object.assign(v, { last: V(0, 0, 0), yaw: 0, moving: 0, ready: false });
+    const [tx, tz] = TOMBS[id] || [-6.6 + Object.keys(TOMBS).length * 0.1, 19.4];
     const tomb = new THREE.Mesh(new RoundedBoxGeometry(0.8, 1.0, 0.25, 2, 0.12), tombMat); tomb.position.set(tx, 0.5, tz); tomb.visible = false; tomb.castShadow = true; root.add(tomb);
     v.tomb = tomb;
   }
@@ -457,7 +464,6 @@ export function crearEscena(host, { onParcela } = {}) {
     if (!a.vivo) {
       const dias = (s.t - a.murio) / MIN_DIA;
       v.tomb.visible = dias > 0.5;
-      v.icon.visible = false;
       v.g.visible = dias <= 0.5;
       if (v.g.visible) { v.g.position.set(a.pos.x, 0.25, a.pos.z); v.g.rotation.set(0, v.yaw, v.kind === 'humano' ? -Math.PI / 2 : 0); v.g.rotation.x = v.kind === 'humano' ? 0 : Math.PI / 2; }
       return;
@@ -490,13 +496,20 @@ export function crearEscena(host, { onParcela } = {}) {
       const sit = tipo === 'descansar' ? 1 : 0;
       const bend = ['regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - 0.85) + Math.abs(Math.sin(ph)) * 0.04 * w;
+      // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
+      const zancada = v.ficha.fisico?.andar !== 'cadera';
+      const amp = (zancada ? 0.6 : 0.45) * (a.enfermo > 0 ? 0.6 : 1);
+      const viejo = Math.max(0, Math.min(1, (a.edad - 55) / 20));
       v.legs.forEach((l, j) => {
         const sw = Math.sin(ph + j * Math.PI) * w;
-        l.hip.rotation.z = sw * 0.5 + sit * Math.PI / 2 + bend * 0.25;
+        l.hip.rotation.z = sw * amp + sit * Math.PI / 2 + bend * 0.25;
         l.knee.rotation.z = -Math.max(0, -sw) * 0.7 - sit * Math.PI / 2 - bend * 0.45;
       });
       v.g.position.y -= bend * 0.12 * v.h;
-      v.upper.rotation.set(0, 0, -bend * (tipo === 'sembrar' || tipo === 'cosechar' || tipo === 'limpiar' ? 0.75 : 0.35));
+      if (!zancada) v.g.rotation.x = Math.sin(ph) * 0.06 * w;   // balanceo de cadera
+      const encorvado = viejo * 0.25 + (a.enfermo > 0 ? 0.15 : 0);
+      v.upper.rotation.set(zancada ? 0 : -Math.sin(ph) * 0.05 * w, zancada ? Math.sin(ph) * 0.14 * w : 0,
+        -bend * (tipo === 'sembrar' || tipo === 'cosechar' || tipo === 'limpiar' ? 0.75 : 0.35) - encorvado);
       const work = Math.sin(t * (tipo === 'sacarAgua' ? 3 : 6));
       v.arms.forEach((arm, j) => {
         const sw = -Math.sin(ph + j * Math.PI) * 0.45 * w;
@@ -518,10 +531,6 @@ export function crearEscena(host, { onParcela } = {}) {
       });
       v.tail.rotation.x = Math.sin(t * (v.kind === 'perro' ? 9 : 2.5)) * (sleep ? 0.05 : 0.35);
     }
-    // ícono de lo que hace
-    const emoji = trabajando && !(a.tipo !== 'humano' && T.tipo === 'siesta') ? ICONO[T.tipo] : null;
-    setIcon(v.icon, hidden ? null : emoji);
-    v.icon.position.set(a.pos.x, (v.kind === 'humano' ? v.h * 2.35 : 2.0) + Math.sin(t * 3) * 0.08, a.pos.z);
   }
 
   // ------------------------------------------------------------ selección de parcela con el mouse
