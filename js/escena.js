@@ -490,19 +490,19 @@ export function crearEscena(host, { onParcela } = {}) {
   arcoiris.visible = false;
 
   // ------------------------------------------------------------ animales de granja
-  function makeVaca() {
+  function makeVaca(toro) {
     const g = new THREE.Group(); root.add(g);
-    const blanco = LEAF(0xf2efe8), mancha = LEAF(0x3b2a20), rosa = LEAF(0xe7a3a0), cuerno = LEAF(0xe8dcc0);
+    const blanco = LEAF(toro ? 0x7a4a2a : 0xf2efe8), mancha = LEAF(toro ? 0x2a1a12 : 0x3b2a20), rosa = LEAF(toro ? 0x3a2a24 : 0xe7a3a0), cuerno = LEAF(0xe8dcc0);
     const body = new THREE.Mesh(new RoundedBoxGeometry(2.4, 1.1, 1.05, 2, 0.25), blanco); body.position.y = 1.35; body.castShadow = true; g.add(body);
     for (const [x, y, z, w, h] of [[0.4, 1.6, 0.5, 0.7, 0.5], [-0.6, 1.3, -0.5, 0.8, 0.6], [-0.2, 1.75, 0.0, 0.6, 0.12]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), mancha); m.position.set(x, y, z); g.add(m); }
     const head = new THREE.Group(); head.position.set(1.3, 1.65, 0); g.add(head);
     const hm = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.62, 0.55, 2, 0.12), blanco); hm.position.set(0.25, 0, 0); hm.castShadow = true; head.add(hm);
     const hocico = new THREE.Mesh(new RoundedBoxGeometry(0.28, 0.36, 0.5, 2, 0.08), rosa); hocico.position.set(0.62, -0.1, 0); head.add(hocico);
     for (const sz of [-1, 1]) {
-      const c = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 5), cuerno); c.position.set(0.1, 0.38, sz * 0.22); c.rotation.x = sz * -0.6; head.add(c);
+      const c = new THREE.Mesh(new THREE.ConeGeometry(toro ? 0.09 : 0.06, toro ? 0.5 : 0.28, 5), cuerno); c.position.set(0.1, 0.38, sz * (toro ? 0.3 : 0.22)); c.rotation.x = sz * (toro ? -1.1 : -0.6); head.add(c);
       const o = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.28), mancha); o.position.set(0.05, 0.18, sz * 0.36); head.add(o);
     }
-    const ubre = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), rosa); ubre.position.set(-0.6, 0.8, 0); g.add(ubre);
+    const ubre = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), rosa); ubre.position.set(-0.6, 0.8, 0); ubre.visible = !toro; g.add(ubre);
     const legs = [];
     for (const [x, sz] of [[0.9, -1], [0.9, 1], [-0.9, -1], [-0.9, 1]]) {
       const piv = new THREE.Group(); piv.position.set(x, 0.9, sz * 0.35); g.add(piv);
@@ -513,7 +513,7 @@ export function crearEscena(host, { onParcela } = {}) {
     const cola = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 4), blanco); cola.position.set(-1.25, 1.35, 0); cola.rotation.z = 0.25; g.add(cola);
     return { g, head, legs, cola, ubre, kind: 'vaca' };
   }
-  function makeOveja() {
+  function makeOveja(carnero) {
     const g = new THREE.Group(); root.add(g);
     const lanaM = LEAF(0xf4f1ea), cara = LEAF(0x3a3632);
     const lanaG = new THREE.Group(); lanaG.position.y = 0.95; g.add(lanaG);
@@ -522,6 +522,7 @@ export function crearEscena(host, { onParcela } = {}) {
     const head = new THREE.Group(); head.position.set(0.72, 1.1, 0); g.add(head);
     const hm = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.38, 0.32, 2, 0.1), cara); hm.position.x = 0.15; head.add(hm);
     for (const sz of [-1, 1]) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.22), cara); o.position.set(0.05, 0.12, sz * 0.24); o.rotation.x = sz * 0.5; head.add(o); }
+    if (carnero) for (const sz of [-1, 1]) { const c = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.05, 6, 12, Math.PI * 1.6), LEAF(0xcdb68a)); c.position.set(0.02, 0.1, sz * 0.2); c.rotation.set(0, sz > 0 ? 0 : Math.PI, 0.3); head.add(c); }
     const legs = [];
     for (const [x, sz] of [[0.4, -1], [0.4, 1], [-0.4, -1], [-0.4, 1]]) {
       const piv = new THREE.Group(); piv.position.set(x, 0.65, sz * 0.18); g.add(piv);
@@ -543,18 +544,34 @@ export function crearEscena(host, { onParcela } = {}) {
     g.scale.setScalar(gallo ? 1.25 : 1.05);
     return { g, head, legs, kind: gallo ? 'gallo' : 'gallina' };
   }
+  function makePollito() {
+    const g = new THREE.Group(); root.add(g);
+    const amarillo = LEAF(0xffd84a), pico = LEAF(0xf28c28);
+    const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), amarillo); body.position.y = 0.3; body.castShadow = true; g.add(body);
+    const head = new THREE.Group(); head.position.set(0.16, 0.48, 0); g.add(head);
+    head.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), amarillo));
+    const b = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.1, 4), pico); b.rotation.z = -Math.PI / 2; b.position.set(0.14, -0.01, 0); head.add(b);
+    const legs = [];
+    for (const sz of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(0, 0.16, sz * 0.07); g.add(piv); const l = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.16, 4), pico); l.position.y = -0.08; piv.add(l); legs.push(piv); }
+    return { g, head, legs, kind: 'pollito' };
+  }
   const COLOR_AVE = [0xf2efe8, 0xb5652d, 0xe9d7a6, 0x8a5a3a];
   const granjaVis = {};
-  GANADO.forEach((d, i) => {
-    const v = d.tipo === 'vaca' ? makeVaca() : d.tipo === 'oveja' ? makeOveja() : makeAve(d.tipo === 'gallo', d.tipo === 'gallo' ? 0xc8442a : COLOR_AVE[i % COLOR_AVE.length]);
-    Object.assign(v, { vp: null, last: V(0, 0, 0), yaw: rand() * 6, moving: 0, walkPh: rand() * 6 });
-    granjaVis[d.id] = v;
-  });
+  let colorAve = 0;
+  function crearVisGanado(a) {
+    const v = a.tipo === 'vaca' ? makeVaca(a.sexo === 'm') : a.tipo === 'oveja' ? makeOveja(a.sexo === 'm') : a.tipo === 'pollito' ? makePollito()
+      : makeAve(a.tipo === 'gallo', a.tipo === 'gallo' ? 0xc8442a : COLOR_AVE[colorAve++ % COLOR_AVE.length]);
+    Object.assign(v, { vp: null, last: V(0, 0, 0), yaw: rand() * 6, moving: 0, walkPh: rand() * 6, tipoVis: a.tipo, base: v.g.scale.x });
+    return v;
+  }
   function poseGanado(s, t, dt) {
     for (const a of s.ganado) {
-      const v = granjaVis[a.id]; if (!v) continue;
-      const aves = v.kind === 'gallina' || v.kind === 'gallo';
-      const enCasa = aves && a.refugio && Math.hypot(a.pos.x - LUGAR.gallinero.x, a.pos.z - LUGAR.gallinero.z) < 1.8;
+      let v = granjaVis[a.id];
+      if (v && v.tipoVis !== a.tipo) { root.remove(v.g); const vp = v.vp; v = granjaVis[a.id] = crearVisGanado(a); v.vp = vp; }   // el pollito ya es gallina o gallo
+      if (!v) v = granjaVis[a.id] = crearVisGanado(a);
+      const aves = v.kind === 'gallina' || v.kind === 'gallo' || v.kind === 'pollito';
+      v.g.scale.setScalar(v.base * (a.crec < 1 ? (aves ? 0.75 : 0.45) + (aves ? 0.25 : 0.55) * a.crec : 1));
+      const enCasa = aves && (a.refugio || a.empolla) && Math.hypot(a.pos.x - LUGAR.gallinero.x, a.pos.z - LUGAR.gallinero.z) < 1.8;
       v.g.visible = a.vivo && !enCasa;
       if (!v.g.visible) continue;
       if (!v.vp) v.vp = V(a.pos.x, 0, a.pos.z);
@@ -569,10 +586,11 @@ export function crearEscena(host, { onParcela } = {}) {
       v.g.position.set(v.vp.x, aves && v.moving > 0.3 ? Math.abs(Math.sin(v.walkPh)) * 0.05 : 0, v.vp.z);
       v.g.rotation.set(0, v.yaw, 0);
       v.legs.forEach((l, j) => { l.rotation.z = Math.sin(v.walkPh + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI / 2 : 0)) * 0.45 * v.moving; });
+      if (a.crec < 1 && !aves && !moving) v.g.position.y += Math.max(0, Math.sin(t * 3 + a.pos.x)) * 0.06;   // las crías brincan
       const come = a.comiendo && !moving;
       if (aves) v.head.rotation.z = come ? -0.9 + Math.max(0, Math.sin(t * 9 + a.pos.x)) * 0.6 : Math.sin(t * 2 + a.pos.z) * 0.15;
       else v.head.rotation.z = come ? -0.75 + Math.sin(t * 1.5) * 0.08 : Math.sin(t * 0.7 + a.pos.x) * 0.1;
-      if (v.kind === 'vaca') { v.ubre.scale.setScalar(0.7 + Math.min(1, a.ubre / 12) * 0.7); v.cola.rotation.x = Math.sin(t * 2 + a.pos.z) * 0.3; }
+      if (v.kind === 'vaca' && a.sexo !== 'm') { v.ubre.scale.setScalar(0.7 + Math.min(1, a.ubre / 12) * 0.7); v.cola.rotation.x = Math.sin(t * 2 + a.pos.z) * 0.3; }
       if (v.kind === 'oveja') { const k2 = Math.min(1, a.lana / 60); v.lanaG.scale.setScalar(0.45 + 0.6 * k2); v.lanaG.visible = a.lana > 6; }
     }
   }

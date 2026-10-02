@@ -26,7 +26,7 @@
 // FÍSICO: andar 'zancada' o 'cadera'; detalles 'sombrero' 'barba' 'pecas' 'diadema' 'collar' 'pañuelo'
 // =====================================================================
 
-export const CONFIG = '2026-10-03a';   // cambiarlo reinicia la granja con las fichas nuevas
+export const CONFIG = '2026-10-03b';   // cambiarlo reinicia la granja con las fichas nuevas
 
 export const RASGOS = {
   fuerte: { nombre: 'Fuerte', desc: 'Saca 50 % más agua del pozo.', mod: { pozo: 1.5 } },
@@ -66,16 +66,26 @@ export const PERSONAJES = [
   },
 ];
 
-// Animales de granja: viven en el corral (vaca y ovejas) y en el gallinero (gallinas y gallo).
+// Animales de granja: viven en el corral (vacas y ovejas) y en el gallinero (gallinas y gallo).
 //   vaca → leche cada mañana (hay que ordeñarla) · oveja → lana (se esquila en primavera/verano)
 //   gallina → huevos en el nido · gallo → canta al amanecer
+//   sexo 'h' / 'm': con macho y hembra adultos, se reproducen (terneros, corderos, pollitos)
 export const GANADO = [
-  { id: 'canela', tipo: 'vaca', nombre: 'Canela' },
-  { id: 'algodon', tipo: 'oveja', nombre: 'Algodón' },
-  { id: 'nieve', tipo: 'oveja', nombre: 'Nieve' },
-  { id: 'pinta', tipo: 'gallina', nombre: 'Pinta' },
-  { id: 'rubia', tipo: 'gallina', nombre: 'Rubia' },
-  { id: 'copo', tipo: 'gallina', nombre: 'Copo' },
-  { id: 'clueca', tipo: 'gallina', nombre: 'Clueca' },
-  { id: 'kiko', tipo: 'gallo', nombre: 'Kiko' },
+  { id: 'canela', tipo: 'vaca', sexo: 'h', nombre: 'Canela' },
+  { id: 'tronco', tipo: 'vaca', sexo: 'm', nombre: 'Tronco' },
+  { id: 'algodon', tipo: 'oveja', sexo: 'h', nombre: 'Algodón' },
+  { id: 'nieve', tipo: 'oveja', sexo: 'h', nombre: 'Nieve' },
+  { id: 'copito', tipo: 'oveja', sexo: 'm', nombre: 'Copito' },
+  { id: 'pinta', tipo: 'gallina', sexo: 'h', nombre: 'Pinta' },
+  { id: 'rubia', tipo: 'gallina', sexo: 'h', nombre: 'Rubia' },
+  { id: 'copo', tipo: 'gallina', sexo: 'h', nombre: 'Copo' },
+  { id: 'clueca', tipo: 'gallina', sexo: 'h', nombre: 'Clueca' },
+  { id: 'kiko', tipo: 'gallo', sexo: 'm', nombre: 'Kiko' },
 ];
+
+// nombres para las crías que vayan naciendo
+export const NOMBRES_CRIAS = {
+  vaca: { h: ['Luna', 'Manchas', 'Perla', 'Rosita', 'Nata', 'Toffee', 'Galleta', 'Miel'], m: ['Bravo', 'Bruno', 'Tizón', 'Roble', 'Sansón'] },
+  oveja: { h: ['Lanita', 'Pompón', 'Bolita', 'Nubecita', 'Algodina', 'Borla'], m: ['Rizos', 'Copete', 'Merino', 'Ovillo'] },
+  gallina: { h: ['Pía', 'Ramona', 'Paca', 'Kika', 'Lola', 'Pepa', 'Chispa', 'Canela Chica', 'Plumita'], m: ['Pancho', 'Rojo', 'Kiko Jr', 'Espolón', 'Gallardo'] },
+};

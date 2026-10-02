@@ -22,6 +22,11 @@ Bloque de 44×44 dentro de un orbe de vidrio:
   - las ovejas se esquilan en primavera y verano (lana), y la lana se teje en **abrigos** (sin abrigo, el invierno cansa más y enferma);
   - en verano y otoño se siega el pasto y se guarda **heno** para el invierno, cuando el pasto no crece;
   - la leche y los huevos se comen junto con las verduras, pero se echan a perder rápido.
+- **Reproducción:** hay machos y hembras (toro **Tronco**, carnero **Copito**, gallo **Kiko**).
+  - **Vacas y ovejas:** paren en primavera; las ovejas pueden tener gemelos.
+  - **Gallinas:** se ponen *cluecas* en primavera y verano y empollan 21 días; nacen de 1 a 3 pollitos.
+  - **Crías:** nacen con nombre propio, siguen a su madre, brincan y crecen a la vista. El ternero tarda un año, el cordero medio año y el pollito un mes; al crecer, el pollito se vuelve gallina o gallo.
+  - **Límite de espacio:** el corral admite 9 animales grandes y el gallinero 14 aves. A más animales, más heno guardan para el invierno.
 - **Reacciones al entorno:**
   - **lluvia:** todos se refugian. La pareja entra a la casa a leer, tejer o conversar, el perro va a su caseta, el gato a la casa, el ganado al establo y las gallinas al gallinero;
   - **arcoíris** al escampar, que salen a contemplar;

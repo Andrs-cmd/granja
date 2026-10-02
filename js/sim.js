@@ -6,7 +6,7 @@
 // El estado es JSON serializable (se guarda en localStorage).
 // Tiempo en minutos de juego, con decimales: el motor avanza de forma continua.
 // =====================================================================
-import { PERSONAJES, RASGOS, CONFIG, GANADO } from './personajes.js';
+import { PERSONAJES, RASGOS, CONFIG, GANADO, NOMBRES_CRIAS } from './personajes.js';
 export { RASGOS, PERSONAJES, GANADO };
 
 export const MIN_DIA = 1440;
@@ -190,9 +190,13 @@ function nuevoAgente(p) {
   };
 }
 const ZONA = (tipo) => (tipo === 'vaca' || tipo === 'oveja' ? CORRAL : GALLINERO);
+export const esAve = (tipo) => tipo === 'gallina' || tipo === 'gallo' || tipo === 'pollito';
+const CRECER_DIAS = { vaca: 112, oveja: 56, pollito: 28 };
+const CUPO = { corral: 9, gallinero: 14 };
 function puntoEn(s, R, margen = 1.2) { return { x: R.x0 + margen + rng(s) * (R.x1 - R.x0 - 2 * margen), z: R.z0 + margen + rng(s) * (R.z1 - R.z0 - 2 * margen) }; }
 function nuevoAnimalGranja(s, g) {
-  return { id: g.id, tipo: g.tipo, nombre: g.nombre, vivo: true, pos: puntoEn(s, ZONA(g.tipo), 2), dest: null, espera: 0,
+  return { id: g.id, tipo: g.tipo, sexo: g.sexo || (g.tipo === 'gallo' ? 'm' : 'h'), crec: 1, madre: null, ultimoParto: -1, empolla: 0,
+    nombre: g.nombre, vivo: true, pos: puntoEn(s, ZONA(g.tipo), 2), dest: null, espera: 0,
     hambre: 80, sed: 80, salud: 100, ubre: g.tipo === 'vaca' ? 4 : 0, lana: g.tipo === 'oveja' ? 40 : 0, edad: { vaca: 4, oveja: 2, gallina: 1, gallo: 1 }[g.tipo] ?? 2, comiendo: false, refugio: false, quieta: 0 };
 }
 export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion = 1 } = {}) {
@@ -201,7 +205,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     t: inicio, t0: inicio,
     clima: { lluvia: false, lluviaHoy: null, arcoiris: 0 },
     rec: { potable: 30, cruda: 120, raciones: 45, comedero: 2, bebedero: 6, semillas: { lechuga: 8, papa: 6, frijol: 6, maiz: 4 },
-      leche: 0, huevos: 4, lana: 2, heno: 70, abrigos: 2, grano: 2, pesebre: 6, bebederoGanado: 30, nido: 0 },
+      leche: 0, huevos: 4, lana: 2, heno: 150, abrigos: 2, grano: 2, pesebre: 6, bebederoGanado: 30, nido: 0 },
     granja: { pasto: 80 },
     casa: { limpieza: 80 },
     pareja: { afinidad: 70, discusiones: 0, charlas: 0, intimidad: 0, ultimaCena: -1, ultimaIntimidad: -1, recetaNueva: false },
@@ -209,7 +213,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
-    diario: [], stats: { cosechas: 0, raciones: 0, litrosPozo: 0, litrosLluvia: 0, leche: 0, huevos: 0, lana: 0 },
+    diario: [], stats: { cosechas: 0, raciones: 0, litrosPozo: 0, litrosLluvia: 0, leche: 0, huevos: 0, lana: 0, nacimientos: 0 }, sigCria: 1,
     escasez: false, sequia: 0, fin: null,
   };
   s.ganado = GANADO.map((g) => nuevoAnimalGranja(s, g));
@@ -217,7 +221,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
   Object.assign(s.parcelas[3], { cultivo: 'lechuga', crec: 2, estado: 'creciendo', agua: 80 });
   Object.assign(s.parcelas[1], { cultivo: 'papa', crec: 4, estado: 'creciendo', agua: 80 });
   const nombres = s.agentes.map((a) => a.nombre);
-  log(s, `${generacion > 1 ? `Generación ${generacion}. ` : ''}${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)} empiezan su vida en la granja, con una vaca, dos ovejas y un gallinero.`, 'info');
+  log(s, `${generacion > 1 ? `Generación ${generacion}. ` : ''}${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)} empiezan su vida en la granja, con vacas, ovejas y un gallinero.`, 'info');
   decidirClima(s);
   return s;
 }
@@ -305,7 +309,7 @@ function nuevoDia(s) {
 }
 
 // ---------------------------------------------------------------- eventos de la naturaleza y de la vida
-const LONGEVIDAD = { humano: 70, perro: 13, gato: 16, vaca: 18, oveja: 12, gallina: 8, gallo: 8 };
+const LONGEVIDAD = { humano: 70, perro: 13, gato: 16, vaca: 18, oveja: 12, gallina: 8, gallo: 8, pollito: 8 };
 function perdidaDeCosecha(s, texto) {
   for (const a of humanos(s)) {
     if (P5(a, 'neuroticismo') > 0.5 && rng(s) < 0.6) { recuerdo(s, a, 'Lloró por la cosecha perdida', -14, 24); log(s, `${a.nombre} se puso a llorar: ${texto}.`, 'malo'); }
@@ -346,6 +350,7 @@ function eventos(s) {
     const L = LONGEVIDAD[a.tipo], sobra = a.edad - L * 0.85;
     if (sobra > 0 && rng(s) < 0.002 + sobra * 0.004) morir(s, a, 'de vejez');
   }
+  reproduccion(s);
   for (const g of s.ganado) {
     if (!g.vivo) continue;
     g.edad += 1 / DIAS_ANIO;
@@ -353,6 +358,63 @@ function eventos(s) {
     if (sobra > 0 && rng(s) < 0.002 + sobra * 0.004) morirAnimal(s, g, 'de vejez');
   }
   s.pareja.afinidad = Math.max(0, s.pareja.afinidad - 2.2);
+}
+
+// ---------------------------------------------------------------- reproducción del ganado
+const adulto = (g) => g.vivo && g.crec >= 1;
+const enCorral = (s) => s.ganado.filter((g) => g.vivo && (g.tipo === 'vaca' || g.tipo === 'oveja')).length;
+const enGallinero = (s) => s.ganado.filter((g) => g.vivo && esAve(g.tipo)).length;
+function nombreCria(s, tipo, sexo) {
+  const lista = NOMBRES_CRIAS[tipo]?.[sexo] || ['Cría'];
+  const usados = new Set(s.ganado.map((g) => g.nombre));
+  const libre = lista.find((n) => !usados.has(n));
+  return libre || `${lista[Math.floor(rng(s) * lista.length)]} ${s.sigCria}`;
+}
+function nacer(s, tipo, madre) {
+  const sexo = rng(s) < 0.5 ? 'h' : 'm';
+  const tipoCria = esAve(tipo) ? 'pollito' : tipo;
+  const nombre = nombreCria(s, esAve(tipo) ? 'gallina' : tipo, sexo);
+  const g = { id: `cria${s.sigCria++}`, tipo: tipoCria, sexo, crec: 0, madre: madre.id, ultimoParto: -1, empolla: 0, nombre, vivo: true,
+    pos: { x: madre.pos.x + (rng(s) - 0.5) * 1.2, z: madre.pos.z + (rng(s) - 0.5) * 1.2 }, dest: null, espera: 0,
+    hambre: 85, sed: 85, salud: 100, ubre: 0, lana: tipo === 'oveja' ? 10 : 0, edad: 0, comiendo: false, refugio: false, quieta: 0 };
+  s.ganado.push(g); s.stats.nacimientos += 1;
+  return g;
+}
+function reproduccion(s) {
+  const e = estacion(s), dE = dia(s) % DIAS_ESTACION, año = anio(s);
+  const macho = (tipo) => s.ganado.some((g) => adulto(g) && g.tipo === tipo && g.sexo === 'm');
+  // partos de vacas y ovejas en primavera
+  if (e === 0 && dE >= 4 && dE <= 22) {
+    for (const g of s.ganado.filter((x) => adulto(x) && x.sexo === 'h' && (x.tipo === 'vaca' || x.tipo === 'oveja'))) {
+      if (g.ultimoParto === año || !macho(g.tipo) || enCorral(s) >= CUPO.corral) continue;
+      if (rng(s) > (g.tipo === 'vaca' ? 0.05 : 0.07)) continue;
+      g.ultimoParto = año;
+      const n = g.tipo === 'oveja' && rng(s) < 0.3 && enCorral(s) + 2 <= CUPO.corral ? 2 : 1;
+      const crias = Array.from({ length: n }, () => nacer(s, g.tipo, g));
+      const que = g.tipo === 'vaca' ? (n > 1 ? 'terneros' : 'un ternero') : (n > 1 ? 'dos corderos' : 'un cordero');
+      log(s, `¡${g.nombre} tuvo ${que}! ${crias.map((c) => `${c.nombre} (${c.sexo === 'h' ? 'hembra' : 'macho'})`).join(' y ')}. 🍼`, 'logro');
+      humanos(s).forEach((a) => recuerdo(s, a, `Nació ${crias[0].nombre}`, 7, 24));
+    }
+  }
+  // gallinas cluecas: empollan huevos del nido en primavera y verano
+  for (const g of s.ganado.filter((x) => adulto(x) && x.tipo === 'gallina')) {
+    if (g.empolla > 0) {
+      if (dia(s) >= g.empolla) {
+        g.empolla = 0;
+        const n = Math.min(1 + Math.floor(rng(s) * 3), CUPO.gallinero - enGallinero(s));
+        if (n > 0) {
+          const crias = Array.from({ length: n }, () => nacer(s, 'gallina', g));
+          log(s, `¡Nacieron ${n} pollito${n > 1 ? 's' : ''} de ${g.nombre}: ${crias.map((c) => c.nombre).join(', ')}! 🐣`, 'logro');
+          humanos(s).forEach((a) => recuerdo(s, a, 'Nacieron pollitos', 6, 24));
+        } else log(s, `Los huevos que empollaba ${g.nombre} no prosperaron.`, 'info');
+      }
+      continue;
+    }
+    if ((e === 0 || e === 1) && macho('gallo') && enGallinero(s) < CUPO.gallinero - 1 && rng(s) < 0.02) {
+      g.empolla = dia(s) + 21;   // pone y empolla sus propios huevos
+      log(s, `${g.nombre} se puso clueca: empollará sus huevos durante 21 días.`, 'info');
+    }
+  }
 }
 
 // ---------------------------------------------------------------- huerto
@@ -396,15 +458,24 @@ function elegirCultivo(s, a) {
 }
 
 // ---------------------------------------------------------------- animales de granja (vaca, ovejas, gallinas, gallo)
-const VEL = { humano: 1.8, perro: 2.6, gato: 2.2, vaca: 0.55, oveja: 0.7, gallina: 0.9, gallo: 0.9 };   // unidades por minuto de juego
-const HAMBRE_G = { vaca: 3.2, oveja: 2.6, gallina: 2.4, gallo: 2.4 };
+const VEL = { humano: 1.8, perro: 2.6, gato: 2.2, vaca: 0.55, oveja: 0.7, gallina: 0.9, gallo: 0.9, pollito: 0.75 };   // unidades por minuto de juego
+const HAMBRE_G = { vaca: 3.2, oveja: 2.6, gallina: 2.4, gallo: 2.4, pollito: 1.6 };
 function actualizarGranja(s, d) {
   const e = estacion(s), G = s.granja, R = s.rec, k = d / 60, h = hora(s);
-  if (e !== 3) G.pasto = Math.min(100, G.pasto + ((e === 2 ? 16 : 24) / MIN_DIA) * d * (s.sequia > 0 ? 0.3 : 1));
+  if (e !== 3) G.pasto = Math.min(100, G.pasto + ((e === 2 ? 24 : 36) / MIN_DIA) * d * (s.sequia > 0 ? 0.3 : 1));
   const noche = h >= 20.5 || h < 5.5;
   for (const g of s.ganado) {
     if (!g.vivo) continue;
-    const Z = ZONA(g.tipo), aves = g.tipo === 'gallina' || g.tipo === 'gallo';
+    const Z = ZONA(g.tipo), aves = esAve(g.tipo);
+    // crecer
+    if (g.crec < 1) {
+      g.crec = Math.min(1, g.crec + d / ((CRECER_DIAS[g.tipo] || 56) * MIN_DIA));
+      if (g.crec >= 1) {
+        if (g.tipo === 'pollito') g.tipo = g.sexo === 'm' ? 'gallo' : 'gallina';
+        const que = { vaca: g.sexo === 'm' ? 'un toro' : 'una vaca', oveja: g.sexo === 'm' ? 'un carnero' : 'una oveja', gallina: 'una gallina', gallo: 'un gallo' }[g.tipo];
+        log(s, `${g.nombre} ya creció: ahora es ${que} adulto${g.sexo === 'h' ? 'a' : ''}.`, 'info');
+      }
+    }
     g.hambre = Math.max(0, g.hambre - HAMBRE_G[g.tipo] * k);
     g.sed = Math.max(0, g.sed - 3.5 * k);
     // refugio: de noche o con lluvia se meten al establo / gallinero
@@ -413,7 +484,11 @@ function actualizarGranja(s, d) {
       g.refugio = true; g.comiendo = false;
       const base = aves ? LUGAR.gallinero : LUGAR.establo;
       g.dest = { x: base.x + (rng(s) - 0.5) * (aves ? 2.2 : 3.2), z: base.z + (rng(s) - 0.5) * 2.0 };
-    } else if (!debeRefugio && g.refugio) { g.refugio = false; g.dest = null; }
+    } else if (!debeRefugio && g.refugio && !g.empolla) { g.refugio = false; g.dest = null; }
+    if (g.empolla && !g.refugio) { g.refugio = true; g.dest = { x: LUGAR.gallinero.x + (rng(s) - 0.5) * 1.6, z: LUGAR.gallinero.z }; }   // la clueca no sale del nido
+    // las crías siguen a su madre
+    const madre = g.crec < 1 && g.madre ? s.ganado.find((m) => m.id === g.madre && m.vivo) : null;
+    if (madre && !g.refugio && Math.hypot(madre.pos.x - g.pos.x, madre.pos.z - g.pos.z) > 2.2) g.dest = { x: madre.pos.x + (rng(s) - 0.5) * 1.4, z: madre.pos.z + (rng(s) - 0.5) * 1.4 };
     if (g.quieta > s.t) { g.comiendo = false; continue; }            // la están ordeñando o esquilando
     // comer y beber
     g.comiendo = false;
@@ -428,11 +503,11 @@ function actualizarGranja(s, d) {
         if (e !== 3) { g.hambre = Math.min(100, g.hambre + 18 * k); g.comiendo = !g.refugio; }   // picotean bichos
         else if (R.grano > 0.02) { g.hambre = Math.min(100, g.hambre + 30 * k); R.grano = Math.max(0, R.grano - 0.004 * 30 * k); g.comiendo = true; }
       } else if (!g.refugio && G.pasto > 6 && (e !== 3 || R.pesebre < 0.5)) {   // en invierno el pasto no crece, pero lo que queda se come
-        g.hambre = Math.min(100, g.hambre + 26 * k); G.pasto = Math.max(0, G.pasto - (g.tipo === 'vaca' ? 0.1 : 0.05) * 26 * k); g.comiendo = true;
+        g.hambre = Math.min(100, g.hambre + 26 * k); G.pasto = Math.max(0, G.pasto - (g.tipo === 'vaca' ? 0.06 : 0.03) * (g.crec < 1 ? 0.5 : 1) * 26 * k); g.comiendo = true;
       } else if (R.pesebre > 0.05) {
         const p = LUGAR.pesebre;
         if (Math.hypot(g.pos.x - p.x, g.pos.z - p.z) > 1.4) g.dest = { x: p.x - 0.9, z: p.z + (rng(s) - 0.5) * 1.6 };
-        else { g.hambre = Math.min(100, g.hambre + 40 * k); R.pesebre = Math.max(0, R.pesebre - (g.tipo === 'vaca' ? 0.04 : 0.02) * 40 * k); g.dest = null; g.comiendo = true; }
+        else { g.hambre = Math.min(100, g.hambre + 40 * k); R.pesebre = Math.max(0, R.pesebre - (g.tipo === 'vaca' ? 0.03 : 0.015) * (g.crec < 1 ? 0.5 : 1) * 40 * k); g.dest = null; g.comiendo = true; }
       }
     }
     // pasear por su zona
@@ -444,9 +519,9 @@ function actualizarGranja(s, d) {
     }
     // producción
     const bien = g.hambre > 35 && g.sed > 35;
-    if (g.tipo === 'vaca' && bien) g.ubre = Math.min(14, g.ubre + (9 / MIN_DIA) * d);
+    if (g.tipo === 'vaca' && g.sexo === 'h' && g.crec >= 1 && bien) g.ubre = Math.min(14, g.ubre + (9 / MIN_DIA) * d);
     if (g.tipo === 'oveja' && bien) g.lana = Math.min(100, g.lana + (1.2 / MIN_DIA) * d);
-    if (g.tipo === 'gallina' && bien) R.nido = Math.min(30, R.nido + ((e === 3 ? 0.35 : 0.8) / MIN_DIA) * d);
+    if (g.tipo === 'gallina' && g.crec >= 1 && !g.empolla && bien) R.nido = Math.min(30, R.nido + ((e === 3 ? 0.35 : 0.8) / MIN_DIA) * d);
     if (g.tipo === 'gallo' && h >= 5.5 && h < 5.5 + d / 60 + 0.001) {
       efecto(s, 'kikiriki', g.pos.x, g.pos.z);
       if (dia(s) % 14 === 0) log(s, `${g.nombre} cantó al amanecer. 🐓`, 'info');
@@ -522,7 +597,7 @@ const DURACION = {
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
 };
 const OCIOS = ['descansar', 'leer', 'tallar', 'contemplar', 'siesta', 'tejer', 'nadar'];
-const vaca = (s) => s.ganado.find((g) => g.vivo && g.tipo === 'vaca');
+const vaca = (s) => s.ganado.filter((g) => g.vivo && g.tipo === 'vaca' && g.sexo === 'h' && g.crec >= 1).sort((a, b) => b.ubre - a.ubre)[0];
 function crearTarea(s, a, tipo, extra = {}) {
   const t = { tipo, fase: 'camino', trabajo: DURACION[tipo] ?? 30, ...extra };
   const izq = a.id === s.agentes[0].id;
@@ -601,18 +676,20 @@ function elegirTarea(s, a) {
   const v = vaca(s);
   if (v && !yaHace('ordenar') && v.ubre >= (h >= 5 && h < 11 ? 6 : 12)) opciones.push([75, 'ordenar']);
   const animalesGranja = s.ganado.some((g) => g.vivo);
-  const hambreGranja = s.ganado.some((g) => g.vivo && g.hambre < 30 && g.tipo !== 'gallina' && g.tipo !== 'gallo');
-  if (animalesGranja && !yaHace('alimentarGanado') && ((R.pesebre < 3 && (e === 3 || s.granja.pasto < 25 || hambreGranja) && (R.heno >= 2 || (hambreGranja && R.raciones > 12))) || (R.bebederoGanado < 15 && R.cruda >= 20) || (e === 3 && R.grano < 0.5 && R.raciones >= 1)))
+  const reservaHumana = 30 + humanos(s).length * 28;   // las personas primero: comida para ~20 días
+  const hambreGranja = s.ganado.some((g) => g.vivo && g.hambre < 30 && !esAve(g.tipo));
+  if (animalesGranja && !yaHace('alimentarGanado') && ((R.pesebre < 3 && (e === 3 || s.granja.pasto < 25 || hambreGranja) && (R.heno >= 2 || (hambreGranja && R.raciones > reservaHumana))) || (R.bebederoGanado < 15 && R.cruda >= 20) || (e === 3 && R.grano < 0.5 && R.raciones >= 1)))
     opciones.push([hambreGranja ? 92 : 72, 'alimentarGanado']);
   { const c = elegirCultivo(s, a); const p = c && s.parcelas.find((p) => p.estado === 'vacia' && libre(p)); if (p) opciones.push([70, 'sembrar', { parcela: p.id, cultivo: c }]); }
   if ((R.comedero < 0.5 || R.bebedero < 2) && (comidaTotal(s) >= 1 || R.cruda >= 3) && !yaHace('alimentar') && s.agentes.some((x) => x.tipo !== 'humano' && x.vivo)) opciones.push([65, 'alimentar']);
   { const p = s.parcelas.find((p) => p.estado === 'muerta' && libre(p)); if (p) opciones.push([60, 'limpiar', { parcela: p.id }]); }
   if (R.nido >= 2 && !yaHace('recogerHuevos')) opciones.push([55, 'recogerHuevos']);
-  { const o = s.ganado.find((g) => g.vivo && g.tipo === 'oveja' && g.lana >= 70); if (o && (e === 0 || e === 1) && !yaHace('esquilar')) opciones.push([52, 'esquilar', { oveja: o.id }]); }
+  { const o = s.ganado.find((g) => g.vivo && g.tipo === 'oveja' && g.crec >= 1 && g.lana >= 70); if (o && (e === 0 || e === 1) && !yaHace('esquilar')) opciones.push([52, 'esquilar', { oveja: o.id }]); }
   if (s.casa.limpieza < 25 + resp * 35 && !yaHace('limpiarCasa')) opciones.push([45 + resp * 15, 'limpiarCasa']);
   if (R.lana >= 4 && R.abrigos < humanos(s).length + (e >= 2 ? 0 : -1) && !yaHace('tejer')) opciones.push([e >= 2 ? 48 : 30, 'tejer']);
   if (R.potable < consumoAgua(s) * (3 + resp * 4) && R.cruda >= 30 && !yaHace('filtrar')) opciones.push([40, 'filtrar']);
-  if (s.granja.pasto >= 50 && (e === 1 || e === 2) && R.heno < 220 && !yaHace('segar')) opciones.push([R.heno < 160 && e === 2 ? 66 : 40, 'segar']);
+  const henoMeta = 50 + 32 * enCorral(s);
+  if (s.granja.pasto >= 50 && (e === 1 || e === 2) && R.heno < henoMeta && !yaHace('segar')) opciones.push([R.heno < henoMeta * 0.75 && e === 2 ? 66 : 40, 'segar']);
   if (R.cruda < 150 + resp * 200 && !yaHace('sacarAgua') && e !== 0) opciones.push([35, 'sacarAgua']);
   const trabajoValido = opciones.filter((o) => !llueve || ['filtrar', 'limpiarCasa', 'tejer'].includes(o[1]) || o[0] >= 92);
 
@@ -876,7 +953,7 @@ function completar(s, a, T) {
     case 'segar': { const h = Math.min(16, s.granja.pasto / 4); R.heno += h; s.granja.pasto -= h * 1.3; log(s, `${a.nombre} segó pasto: +${Math.round(h)} de heno para el invierno.`, 'info'); break; }
     case 'alimentarGanado':
       if (R.heno >= 1 && R.pesebre < 12) { const c = Math.min(12 - R.pesebre, R.heno); R.heno -= c; R.pesebre += c; }
-      else if (R.heno < 1 && R.raciones > 12 && R.pesebre < 4) { R.raciones -= 4; R.pesebre += 8; log(s, `Se acabó el heno: ${a.nombre} les dio verduras de la despensa a los animales.`, 'aviso'); }
+      else if (R.heno < 1 && R.raciones > 30 + humanos(s).length * 28 && R.pesebre < 4) { R.raciones -= 4; R.pesebre += 8; log(s, `Se acabó el heno: ${a.nombre} les dio verduras de la despensa a los animales.`, 'aviso'); }
       if (R.cruda >= 5 && R.bebederoGanado < 50) { const l = Math.min(50 - R.bebederoGanado, R.cruda * 0.5); R.cruda -= l; R.bebederoGanado += l; }
       if (estacion(s) === 3 && R.raciones >= 1 && R.grano < 2) { R.raciones -= 1; R.grano += 2; }
       break;
