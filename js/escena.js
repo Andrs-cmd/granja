@@ -5,9 +5,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, caraAnimo } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -24,6 +25,11 @@ export function crearEscena(host, { onParcela } = {}) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   host.appendChild(renderer.domElement);
+  // capa de etiquetas flotantes (datos) encima del lienzo
+  const labelRenderer = new CSS2DRenderer();
+  Object.assign(labelRenderer.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+  labelRenderer.domElement.className = 'etiquetas';
+  host.appendChild(labelRenderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 500);
@@ -336,6 +342,17 @@ export function crearEscena(host, { onParcela } = {}) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); root.add(g);
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.35, 1), LEAFS[Math.floor(rand() * LEAFS.length)]); m.position.set((rand() - 0.5) * 1.1, 0.45 + rand() * 0.35, (rand() - 0.5) * 1.1); m.scale.y = 0.85; m.castShadow = true; g.add(m); }
   }
+  // tronco para tallar madera (con virutas) y mirador de piedras
+  {
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.5, 10), new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.9, flatShading: true }));
+    tronco.position.set(LUGAR.taller.x, 0.25, LUGAR.taller.z + 0.9); tronco.castShadow = true; root.add(tronco);
+    const anillo = new THREE.Mesh(new THREE.CircleGeometry(0.4, 10), new THREE.MeshStandardMaterial({ color: 0xc9a46c })); anillo.rotation.x = -Math.PI / 2; anillo.position.set(LUGAR.taller.x, 0.51, LUGAR.taller.z + 0.9); root.add(anillo);
+    const virutas = [];
+    for (let i = 0; i < 14; i++) { const g = new THREE.BoxGeometry(0.12, 0.02, 0.05); g.rotateY(rand() * 3); g.translate(LUGAR.taller.x + (rand() - 0.5) * 1.4, 0.03, LUGAR.taller.z + 0.9 + (rand() - 0.5) * 1.4); virutas.push(g); }
+    root.add(new THREE.Mesh(mergeGeometries(virutas), new THREE.MeshStandardMaterial({ color: 0xe0c08a })));
+    const piedra = new THREE.MeshStandardMaterial({ color: 0xa8a29a, roughness: 1, flatShading: true });
+    for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22 + rand() * 0.15, 0), piedra); const ang = i / 7 * Math.PI * 2; m.position.set(LUGAR.mirador.x + Math.cos(ang) * 1.3, 0.12, LUGAR.mirador.z + Math.sin(ang) * 1.3); m.castShadow = true; root.add(m); }
+  }
   // postes de luz
   const lamps = [];
   const haloMat = new THREE.SpriteMaterial({ map: glowTexture('rgba(255,214,150,.85)', 'rgba(255,170,80,.25)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
@@ -392,8 +409,10 @@ export function crearEscena(host, { onParcela } = {}) {
       const hand = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 1), mSkin), p); hand.position.y = -0.72;
       arms.push(p);
     }
+    const libro = add(new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.34), mat(0x8a2f2f)), upper); libro.position.set(0.42, 0.42, 0); libro.rotation.z = 0.9; libro.visible = false;
+    const pieza = add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.24, 6), mat(0xc79a5a)), upper); pieza.position.set(0.44, 0.3, 0); pieza.rotation.x = Math.PI / 2; pieza.visible = false;
     g.scale.setScalar(h); root.add(g);
-    return { g, legs, arms, upper, head, h, kind: 'humano' };
+    return { g, legs, arms, upper, head, h, kind: 'humano', libro, pieza };
   }
   function makeDog() {
     const fur = LEAF(0xf5f2ec), white = LEAF(0xffffff), dark = LEAF(0x2a2220), earM = LEAF(0xebe3d6);
@@ -478,13 +497,20 @@ export function crearEscena(host, { onParcela } = {}) {
     const moving = d > 0.0005 && d < 3;
     v.moving += ((moving ? 1 : 0) - v.moving) * Math.min(1, dt * 10);
     if (moving) v.yaw = angLerp(v.yaw, yawTo(dx, dz), Math.min(1, dt * 10));
-    // de cara a lo que trabajan
-    if (trabajando && !moving) {
+    // hacia dónde mira según lo que hace
+    const otroH = s.agentes.find((x) => x !== a && x.tipo === 'humano' && x.vivo && !x.dentro);
+    const abrazando = a.abrazo && s.t - a.abrazo < 4 && otroH && !moving;
+    if ((trabajando || abrazando) && !moving) {
       let f = null;
-      if (T.parcela != null) f = s.parcelas[T.parcela];
-      else if (T.tipo === 'sacarAgua') f = LUGAR.pozo;
-      else if (T.tipo === 'alimentar' || ((T.tipo === 'comer' || T.tipo === 'beber') && v.kind !== 'humano')) f = LUGAR.comedero;
-      else if (T.tipo === 'descansar') v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
+      const tp = T?.tipo;
+      if (abrazando || tp === 'conversar') f = otroH ? otroH.pos : null;
+      else if (T.parcela != null) f = s.parcelas[T.parcela];
+      else if (tp === 'sacarAgua') f = LUGAR.pozo;
+      else if (tp === 'jugarGato') f = s.agentes.find((x) => x.tipo === 'gato')?.pos;
+      else if (tp === 'alimentar' || ((tp === 'comer' || tp === 'beber') && v.kind !== 'humano')) f = LUGAR.comedero;
+      else if (['descansar', 'leer', 'siesta', 'tallar'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
+      else if (tp === 'contemplar') v.yaw = angLerp(v.yaw, -Math.PI / 4, Math.min(1, dt * 4));
+      else if (v.kind !== 'humano' && tp === 'jugar') { const hh = s.agentes.find((x) => x.id === T.con); if (hh) f = hh.pos; }
       if (f) v.yaw = angLerp(v.yaw, yawTo(f.x - a.pos.x, f.z - a.pos.z), Math.min(1, dt * 6));
     }
     v.last.set(a.pos.x, 0, a.pos.z);
@@ -493,35 +519,47 @@ export function crearEscena(host, { onParcela } = {}) {
     const w = v.moving, ph = t * (v.kind === 'humano' ? 7 : 9);
     if (v.kind === 'humano') {
       const tipo = trabajando ? T.tipo : null;
-      const sit = tipo === 'descansar' ? 1 : 0;
-      const bend = ['regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar'].includes(tipo) ? 1 : 0;
-      v.g.position.y = -sit * (v.h - 0.85) + Math.abs(Math.sin(ph)) * 0.04 * w;
+      const sit = ['descansar', 'leer', 'siesta', 'tallar'].includes(tipo) ? 1 : 0;
+      const asiento = tipo === 'tallar' ? 0.5 : 0.85;
+      const agachado = tipo === 'jugarGato';
+      const bend = ['regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato'].includes(tipo) ? 1 : 0;
+      v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
       const zancada = v.ficha.fisico?.andar !== 'cadera';
       const amp = (zancada ? 0.6 : 0.45) * (a.enfermo > 0 ? 0.6 : 1);
       const viejo = Math.max(0, Math.min(1, (a.edad - 55) / 20));
       v.legs.forEach((l, j) => {
         const sw = Math.sin(ph + j * Math.PI) * w;
-        l.hip.rotation.z = sw * amp + sit * Math.PI / 2 + bend * 0.25;
-        l.knee.rotation.z = -Math.max(0, -sw) * 0.7 - sit * Math.PI / 2 - bend * 0.45;
+        l.hip.rotation.z = sw * amp + sit * Math.PI / 2 + bend * (agachado ? 0.9 : 0.25);
+        l.knee.rotation.z = -Math.max(0, -sw) * 0.7 - sit * Math.PI / 2 - bend * (agachado ? 1.6 : 0.45);
       });
-      v.g.position.y -= bend * 0.12 * v.h;
+      v.g.position.y -= bend * (agachado ? 0.3 : 0.12) * v.h;
       if (!zancada) v.g.rotation.x = Math.sin(ph) * 0.06 * w;   // balanceo de cadera
-      const encorvado = viejo * 0.25 + (a.enfermo > 0 ? 0.15 : 0);
-      v.upper.rotation.set(zancada ? 0 : -Math.sin(ph) * 0.05 * w, zancada ? Math.sin(ph) * 0.14 * w : 0,
-        -bend * (tipo === 'sembrar' || tipo === 'cosechar' || tipo === 'limpiar' ? 0.75 : 0.35) - encorvado);
+      const encorvado = viejo * 0.25 + (a.enfermo > 0 ? 0.15 : 0) + (a.animo < 30 ? 0.12 : 0);
+      const lee = tipo === 'leer' || tipo === 'tallar';
+      const inclin = tipo === 'sembrar' || tipo === 'cosechar' || tipo === 'limpiar' ? 0.75 : agachado ? 0.2 : lee ? 0.25 : 0.35;
+      v.upper.rotation.set(zancada ? 0 : -Math.sin(ph) * 0.05 * w, zancada ? Math.sin(ph) * 0.14 * w : 0, -(bend || lee ? inclin : 0) - encorvado);
       const work = Math.sin(t * (tipo === 'sacarAgua' ? 3 : 6));
+      const habla = tipo === 'conversar' ? Math.max(0, Math.sin(t * 1.3 + a.id.length)) : 0;
       v.arms.forEach((arm, j) => {
         const sw = -Math.sin(ph + j * Math.PI) * 0.45 * w;
-        let z = sw + sit * 0.5;
-        if (bend) z += tipo === 'regar' ? 0.9 : tipo === 'sacarAgua' ? 1.6 + work * 0.6 * (j ? 1 : -1) : 0.9 + work * 0.35 * (j ? 1 : -1);
-        arm.rotation.set(0, 0, z);
+        let z = sw + sit * 0.5, x = 0;
+        if (bend) z += tipo === 'regar' ? 0.9 : tipo === 'sacarAgua' ? 1.6 + work * 0.6 * (j ? 1 : -1) : agachado ? 0.7 + Math.max(0, Math.sin(t * 5)) * 0.6 * j : 0.9 + work * 0.35 * (j ? 1 : -1);
+        if (tipo === 'leer') z = 1.0;
+        if (tipo === 'tallar') z = 0.9 + (j ? Math.sin(t * 7) * 0.25 : 0);
+        if (tipo === 'contemplar') { z = -0.35; x = (j ? 1 : -1) * 0.15; }   // manos atrás
+        if (tipo === 'conversar' && j) z = 0.5 + habla * 0.7;              // gesticula al hablar
+        if (abrazando) { z = 1.35; x = (j ? -1 : 1) * 0.45; }
+        arm.rotation.set(x, 0, z);
       });
-      v.head.rotation.set(0, 0, bend ? -0.3 : 0);
+      v.libro.visible = tipo === 'leer';
+      v.pieza.visible = tipo === 'tallar';
+      v.head.rotation.set(0, 0, bend ? -0.3 : lee ? -0.35 : tipo === 'contemplar' ? 0.15 : tipo === 'siesta' ? -0.45 : 0);
     } else {
       const tipo = trabajando ? T.tipo : null;
       const sleep = tipo === 'dormir' ? 1 : 0, sit = !w && !sleep ? 1 : 0, eat = tipo === 'comer' || tipo === 'beber' ? 1 : 0;
-      v.g.position.y = Math.abs(Math.sin(ph)) * 0.05 * w - sleep * 0.25;
+      const juega = a.tarea?.tipo === 'jugar' ? 1 : 0;
+      v.g.position.y = Math.abs(Math.sin(ph)) * 0.05 * w - sleep * 0.25 + juega * Math.max(0, Math.sin(t * 5)) * 0.45;
       v.torso.rotation.z = sit * (eat ? -0.25 : 0.5) * (1 - sleep);
       v.head.rotation.set(0, 0, eat ? -0.5 : sit * -0.25);
       v.legs.forEach((l) => {
@@ -549,7 +587,7 @@ export function crearEscena(host, { onParcela } = {}) {
   // ------------------------------------------------------------ tamaño
   function resize() {
     const w = host.clientWidth, h = host.clientHeight;
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
   }
   addEventListener('resize', resize); resize();
   camera.position.sub(controls.target).setLength(108 * Math.max(1, 1.2 / camera.aspect)).add(controls.target);
@@ -633,13 +671,126 @@ export function crearEscena(host, { onParcela } = {}) {
     for (const tr of trees) { tr.crown.rotation.z = Math.sin(t * 0.9 + tr.phase) * 0.02 * (1 + lluviaK); }
 
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
+    etiquetas(s, dt);
     controls.update();
     renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
+  }
+
+  // ------------------------------------------------------------ datos flotantes
+  let datos = true, refresco = 0, hudVisible = true;
+  const NECS = [['comida', '🍽'], ['agua', '💧'], ['energia', '⚡'], ['salud', '❤']];
+  const ICONO_CULTIVO = { lechuga: '🥬', papa: '🥔', frijol: '🫘', maiz: '🌽' };
+  const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const etiquetasAg = {};
+  for (const id in vis) {
+    const div = el('div', 'tag'), inner = el('div', 'in'), name = el('b'), act = el('span', 'act'), bars = el('div', 'bars');
+    const ems = {};
+    for (const [k, ic] of NECS) {
+      const cell = el('i'); cell.title = k; const track = el('u'), em = el('em'); track.append(em); cell.append(el('small', null, ic), track); ems[k] = em; bars.append(cell);
+    }
+    inner.append(name, act, bars); div.append(inner);
+    const obj = new CSS2DObject(div); root.add(obj);
+    etiquetasAg[id] = { div, inner, name, act, bars, ems, obj, off: 0 };
+  }
+  const etiquetasPar = [];
+  // evita que las etiquetas se tapen: si se cruzan en pantalla, las de atrás suben
+  const tmpV = new THREE.Vector3();
+  function acomodar() {
+    const W = renderer.domElement.clientWidth, H = renderer.domElement.clientHeight;
+    const items = Object.values(etiquetasAg).filter((e) => e.obj.visible).map((e) => {
+      e.obj.getWorldPosition(tmpV).project(camera);
+      return { e, x: (tmpV.x * 0.5 + 0.5) * W, y: (-tmpV.y * 0.5 + 0.5) * H, w: e.div.offsetWidth || 120, h: e.div.offsetHeight || 46 };
+    }).sort((a, b) => b.y - a.y);
+    const puestos = [];
+    const choca = (x, y, it) => puestos.some((p) => Math.abs(x - p.x) < (it.w + p.w) / 2 + 4 && Math.abs(y - p.y) < (it.h + p.h) / 2 + 4);
+    for (const it of items) {
+      // prueba primero en su sitio, luego a los lados y luego más arriba (sin chocar con otras ni con la tarjeta de datos)
+      let best = [0, 0];
+      busqueda: for (let fila = 0; fila < 5; fila++) for (const lado of [0, 1, -1]) {
+        const dx = lado * (it.w + 8), dy = -fila * (it.h + 6);
+        const x = it.x + dx, y = it.y + dy;
+        if (y - it.h - 30 < 0 || (x - it.w / 2 < 260 && y - it.h - 30 < 230 && hudVisible) || x - it.w / 2 < 4 || x + it.w / 2 > W - 4) continue;
+        if (!choca(x, y, it)) { best = [dx, dy]; break busqueda; }
+      }
+      it.e.offX = (it.e.offX || 0) + (best[0] - (it.e.offX || 0)) * 0.25;
+      it.e.off += (best[1] - it.e.off) * 0.25;
+      it.e.inner.style.transform = `translate(${it.e.offX.toFixed(1)}px, ${it.e.off.toFixed(1)}px)`;
+      puestos.push({ x: it.x + best[0], y: it.y + best[1], w: it.w, h: it.h });
+    }
+  }
+  // efectos flotantes: corazones, charla, discusión
+  const efectosVis = new Map();
+  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢' };
+  let tReal = 0;
+  function efectos(s, dt) {
+    tReal += dt;
+    for (const e of s.efectos) {
+      const k = `${e.tipo}${e.t}`;
+      if (efectosVis.has(k)) continue;
+      const div = el('div', 'fx', EMOJI_EF[e.tipo] || '✨');
+      const obj = new CSS2DObject(div);
+      const y0 = e.techo ? 12.5 : e.dentro ? 9.5 : 3.6;
+      obj.position.set(e.techo || e.dentro ? 0.5 : e.x, y0, e.techo || e.dentro ? 0 : e.z);
+      root.add(obj); efectosVis.set(k, { obj, div, nace: tReal, y0 });
+    }
+    for (const [k, f] of efectosVis) {
+      const edad = tReal - f.nace;
+      if (edad > 3.5) { root.remove(f.obj); f.div.remove(); efectosVis.delete(k); continue; }
+      f.obj.position.y = f.y0 + edad * 0.9;
+      f.div.style.opacity = String(Math.min(1, edad * 3) * (1 - Math.max(0, edad - 2.5)));
+    }
+  }
+  function etiquetas(s, dt) {
+    efectos(s, dt);
+    for (const k in etiquetasAg) etiquetasAg[k].obj.visible = datos;
+    etiquetasPar.forEach((e) => { e.obj.visible = datos && e.div.textContent !== ''; });
+    if (!datos) return;
+    // posición: sobre la cabeza; si está en casa, junto a la puerta; si murió, sobre su lápida
+    let dentro = 0;
+    for (const a of s.agentes) {
+      const e = etiquetasAg[a.id], v = vis[a.id];
+      if (!a.vivo) { e.obj.position.set(v.tomb.position.x, 1.6, v.tomb.position.z); }
+      else if (a.dentro) { e.obj.position.set(LUGAR.puerta.x - 1.6 + dentro * 3.2, 4.2, LUGAR.puerta.z - 0.6); dentro++; }
+      else e.obj.position.set(a.pos.x, (v.kind === 'humano' ? v.h * 2.25 : 1.9) + (v.g.position.y || 0), a.pos.z);
+    }
+    acomodar();
+    refresco -= dt;
+    if (refresco > 0) return;
+    refresco = 0.25;
+    for (const a of s.agentes) {
+      const e = etiquetasAg[a.id];
+      e.div.classList.toggle('muerto', !a.vivo);
+      e.div.classList.toggle('animal', a.tipo !== 'humano');
+      e.name.textContent = a.vivo ? `${a.tipo === 'humano' ? caraAnimo(a.animo) + ' ' : ''}${a.nombre}${a.enfermo > 0 ? ' 🤒' : ''}` : `† ${a.nombre}`;
+      e.act.textContent = a.vivo ? (a.dentro ? `En casa · ${a.accion.toLowerCase()}` : a.accion) : a.causa ? `murió ${a.causa}` : '';
+      e.bars.style.display = a.vivo ? '' : 'none';
+      for (const [k] of NECS) {
+        const val = Math.max(0, Math.min(100, a.n[k]));
+        e.ems[k].style.width = val + '%';
+        e.ems[k].className = val < 25 ? 'low' : val < 50 ? 'mid' : '';
+      }
+    }
+    // parcelas
+    s.parcelas.forEach((p, i) => {
+      if (!etiquetasPar[i]) {
+        const div = el('div', 'ptag'); const obj = new CSS2DObject(div); obj.position.set(p.x, 0.9, p.z + 0.2); root.add(obj);
+        etiquetasPar[i] = { div, obj };
+      }
+      const e = etiquetasPar[i];
+      if (!p.cultivo) { e.div.textContent = ''; return; }
+      const C = CULTIVOS[p.cultivo];
+      e.div.className = 'ptag ' + p.estado;
+      e.div.textContent = p.estado === 'lista' ? `${ICONO_CULTIVO[p.cultivo]} lista` : p.estado === 'muerta' ? `${ICONO_CULTIVO[p.cultivo]} perdida`
+        : `${ICONO_CULTIVO[p.cultivo]} ${Math.floor(Math.min(1, p.crec / C.dias) * 100)}%${p.agua < 30 ? ' · seca' : ''}`;
+    });
   }
 
   return {
     update,
     seleccionar(i) { seleccion = i; },
+    set datos(v) { datos = v; hudVisible = v; },
+    get datos() { return datos; },
     get cargada() { return cargada; },
   };
 }

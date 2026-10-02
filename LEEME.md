@@ -10,15 +10,41 @@ Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro 
 - **Generaciones:** si mueren los dos humanos, a los 20 s empieza una generación nueva, y cada generación queda registrada en el historial.
 
 ## Las fichas (`js/personajes.js`)
-Las características de cada personaje se definen ahí y cambian su comportamiento real:
-- **Rasgos:** modifican números de la simulación (hambre, sed, cansancio, velocidad por área, agua del pozo, cosecha, aprendizaje, probabilidad de enfermar).
-- **Físico:** la forma de andar (*zancada* desde los hombros o *cadera* fluida) y detalles visibles (sombrero, barba, pecas, diadema, collar, pañuelo).
-- **Psique:**
-  - motivación;
-  - rol, que es el área que prefiere cuando hay varias tareas;
-  - reacción al estrés cuando escasea la comida o el agua: *trabaja* (20 % más rápido, pero se cansa más) o *raciona* (aguanta más antes de comer);
-  - estilo de comunicación.
-- **Para aplicar cambios:** al cambiar `CONFIG`, la granja empieza de cero con las fichas nuevas.
+Cada personaje tiene una ficha. Cada dato cambia su comportamiento real, no es solo texto:
+- **Rasgos:** modificadores numéricos (hambre, sed, cansancio, velocidad por área, agua del pozo, cosecha, aprendizaje, riesgo de enfermar).
+- **Personalidad (Big Five):**
+  - *Apertura:* varía cultivos y prueba recetas nuevas.
+  - *Responsabilidad:* riega antes, guarda más agua, limpia la casa y prefiere trabajar antes que el ocio.
+  - *Extraversión:* necesita compañía más seguido y busca conversar.
+  - *Amabilidad:* comparte la comida en la escasez y discute menos.
+  - *Neuroticismo:* las malas noticias le afectan más y puede llorar si se pierde una cosecha.
+- **Hábitos:**
+  - *cronotipo:* madrugador, normal o noctámbulo;
+  - *ocio favorito:* leer, tallar, contemplar, jugar con el gato o pasear al perro;
+  - *comida favorita*;
+  - *afinidad con cada mascota*;
+  - *reacción al estrés:* trabaja más o raciona;
+  - *rol:* área que prefiere en la granja.
+- **Físico:** forma de andar y detalles visibles.
+- **Para aplicar cambios:** al cambiar `CONFIG`, empieza una generación nueva con las fichas actualizadas.
+
+## La vida diaria
+- **Necesidades:** comida, agua, energía, salud, **compañía** y **diversión**.
+- **Ánimo:** sale de las necesidades más "recuerdos" que se desvanecen (una buena cosecha, una discusión, una cena juntos, un duelo). Con ánimo alto trabajan más rápido y con ánimo bajo se encorvan.
+- **Ocio:** leer en la banca, tallar madera en el tronco, contemplar el paisaje desde el mirador, jugar con el gato, pasear al perro alrededor del bloque y siesta.
+- **Pareja:**
+  - charlas en la banca, que pueden acabar en discusión según el ánimo, el hambre, el cansancio y qué tan distintos son;
+  - abrazos al cruzarse;
+  - cena juntos todas las noches (cocina quien tenga más mano o más apertura);
+  - **relación** de 0 a 100, que se enfría sola si no se cuida;
+  - momentos íntimos insinuados, fuera de cámara: solo de noche, con privacidad, buen ánimo y la casa limpia. El gato puede interrumpirlos.
+- **Mascotas:** el gato duerme con quien esté más triste (y lo calma), pide atención cuando alguien cocina y caza ratones, aunque a veces pisotea el huerto. El perro necesita paseos y espanta plagas.
+
+## Datos flotantes
+- **Sobre cada personaje:** cara de ánimo, nombre, lo que hace y 4 barritas (comida, agua, energía, salud). Si está en casa, la etiqueta queda junto a la puerta.
+- **Sobre las parcelas:** avance de cada cultivo.
+- **Tarjeta general:** generación, fecha, reservas, relación y limpieza de la casa.
+- **Para ocultarlos:** botón **Datos** o tecla `D`.
 
 ## Reglas
 - **Necesidades** (0–100): comida, agua, energía y salud. En 0 de salud el personaje muere.

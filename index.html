@@ -17,13 +17,40 @@
     background: rgba(18,18,22,.55); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; backdrop-filter: blur(8px);
     transition: opacity .6s; z-index: 2; }
   .speeds.hide { opacity: 0; pointer-events: none; }
-  .speeds button { background: none; border: 0; color: inherit; font: 600 12px/1 inherit; padding: 7px 12px; border-radius: 99px; cursor: pointer; opacity: .75; }
+  .speeds button { white-space: nowrap; background: none; border: 0; color: inherit; font: 600 12px/1 inherit; padding: 7px 12px; border-radius: 99px; cursor: pointer; opacity: .75; }
   .speeds button.on { background: rgba(231,196,106,.95); color: #1b1a17; opacity: 1; }
 
   /* aviso breve al empezar una generación */
   .caption { position: fixed; left: 50%; top: 28px; transform: translateX(-50%); font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
     opacity: 0; transition: opacity 1.2s; pointer-events: none; text-shadow: 0 1px 10px rgba(0,0,0,.5); z-index: 2; }
   .caption.on { opacity: .9; }
+
+  /* datos flotantes */
+  .etiquetas { z-index: 1; }
+  .tag { pointer-events: none; }
+  .tag .in { transform: translateY(0); padding: 5px 8px 6px; border-radius: 9px; background: rgba(16,17,21,.66); border: 1px solid rgba(255,255,255,.1);
+    backdrop-filter: blur(6px); font-size: 10.5px; line-height: 1.2; text-align: left; white-space: nowrap; margin-bottom: 30px; }
+  .tag b { font-size: 11.5px; margin-right: 6px; }
+  .tag .act { color: rgba(241,238,232,.72); font-size: 10px; }
+  .tag .bars { display: grid; grid-template-columns: repeat(4, 30px); gap: 5px; margin-top: 4px; }
+  .tag .bars i { display: flex; align-items: center; gap: 2px; font-style: normal; }
+  .tag .bars small { font-size: 8px; line-height: 1; }
+  .tag .bars u { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; display: block; }
+  .tag .bars em { display: block; height: 100%; background: #7cc36a; transition: width .4s; }
+  .tag .bars em.mid { background: #e3b341; } .tag .bars em.low { background: #e0574f; }
+  .tag.muerto .in { background: rgba(16,17,21,.45); }
+  .ptag { font-size: 10.5px; padding: 2px 7px; border-radius: 99px; background: rgba(16,17,21,.55); border: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
+  .ptag.lista { background: rgba(68,120,52,.85); } .ptag.muerta { background: rgba(120,52,46,.75); }
+  .fx { font-size: 26px; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+
+  .hud { position: fixed; left: 18px; top: 18px; z-index: 2; padding: 11px 14px; border-radius: 14px; background: rgba(16,17,21,.58);
+    border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(8px); font-size: 12.5px; display: grid; gap: 6px; min-width: 210px; transition: opacity .4s; }
+  .hud.off { opacity: 0; pointer-events: none; }
+  .hud .gen { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; }
+  .hud .fecha { font: 600 13px ui-monospace, Consolas, monospace; }
+  .hud .res { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  .hud .res span { color: rgba(241,238,232,.7); } .hud .res b.warn { color: #ff8a80; }
+  .hud .aviso { font-size: 11.5px; color: #ffcf8a; }
   #loader { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: #1b1a17; color: #a3a09a; font: 600 12px ui-monospace, Consolas, monospace; letter-spacing: .12em; transition: opacity .6s; }
 </style>
 </head>
@@ -33,6 +60,7 @@
 <div class="vignette"></div>
 <div class="speeds" id="speeds"></div>
 <div class="caption" id="caption"></div>
+<div class="hud" id="hud"></div>
 
 <script type="importmap">
 { "imports": {
@@ -66,21 +94,56 @@ const escena = crearEscena(document.getElementById('stage'));
 
 // control de velocidad
 const speeds = document.getElementById('speeds');
-const pintar = () => speeds.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i === vel));
+const pintar = () => [...speeds.querySelectorAll('button')].slice(0, VELOCIDADES.length).forEach((b, i) => b.classList.toggle('on', i === vel));
 VELOCIDADES.forEach(([, txt], i) => {
   const b = document.createElement('button'); b.textContent = txt;
   b.onclick = () => { vel = i; pintar(); try { localStorage.setItem('granja3d-vel', i); } catch { /* sin almacenamiento */ } };
   speeds.append(b);
 });
 pintar();
+// mostrar u ocultar los datos flotantes
+let datos = true;   // los datos siempre arrancan visibles
+const bDatos = document.createElement('button');
+const aplicarDatos = () => { escena.datos = datos; bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; hud.classList.toggle('off', !datos); };
+bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
+speeds.append(bDatos);
 let idle;
 const mostrar = () => { speeds.classList.remove('hide'); clearTimeout(idle); idle = setTimeout(() => speeds.classList.add('hide'), 2500); };
 addEventListener('pointermove', mostrar); addEventListener('pointerdown', mostrar); mostrar();
 addEventListener('keydown', (e) => { const i = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code]; if (i != null) { vel = i; pintar(); mostrar(); } });
+addEventListener('keydown', (e) => { if (e.code === 'KeyD' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) { datos = !datos; aplicarDatos(); mostrar(); } });
 
 const caption = document.getElementById('caption');
 function aviso(txt) { caption.textContent = txt; caption.classList.add('on'); setTimeout(() => caption.classList.remove('on'), 5000); }
 if (estado.generacion > 1 && Sim.diasVividos(estado) < 1) aviso(`Generación ${estado.generacion}`);
+
+// tarjeta de datos generales
+const hud = document.getElementById('hud');
+aplicarDatos();
+function pintarHud() {
+  if (!datos) return;
+  const s = estado, R = s.rec;
+  const humanos = s.agentes.filter((a) => a.vivo && a.tipo === 'humano').length, animales = s.agentes.filter((a) => a.vivo && a.tipo !== 'humano').length;
+  const consumo = humanos * 1.4 + animales * 0.6;
+  const dias = consumo ? Math.floor(R.raciones / consumo) : 0;
+  const vividos = Sim.diasVividos(s), años = Math.floor(vividos / Sim.DIAS_ANIO);
+  const clima = s.sequia > 0 ? '☀️ sequía' : s.clima.lluvia ? '🌧️ lluvia' : '';
+  hud.innerHTML = `
+    <div class="gen">Generación ${s.generacion} · ${años ? `${años} año${años > 1 ? 's' : ''} y ` : ''}${vividos % Sim.DIAS_ANIO} días</div>
+    <div class="fecha">${Sim.fechaTxt(s)} ${clima}</div>
+    <div class="res">
+      <span>🥔 Comida</span><b class="${dias < 4 ? 'warn' : ''}">${Math.floor(R.raciones)} raciones · ≈ ${dias} días</b>
+      <span>🚰 Potable</span><b class="${R.potable < 6 ? 'warn' : ''}">${Math.floor(R.potable)} L</b>
+      <span>🛢️ Tanque</span><b>${Math.floor(R.cruda)} / ${Sim.TANQUE_MAX} L</b>
+      <span>🌱 Semillas</span><b>${Object.entries(R.semillas).map(([k, v]) => `${{ lechuga: '🥬', papa: '🥔', frijol: '🫘', maiz: '🌽' }[k]}${v}`).join(' ')}</b>
+      ${s.pareja && humanos === 2 ? `<span>💞 Relación</span><b class="${s.pareja.afinidad < 35 ? 'warn' : ''}">${Math.round(s.pareja.afinidad)} / 100</b>` : ''}
+      ${s.casa ? `<span>🧹 Casa</span><b class="${s.casa.limpieza < 30 ? 'warn' : ''}">${Math.round(s.casa.limpieza)} % limpia</b>` : ''}
+    </div>
+    ${s.escasez ? '<div class="aviso">⚠ Escasean las reservas</div>' : ''}
+    ${s.fin ? `<div class="aviso">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
+}
+pintarHud();
+setInterval(pintarHud, 500);
 
 // guardado
 const guardar = () => Sim.guardar(estado);
