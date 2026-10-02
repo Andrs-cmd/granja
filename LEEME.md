@@ -3,7 +3,7 @@
 Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro de un orbe de vidrio. **Nadie los controla**: deciden solos qué sembrar, cuándo regar, sacar y filtrar agua, comer, dormir y cuidar a los animales. La idea es mirar cuánto duran y cómo avanzan.
 
 ## Cómo se ve
-- **Pantalla:** solo la escena, sin indicadores.
+- **Pantalla:** solo la escena, sin panel. Los datos flotan dentro de ella y se pueden ocultar.
 - **Velocidad:** abajo hay un control que se esconde solo (*Tiempo real*, ×60, ×600, ×3600; teclas `1`–`4`).
 - **Tiempo real:** por defecto un minuto de la granja es un minuto real, y el reloj arranca a la hora del equipo. Si es de noche donde estás, en el orbe también.
 - **Vida continua:** al volver a abrir la página se simula lo que pasó mientras estaba cerrada (hasta 120 días).
