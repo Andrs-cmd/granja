@@ -19,7 +19,7 @@ const yawTo = (dx, dz) => Math.atan2(-dz, dx);
 
 export function crearEscena(host, { onParcela } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -45,7 +45,7 @@ export function crearEscena(host, { onParcela } = {}) {
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 3);
-  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  key.castShadow = true; key.shadow.mapSize.set(1536, 1536);
   Object.assign(key.shadow.camera, { left: -27, right: 27, top: 27, bottom: -27, near: 1, far: 100 });
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
   scene.add(key, key.target); key.target.position.copy(CENTER);
@@ -165,7 +165,7 @@ export function crearEscena(host, { onParcela } = {}) {
 
   // ------------------------------------------------------------ casa
   const windows = [];
-  const interior = [[0.5, 2.0, 2.5], [-1.5, 6.2, 1], [3.5, 2.0, -2.5]].map(([x, y, z]) => { const pl = new THREE.PointLight(0xffb36b, 0, 11, 2); pl.position.set(x, y, z); root.add(pl); return pl; });
+  const interior = [[1.0, 2.6, 1.5], [-1.0, 6.2, 0]].map(([x, y, z]) => { const pl = new THREE.PointLight(0xffb36b, 0, 11, 2); pl.position.set(x, y, z); root.add(pl); return pl; });
   const porch = new THREE.PointLight(0xffbf7a, 0, 9, 2); porch.position.set(-1.8, 3.1, 6.6); root.add(porch);
   const RAIL_K = 1.2 / 1.95, RAIL_TOP = 4.26 + 1.95 * RAIL_K;
   {
@@ -492,11 +492,16 @@ export function crearEscena(host, { onParcela } = {}) {
     const hidden = a.dentro;
     v.g.visible = !hidden;
     // movimiento real entre cuadros → camina
-    const dx = a.pos.x - v.last.x, dz = a.pos.z - v.last.z, d = Math.hypot(dx, dz);
-    if (!v.ready) { v.last.set(a.pos.x, 0, a.pos.z); v.ready = true; }
-    const moving = d > 0.0005 && d < 3;
-    v.moving += ((moving ? 1 : 0) - v.moving) * Math.min(1, dt * 10);
-    if (moving) v.yaw = angLerp(v.yaw, yawTo(dx, dz), Math.min(1, dt * 10));
+    if (!v.ready || !v.vp) { v.vp = V(a.pos.x, 0, a.pos.z); v.ready = true; v.walkPh = 0; }
+    const tx = a.pos.x - v.vp.x, tz = a.pos.z - v.vp.z, lejos = Math.hypot(tx, tz);
+    if (hidden || lejos > 9) v.vp.set(a.pos.x, 0, a.pos.z);                 // entrar/salir de casa o saltos grandes: sin arrastrarse
+    else { const k = 1 - Math.exp(-dt * 9); v.vp.x += tx * k; v.vp.z += tz * k; }
+    const dx = v.vp.x - v.last.x, dz = v.vp.z - v.last.z, d = Math.hypot(dx, dz);
+    const rapidez = dt > 0 ? d / dt : 0;                                     // unidades por segundo en pantalla
+    const moving = rapidez > 0.25 && d < 3;
+    v.moving += ((moving ? 1 : 0) - v.moving) * Math.min(1, dt * 8);
+    v.walkPh += Math.min(rapidez, 8) * dt * (v.kind === 'humano' ? 2.6 : 3.4);   // el paso sigue a la velocidad real
+    if (moving) v.yaw = angLerp(v.yaw, yawTo(dx, dz), Math.min(1, dt * 8));
     // hacia dónde mira según lo que hace
     const otroH = s.agentes.find((x) => x !== a && x.tipo === 'humano' && x.vivo && !x.dentro);
     const abrazando = a.abrazo && s.t - a.abrazo < 4 && otroH && !moving;
@@ -513,10 +518,10 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (v.kind !== 'humano' && tp === 'jugar') { const hh = s.agentes.find((x) => x.id === T.con); if (hh) f = hh.pos; }
       if (f) v.yaw = angLerp(v.yaw, yawTo(f.x - a.pos.x, f.z - a.pos.z), Math.min(1, dt * 6));
     }
-    v.last.set(a.pos.x, 0, a.pos.z);
-    v.g.position.set(a.pos.x, 0, a.pos.z);
+    v.last.copy(v.vp);
+    v.g.position.set(v.vp.x, 0, v.vp.z);
     v.g.rotation.set(0, v.yaw, 0);
-    const w = v.moving, ph = t * (v.kind === 'humano' ? 7 : 9);
+    const w = v.moving, ph = v.walkPh;
     if (v.kind === 'humano') {
       const tipo = trabajando ? T.tipo : null;
       const sit = ['descansar', 'leer', 'siesta', 'tallar'].includes(tipo) ? 1 : 0;
@@ -700,7 +705,7 @@ export function crearEscena(host, { onParcela } = {}) {
     const W = renderer.domElement.clientWidth, H = renderer.domElement.clientHeight;
     const items = Object.values(etiquetasAg).filter((e) => e.obj.visible).map((e) => {
       e.obj.getWorldPosition(tmpV).project(camera);
-      return { e, x: (tmpV.x * 0.5 + 0.5) * W, y: (-tmpV.y * 0.5 + 0.5) * H, w: e.div.offsetWidth || 120, h: e.div.offsetHeight || 46 };
+      return { e, x: (tmpV.x * 0.5 + 0.5) * W, y: (-tmpV.y * 0.5 + 0.5) * H, w: e.w || 150, h: e.h || 46 };
     }).sort((a, b) => b.y - a.y);
     const puestos = [];
     const choca = (x, y, it) => puestos.some((p) => Math.abs(x - p.x) < (it.w + p.w) / 2 + 4 && Math.abs(y - p.y) < (it.h + p.h) / 2 + 4);
@@ -752,12 +757,13 @@ export function crearEscena(host, { onParcela } = {}) {
       const e = etiquetasAg[a.id], v = vis[a.id];
       if (!a.vivo) { e.obj.position.set(v.tomb.position.x, 1.6, v.tomb.position.z); }
       else if (a.dentro) { e.obj.position.set(LUGAR.puerta.x - 1.6 + dentro * 3.2, 4.2, LUGAR.puerta.z - 0.6); dentro++; }
-      else e.obj.position.set(a.pos.x, (v.kind === 'humano' ? v.h * 2.25 : 1.9) + (v.g.position.y || 0), a.pos.z);
+      else { const p = v.vp || a.pos; e.obj.position.set(p.x, (v.kind === 'humano' ? v.h * 2.25 : 1.9) + (v.g.position.y || 0), p.z); }
     }
     acomodar();
     refresco -= dt;
     if (refresco > 0) return;
     refresco = 0.25;
+    for (const k in etiquetasAg) { const e = etiquetasAg[k]; if (e.obj.visible) { e.w = e.div.offsetWidth || e.w; e.h = e.div.offsetHeight || e.h; } }
     for (const a of s.agentes) {
       const e = etiquetasAg[a.id];
       e.div.classList.toggle('muerto', !a.vivo);
