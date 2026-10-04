@@ -39,7 +39,7 @@ export const RASGOS = {
 
 export const PERSONAJES = [
   {
-    id: 'tomas', tipo: 'humano', nombre: 'Tomás', rasgos: ['fuerte', 'comilon'],
+    id: 'tomas', tipo: 'humano', nombre: 'Andrés', rasgos: ['fuerte', 'comilon'],
     personalidad: { apertura: 0.35, responsabilidad: 0.8, extraversion: 0.4, amabilidad: 0.6, neuroticismo: 0.45 },
     habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'pasearPerro', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'granja' },
     fisico: { andar: 'zancada', detalles: ['sombrero', 'barba'] },
@@ -47,7 +47,7 @@ export const PERSONAJES = [
     voz: 'Grave y pausada; postura abierta, habla poco y actúa.',
   },
   {
-    id: 'lucia', tipo: 'humano', nombre: 'Lucía', rasgos: ['manoVerde', 'ahorradora'],
+    id: 'lucia', tipo: 'humano', nombre: 'María', rasgos: ['manoVerde', 'ahorradora'],
     personalidad: { apertura: 0.8, responsabilidad: 0.55, extraversion: 0.75, amabilidad: 0.75, neuroticismo: 0.55 },
     habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'tejer', 'jugarGato', 'nadar', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto' },
     fisico: { andar: 'cadera', detalles: ['pecas', 'diadema'] },
@@ -55,12 +55,12 @@ export const PERSONAJES = [
     voz: 'Cálida y rápida; planifica en voz alta.',
   },
   {
-    id: 'nube', tipo: 'perro', nombre: 'Nube', rasgos: ['leal'],
+    id: 'nube', tipo: 'perro', nombre: 'Berlín', rasgos: ['leal'],
     fisico: { detalles: ['collar'] },
     motivacion: 'Estar cerca de su gente (y salir a pasear).',
   },
   {
-    id: 'esmoquin', tipo: 'gato', nombre: 'Esmoquin', rasgos: ['cazador'],
+    id: 'esmoquin', tipo: 'gato', nombre: 'Axel', rasgos: ['cazador'],
     fisico: { detalles: [] },
     motivacion: 'Su independencia, los ratones y dormir con quien más lo necesite.',
   },

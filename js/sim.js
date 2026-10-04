@@ -1076,7 +1076,13 @@ function comportamientoAnimal(s, a, d) {
 const CLAVE = 'granja3d-partida', CLAVE_HIST = 'granja3d-historial';
 export function guardar(s) { try { s.guardadoReal = Date.now(); localStorage.setItem(CLAVE, JSON.stringify(s)); return true; } catch { return false; } }
 export function cargar() {
-  try { const s = JSON.parse(localStorage.getItem(CLAVE)); return s && s.version === VERSION && s.config === CONFIG ? s : null; } catch { return null; }
+  try {
+    const s = JSON.parse(localStorage.getItem(CLAVE));
+    if (!(s && s.version === VERSION && s.config === CONFIG)) return null;
+    // los nombres salen siempre de las fichas: cambiarlos no reinicia la partida
+    for (const a of s.agentes) { const p = PERSONAJES.find((x) => x.id === a.id); if (p) a.nombre = p.nombre; }
+    return s;
+  } catch { return null; }
 }
 export function borrarPartida() { try { localStorage.removeItem(CLAVE); } catch { /* sin almacenamiento */ } }
 export function historial() { try { return JSON.parse(localStorage.getItem(CLAVE_HIST)) || []; } catch { return []; } }

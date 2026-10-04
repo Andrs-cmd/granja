@@ -1,6 +1,6 @@
 # Granja 3D: simulación autónoma
 
-Una pareja (Tomás y Lucía), su perro (Nube) y su gato (Esmoquin) viven dentro de un orbe de vidrio. **Nadie los controla**: deciden solos qué sembrar, cuándo regar, sacar y filtrar agua, comer, dormir y cuidar a los animales. La idea es mirar cuánto duran y cómo avanzan.
+Una pareja (Andrés y María), su perro (Berlín) y su gato (Axel) viven dentro de un orbe de vidrio. **Nadie los controla**: deciden solos qué sembrar, cuándo regar, sacar y filtrar agua, comer, dormir y cuidar a los animales. La idea es mirar cuánto duran y cómo avanzan.
 
 ## Cómo se ve
 - **Pantalla:** la escena con los datos en dos columnas a los lados, fuera del orbe: habitantes a la izquierda y despensa, granja, hogar y diario a la derecha. Se ocultan con **Datos** o la tecla `D`. En celulares (menos de 480 px) los datos van abajo y el orbe se acomoda arriba.
