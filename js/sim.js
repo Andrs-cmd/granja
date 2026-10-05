@@ -751,12 +751,14 @@ const DURACION = {
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
   reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
 };
+const COMIDAS = [['desayuno', 6.5, 9, 20], ['almuerzo', 12, 13.5, 30], ['cena', 19, 20.5, 45]];   // [comida, desde, hasta, minutos de cocina]
 const OCIOS = ['descansar', 'leer', 'tallar', 'contemplar', 'siesta', 'tejer', 'nadar', 'recogerFlores', 'jugarPerro'];
 const vaca = (s) => s.ganado.filter((g) => g.vivo && g.tipo === 'vaca' && g.sexo === 'h' && g.crec >= 1).sort((a, b) => b.ubre - a.ubre)[0];
 function crearTarea(s, a, tipo, extra = {}) {
   const t = { tipo, fase: 'camino', trabajo: DURACION[tipo] ?? 30, ...extra };
   const izq = a.id === s.agentes[0].id;
-  const adentroOcio = (tipo === 'leer' || tipo === 'tejer') && (lloviendo(s) || esNoche(s) || hora(s) >= 19.5 || (frio(s) && rng(s) < 0.6));
+  const adentroOcio = ((tipo === 'leer' || tipo === 'tejer') && (lloviendo(s) || esNoche(s) || hora(s) >= 19.5 || (frio(s) && rng(s) < 0.6)))
+    || (tipo === 'siesta' && (calor(s) || lloviendo(s) || frio(s) || rng(s) < 0.5)) || (tipo === 'leer' && rng(s) < 0.35);
   if (DENTRO.includes(tipo) || adentroOcio || t.dentro) { t.destino = { ...LUGAR.puerta }; t.dentro = true; }
   else if (t.parcela != null) { const p = s.parcelas[t.parcela]; t.destino = { x: p.x, z: p.z - 1.3 }; p.reservada = a.id; }
   else if (tipo === 'sacarAgua') t.destino = { x: LUGAR.pozo.x + 1.2, z: LUGAR.pozo.z };
@@ -818,10 +820,14 @@ function elegirTarea(s, a) {
   if (n.energia < 18) return crearTarea(s, a, 'dormir');
   if (horaDeDormir(s, a) && n.energia < 92) return crearTarea(s, a, 'dormir');
 
-  if (h >= 19 && h < 20.5 && s.pareja.ultimaCena !== dia(s) && comidaTotal(s) >= 2) {
-    const cocinero = otro && despierto(s, otro)
-      ? [a, otro].sort((x, y) => (nivel(y.xp.casa) + P5(y, 'apertura') * 3) - (nivel(x.xp.casa) + P5(x, 'apertura') * 3))[0] : a;
-    if (cocinero === a && !ocupadoEn(otro, ['cocinar'])) { s.pareja.ultimaCena = dia(s); return crearTarea(s, a, 'cocinar'); }
+  // todas las comidas se cocinan y se comen en la mesa: desayuno, almuerzo y cena
+  for (const [comida, h0, h1, mins] of COMIDAS) {
+    if (h < h0 || h >= h1 || s.pareja['ultima_' + comida] === dia(s) || comidaTotal(s) < 2 || n.comida > 88) continue;
+    const otroCocina = otro && despierto(s, otro) && !otro.nadando;
+    const cocinero = !otroCocina ? a : comida === 'desayuno'
+      ? [a, otro].sort((x, y) => (HAB(y).cronotipo === 'madrugador' ? 1 : 0) - (HAB(x).cronotipo === 'madrugador' ? 1 : 0))[0]
+      : [a, otro].sort((x, y) => (nivel(y.xp.casa) + P5(y, 'apertura') * 3 + (tiene(y, 'chef') ? 3 : 0)) - (nivel(x.xp.casa) + P5(x, 'apertura') * 3 + (tiene(x, 'chef') ? 3 : 0)))[0];
+    if (cocinero === a && !ocupadoEn(otro, ['cocinar'])) { s.pareja['ultima_' + comida] = dia(s); return crearTarea(s, a, 'cocinar', { comida, trabajo: mins }); }
   }
 
   // trabajo por urgencia (con lluvia solo lo de adentro o lo muy urgente)
@@ -962,6 +968,8 @@ function comportamiento(s, a, d) {
     if (a.diaAlergia !== dia(s)) { a.diaAlergia = dia(s); log(s, `🤧 ${a.nombre} no para de estornudar: el polen de primavera está fuerte.`, 'info'); }
   }
   a.accion = T.fase === 'camino' ? VA_A[T.tipo] || ACCION[T.tipo] : ACCION[T.tipo];
+  if (T.comida && T.tipo === 'cocinar') a.accion = { desayuno: 'Preparando el desayuno', almuerzo: 'Cocinando el almuerzo', cena: 'Cocinando la cena' }[T.comida];
+  if (T.comida && T.tipo === 'cenar' && T.fase === 'trabajo') a.accion = { desayuno: 'Desayunando', almuerzo: 'Almorzando', cena: 'Cenando' }[T.comida] + (T.juntos ? ' juntos' : '');
   if (T.fase === 'camino') {
     if (a.dentro && !T.dentro) { a.dentro = false; a.pos = { ...LUGAR.puerta }; }
     if (a.dentro && T.dentro) { T.fase = 'trabajo'; return; }
@@ -1065,22 +1073,25 @@ function completar(s, a, T) {
     }
     case 'cocinar': {
       const otro = pareja(s, a);
-      s.pareja.recetaNueva = rng(s) < P5(a, 'apertura') * 0.5 + (mejora(s, 'recetario') ? 0.25 : 0);
+      const comida = T.comida || 'cena';
+      s.pareja.recetaNueva = comida === 'cena' && rng(s) < P5(a, 'apertura') * 0.5 + (mejora(s, 'recetario') ? 0.25 : 0);
       s.pareja.cocinero = a.id;
       if (s.pareja.recetaNueva) log(s, `${a.nombre} probó una receta nueva para la cena${R.huevos >= 2 ? ' con huevos del gallinero' : R.leche >= 1 ? ' con leche de la vaca' : ''}.`, 'info');
       const gato = s.agentes.find((x) => x.tipo === 'gato' && x.vivo);
       if (gato && rng(s) < 0.2) log(s, `${gato.nombre} maulló sin parar mientras ${a.nombre} cocinaba.`, 'info');
       const cita = s.t;
       const juntos = !!(otro && despierto(s, otro) && otro.tarea?.tipo !== 'dormir' && otro.n.comida < 97);
-      crearTarea(s, a, 'cenar', { cita, juntos });
+      crearTarea(s, a, 'cenar', { cita, juntos, comida, trabajo: comida === 'cena' ? 35 : 20 });
       a.tarea.fase = 'trabajo';
-      if (juntos) { soltarTarea(s, otro); crearTarea(s, otro, 'cenar', { cita, juntos }); }
+      if (juntos) { soltarTarea(s, otro); crearTarea(s, otro, 'cenar', { cita, juntos, comida, trabajo: comida === 'cena' ? 35 : 20 }); }
       return;
     }
     case 'cenar': {
       const otro = pareja(s, a);
-      consumirComida(s, a, 45);
+      const comida = T.comida || 'cena';
+      consumirComida(s, a, comida === 'cena' ? 45 : 38);
       const juntos = T.juntos && otro;
+      if (comida !== 'cena') { recuerdo(s, a, juntos ? (comida === 'desayuno' ? 'Desayunaron juntos' : 'Almorzaron juntos') : 'Comió a solas', juntos ? 3 : -1, 6); break; }
       const chef = s.agentes.find((x) => x.id === s.pareja.cocinero);
       const deChef = chef && tiene(chef, 'chef') ? 2 : 0;
       recuerdo(s, a, juntos ? 'Cena juntos' : 'Cenó a solas', juntos ? 8 + (s.pareja.recetaNueva ? 4 : 0) + (mejora(s, 'recetario') ? 1 : 0) + deChef : -2 + deChef, 14);
@@ -1296,7 +1307,8 @@ function comportamientoAnimal(s, a, d) {
     } else if ((esNoche(s) && n.energia < 90) || n.energia < 20) {
       const triste = gato ? humanos(s).filter((h) => h.dentro && h.tarea?.tipo === 'dormir').sort((x, y) => (x.animo - (a.vinculo?.[x.id] ?? 50) * 0.2) - (y.animo - (a.vinculo?.[y.id] ?? 50) * 0.2))[0] : null;
       if (triste && triste.animo < (tiene(a, 'mimoso') ? 75 : 60)) a.tarea = { tipo: 'dormirCon', fase: 'camino', destino: { ...LUGAR.puerta }, trabajo: 0, dentro: true, con: triste.id };
-      else a.tarea = { tipo: 'dormir', fase: 'camino', destino: { ...(perro ? LUGAR.caseta : { x: LUGAR.banca.x, z: LUGAR.banca.z - 0.05 }) }, trabajo: 0 };
+      else if (perro && estacion(s) === 1 && !esNoche(s)) a.tarea = { tipo: 'dormir', fase: 'camino', destino: { ...LUGAR.caseta }, trabajo: 0 };   // la siesta de verano, en la caseta
+      else a.tarea = { tipo: 'dormir', fase: 'camino', destino: { ...LUGAR.puerta }, trabajo: 0, dentro: true };   // de noche, adentro con su gente
     } else if (perro && tiene(a, 'leal')) {
       const paseador = humanos(s).find((h) => h.tarea?.tipo === 'pasearPerro');
       const afuera = humanos(s).filter((x) => !x.dentro && !x.nadando);

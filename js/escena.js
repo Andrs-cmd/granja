@@ -36,7 +36,7 @@ export function crearEscena(host, { onParcela } = {}) {
   const CENTER = V((BLOQUE.x0 + BLOQUE.x1) / 2, 1.0, (BLOQUE.z0 + BLOQUE.z1) / 2);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.enablePan = false;
-  controls.minDistance = 60; controls.maxDistance = 380; controls.maxPolarAngle = Math.PI * 0.46;
+  controls.minDistance = 16; controls.maxDistance = 380;   // se puede acercar hasta ver adentro de la casa controls.maxPolarAngle = Math.PI * 0.46;
   controls.target.set(CENTER.x, 3, CENTER.z);
   camera.position.set(78, 60, 120);
 
@@ -187,7 +187,9 @@ export function crearEscena(host, { onParcela } = {}) {
     const metal = new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.4, metalness: 0.6 });
     [[8.665, 5.765, 6.05, 0.3], [11.54, 0, 0.3, 11.95], [8.665, -5.81, 6.05, 0.3]].forEach(([x, z, w, d]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, d), metal); m.position.set(x, RAIL_TOP + 0.035, z); root.add(m); });
   }
-  let cargada = false;
+  let cargada = false, casaK = 0;
+  const transparentables = [];   // paredes, techo, losa, puertas y marcos: se desvanecen cuando hay alguien adentro
+  const MIN_OPAC = { Techo: 0, Pared: 0.16, Losa: 0.45, Puerta: 0.25, Marco: 0.3 };
   new GLTFLoader().load('modelo/casa.glb', (gltf) => {
     const house = gltf.scene, rail = [];
     house.traverse((o) => {
@@ -212,8 +214,73 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (name === 'Losa') o.material.color.set(0xe2ddd2);
     });
     rail.forEach((o) => root.add(o));
+    const vistos = new Set();
+    house.traverse((o) => {
+      if (!o.isMesh) return;
+      const nombre = o.material.name, min = MIN_OPAC[nombre];
+      if (min == null) return;
+      if (!vistos.has(o.material)) { vistos.add(o.material); transparentables.push({ mat: o.material, min, mallas: [] }); }
+      transparentables.find((x) => x.mat === o.material).mallas.push(o);
+    });
     root.add(house); cargada = true;
   });
+
+  // ------------------------------------------------------------ interior de la casa
+  const PISO = [0.04, 4.31];
+  const ESCALERA = [V(-4.75, PISO[0], 4.7), V(-4.75, PISO[1], 0.9)];   // pie (planta baja) y cima (planta alta)
+  let fuego = null, hornillas = null;
+  {
+    const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...o });
+    const madera = M(0x9a6b42), blanco = M(0xf2efe8, { roughness: 0.5 }), acero = M(0xc9ced4, { roughness: 0.3, metalness: 0.6 }), oscuro = M(0x2b2d31, { roughness: 0.5 });
+    const bx = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; root.add(m); return m; };
+    const y0 = PISO[0], y1 = PISO[1];
+    // cocina (al fondo, a la izquierda)
+    bx(3.3, 0.9, 0.7, blanco, -2.65, y0 + 0.45, -5.45);
+    bx(3.3, 0.06, 0.74, M(0x6d5a4a, { roughness: 0.4 }), -2.65, y0 + 0.93, -5.45);
+    bx(0.7, 0.04, 0.55, acero, -3.5, y0 + 0.95, -5.45);                       // lavaplatos
+    bx(0.8, 0.05, 0.6, oscuro, -1.7, y0 + 0.97, -5.45);                       // estufa
+    hornillas = new THREE.MeshStandardMaterial({ color: 0x331a10, emissive: 0xff5a1a, emissiveIntensity: 0 });
+    for (const dx of [-0.18, 0.18]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 12), hornillas); h.position.set(-1.7 + dx, y0 + 1.0, -5.45); root.add(h); }
+    bx(0.9, 2.0, 0.8, M(0xe8e6e1, { roughness: 0.35 }), -5.0, y0 + 1.0, -5.1);   // nevera
+    bx(3.3, 0.7, 0.4, madera, -2.65, y0 + 2.35, -5.6);                        // alacena
+    // comedor
+    bx(2.2, 0.08, 1.2, madera, -1.2, y0 + 0.8, -1.6);
+    for (const [x, z] of [[-2.1, -2.1], [-0.3, -2.1], [-2.1, -1.1], [-0.3, -1.1]]) bx(0.08, 0.8, 0.08, madera, x, y0 + 0.4, z);
+    for (const [x, z] of [[-1.9, -2.65], [-0.5, -2.65], [-1.9, -0.55], [-0.5, -0.55]]) { bx(0.5, 0.06, 0.5, madera, x, y0 + 0.5, z); bx(0.5, 0.6, 0.06, madera, x, y0 + 0.8, z + (z < -1.6 ? -0.24 : 0.24)); }
+    // sala: tapete, sofá, sillón, mesa de centro, chimenea
+    const tapete = new THREE.Mesh(new THREE.CircleGeometry(1.5, 28), M(0xb5523b, { roughness: 1 })); tapete.rotation.x = -Math.PI / 2; tapete.position.set(2.6, y0 + 0.02, 2.3); tapete.receiveShadow = true; root.add(tapete);
+    const tela = M(0x5a6f8f, { roughness: 0.95 });
+    bx(3.0, 0.45, 0.9, tela, 2.6, y0 + 0.3, 4.6); bx(3.0, 0.7, 0.25, tela, 2.6, y0 + 0.75, 5.05);
+    for (const sx of [-1, 1]) bx(0.25, 0.6, 0.9, tela, 2.6 + sx * 1.55, y0 + 0.5, 4.6);
+    bx(1.0, 0.45, 0.9, M(0x8a5a3a, { roughness: 0.9 }), 4.75, y0 + 0.3, 0.6); bx(0.25, 0.7, 0.9, M(0x8a5a3a), 5.25, y0 + 0.75, 0.6);
+    bx(1.2, 0.35, 0.7, madera, 2.6, y0 + 0.2, 2.5);
+    bx(1.6, 1.4, 0.6, M(0x8c8780, { roughness: 1, flatShading: true }), 1.2, y0 + 0.7, -5.6);
+    fuego = new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: 0xff7a2a, emissiveIntensity: 0 });
+    { const f = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.1), fuego); f.position.set(1.2, y0 + 0.45, -5.28); root.add(f); }
+    // escalera (de la sala al dormitorio)
+    for (let k = 0; k < 12; k++) { const u = (k + 0.5) / 12; bx(1.0, 0.18, 0.42, madera, -4.75, y0 + u * (y1 - y0) - 0.09, 4.7 - u * 3.8); }
+    // planta alta: dormitorio y estudio
+    bx(2.2, 0.45, 2.6, madera, 0.2, y1 + 0.22, -4.2);
+    bx(2.1, 0.12, 2.4, M(0x7a9cc6, { roughness: 1 }), 0.2, y1 + 0.5, -4.0);         // cobija
+    for (const dx of [-0.5, 0.5]) bx(0.8, 0.14, 0.45, blanco, 0.2 + dx, y1 + 0.58, -5.2);   // almohadas
+    bx(2.2, 1.1, 0.12, madera, 0.2, y1 + 0.6, -5.5);                              // cabecera
+    for (const sx of [-1, 1]) bx(0.5, 0.55, 0.45, madera, 0.2 + sx * 1.5, y1 + 0.28, -5.3);
+    bx(2.0, 2.2, 0.4, madera, 3.5, y1 + 1.1, -5.6);                               // biblioteca
+    const libros = [0xc0392b, 0x2e6da4, 0xe2b33c, 0x3e8e5b, 0x8e44ad];
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 9; k++) bx(0.16, 0.38, 0.28, M(libros[(r * 3 + k) % 5]), 2.7 + k * 0.2, y1 + 0.35 + r * 0.52, -5.5);
+    bx(1.0, 0.45, 0.9, M(0x6f8f5a, { roughness: 0.95 }), 4.6, y1 + 0.3, 3.4); bx(0.25, 0.7, 0.9, M(0x6f8f5a), 5.1, y1 + 0.75, 3.4);
+  }
+  // dónde se ubica cada uno según lo que hace: [piso, x, z, mirar x, mirar z, pose]
+  const SITIO = {
+    estufa: [0, -1.7, -4.75, -1.7, -6, 'trabajo'], fregadero: [0, -3.5, -4.75, -3.5, -6, 'trabajo'],
+    silla0: [0, -1.9, -2.65, -1.9, 0, 'sentado'], silla1: [0, -0.5, -0.55, -0.5, -3, 'sentado'],
+    sofa0: [0, 2.0, 4.45, 2.0, 0, 'sentado'], sofa1: [0, 3.2, 4.45, 3.2, 0, 'sentado'],
+    sillon: [0, 4.65, 0.6, 0, 0.6, 'sentado'], tapete: [0, 2.6, 2.3, 2.6, 0, 'quieto'],
+    sala0: [0, 0.8, 2.0, 2.6, 2.3, 'quieto'], sala1: [0, 1.6, 0.6, 2.6, 2.3, 'quieto'],
+    cama0: [1, -0.3, -4.0, -0.3, -6, 'acostado'], cama1: [1, 0.7, -4.0, 0.7, -6, 'acostado'],
+    pieCama: [1, 0.2, -3.1, 0.2, 0, 'acostado'], sillonAlto: [1, 4.5, 3.4, 0, 3.4, 'sentado'], biblioteca: [1, 3.5, -4.7, 3.5, -6, 'quieto'],
+  };
+  const LIMPIAR = ['sala0', 'fregadero', 'tapete', 'biblioteca', 'sillon'];
 
   // ------------------------------------------------------------ granja: huerto, pozo, tanque, comedero, caseta, banca
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x7a4e2b, roughness: 0.8, flatShading: true });
@@ -725,6 +792,111 @@ export function crearEscena(host, { onParcela } = {}) {
     v.tomb = tomb;
   }
 
+  function sitioDe(a, s, t) {
+    const T = a.tarea, tp = T?.tipo, i = a.id === 'tomas' ? 0 : 1;
+    if (a.tipo === 'humano') {
+      if (tp === 'dormir') return SITIO['cama' + i];
+      if (tp === 'cocinar') return SITIO.estufa;
+      if (tp === 'cenar' || tp === 'comer') return SITIO['silla' + i];
+      if (tp === 'beber' || tp === 'filtrar') return SITIO.fregadero;
+      if (tp === 'leer') return i === 0 ? SITIO.sofa0 : SITIO.sillonAlto;
+      if (tp === 'tejer') return SITIO.sillon;
+      if (tp === 'siesta') return { ...SITIO['sofa' + i], 5: 'siesta' };
+      if (tp === 'conversar' || tp === 'reconciliar') return SITIO['sofa' + i];
+      if (tp === 'limpiarCasa') return { ...SITIO[LIMPIAR[Math.floor(t / 6 + i * 2) % LIMPIAR.length]], 5: 'limpiar' };
+      return SITIO['sala' + i];
+    }
+    const perro = a.tipo === 'perro';
+    if (tp === 'dormir' || tp === 'dormirCon') {
+      if (perro) return { ...SITIO.tapete, 5: 'dormido' };
+      const h = T.con && s.agentes.find((x) => x.id === T.con);
+      return h ? { ...SITIO[h.id === 'tomas' ? 'cama0' : 'cama1'], 2: -3.2, 5: 'dormido' } : { ...SITIO.pieCama, 5: 'dormido' };
+    }
+    if (tp === 'pedir') return { ...SITIO.estufa, 2: -3.9, 5: 'quieto' };
+    if (tp === 'regazo') { const h = s.agentes.find((x) => x.id === T.con); if (h && vis[h.id]?.ip) return { 0: vis[h.id].ip.y > 2 ? 1 : 0, 1: vis[h.id].ip.x + 0.25, 2: vis[h.id].ip.z, 3: 0, 4: 0, 5: 'regazo' }; }
+    return perro ? { ...SITIO.tapete, 5: 'quieto' } : { ...SITIO.sofa1, 5: 'quieto' };
+  }
+  function poseInterior(a, v, s, t, dt) {
+    v.g.visible = true;
+    const sp = sitioDe(a, s, t), piso = sp[0], destino = V(sp[1], PISO[piso], sp[2]);
+    if (!v.dentroAntes) { v.dentroAntes = true; v.ip = V(-3.3, PISO[0], 5.1); v.ruta = []; v.sitioKey = null; }
+    const key = destino.toArray().map((n) => n.toFixed(1)).join('|');
+    if (key !== v.sitioKey) {
+      v.sitioKey = key;
+      const actual = v.ip.y > 2 ? 1 : 0;
+      v.ruta = actual === piso ? [destino] : [ESCALERA[actual].clone(), ESCALERA[piso].clone(), destino];
+    } else if (v.ruta.length) v.ruta[v.ruta.length - 1] = destino;
+    let paso = dt * (v.kind === 'humano' ? 2.3 : 3.0), mov = 0;
+    while (v.ruta.length && paso > 1e-4) {
+      const obj = v.ruta[0], d = v.ip.distanceTo(obj);
+      const dx = obj.x - v.ip.x, dz = obj.z - v.ip.z;
+      if (Math.hypot(dx, dz) > 0.02) v.yaw = angLerp(v.yaw, yawTo(dx, dz), Math.min(1, dt * 10));
+      if (d <= paso) { v.ip.copy(obj); v.ruta.shift(); paso -= d; mov += d; }
+      else { v.ip.addScaledVector(obj.clone().sub(v.ip).normalize(), paso); mov += paso; paso = 0; }
+    }
+    const moving = mov > 1e-3;
+    v.moving += ((moving ? 1 : 0) - v.moving) * Math.min(1, dt * 8);
+    v.walkPh += (moving ? 2.3 : 0) * dt * (v.kind === 'humano' ? 2.6 : 3.4);
+    const w = v.moving, ph = v.walkPh, quieto = !moving && !v.ruta.length;
+    let pose = quieto ? sp[5] : 'camina';
+    if (quieto && sp[3] != null && pose !== 'acostado' && pose !== 'dormido' && pose !== 'siesta') {
+      let lx = sp[3], lz = sp[4];
+      const otro = a.tarea && ['conversar', 'reconciliar'].includes(a.tarea.tipo) && s.agentes.find((x) => x !== a && x.tipo === 'humano');
+      if (otro && vis[otro.id]?.ip) { lx = vis[otro.id].ip.x; lz = vis[otro.id].ip.z; }
+      v.yaw = angLerp(v.yaw, yawTo(lx - v.ip.x, lz - v.ip.z), Math.min(1, dt * 6));
+    }
+    v.g.position.copy(v.ip); v.g.rotation.set(0, v.yaw, 0);
+    if (v.kind === 'humano') {
+      v.libro.visible = false; v.pieza.visible = false;
+      v.upper.rotation.set(0, 0, 0); v.head.rotation.set(0, 0, 0);
+      if (pose === 'acostado' || pose === 'siesta') {
+        // tendido: en la cama con la cabeza hacia la cabecera; la siesta, a lo largo del sofá
+        const cama = pose === 'acostado';
+        const yaw = cama ? Math.PI / 2 : 0, fwd = cama ? V(0, 0, -1) : V(1, 0, 0);
+        v.g.position.set(cama ? v.ip.x : 1.35, PISO[piso] + (cama ? 0.66 : 0.62), cama ? -5.15 + v.h : 4.5).addScaledVector(fwd, cama ? 0 : 0);
+        v.g.rotation.set(0, yaw, -Math.PI / 2);
+        v.legs.forEach((l) => { l.hip.rotation.z = 0; l.knee.rotation.z = 0; });
+        v.arms.forEach((arm, j) => arm.rotation.set(0, 0, 0.15));
+        v.head.rotation.set(0, 0, 0.3);
+        return;
+      }
+      const sentado = pose === 'sentado' ? 1 : 0;
+      v.g.position.y = PISO[piso] - sentado * (v.h - 0.85) + Math.abs(Math.sin(ph)) * 0.04 * w;
+      v.legs.forEach((l, j) => {
+        const sw = Math.sin(ph + j * Math.PI) * w;
+        l.hip.rotation.z = sw * 0.55 + sentado * Math.PI / 2 + (pose === 'limpiar' ? 0.25 : 0);
+        l.knee.rotation.z = -Math.max(0, -sw) * 0.7 - sentado * Math.PI / 2 - (pose === 'limpiar' ? 0.45 : 0);
+      });
+      const tp = a.tarea?.tipo;
+      const trabaja = pose === 'trabajo' || pose === 'limpiar';
+      v.upper.rotation.set(0, 0, trabaja ? -0.25 : sentado && (tp === 'leer' || tp === 'tejer') ? -0.2 : 0);
+      if (pose === 'limpiar') v.upper.rotation.z = -0.55;
+      v.arms.forEach((arm, j) => {
+        let z = -Math.sin(ph + j * Math.PI) * 0.45 * w + sentado * 0.5;
+        if (trabaja) z = 0.9 + Math.sin(t * 6 + j * Math.PI) * 0.3;
+        if (sentado && (tp === 'cenar' || tp === 'comer') && j) z = 0.9 + Math.max(0, Math.sin(t * 3)) * 0.5;   // lleva el tenedor a la boca
+        if (sentado && tp === 'leer') z = 1.0;
+        if (sentado && tp === 'tejer') z = 1.0 + Math.sin(t * 8 + j * Math.PI) * 0.12;
+        if (sentado && (tp === 'conversar' || tp === 'reconciliar') && j) z = 0.5 + Math.max(0, Math.sin(t * 1.3 + a.id.length)) * 0.7;
+        arm.rotation.set(0, 0, z);
+      });
+      v.libro.visible = quieto && tp === 'leer';
+      v.head.rotation.set(0, 0, sentado && (tp === 'leer' || tp === 'tejer') ? -0.35 : trabaja ? -0.3 : 0);
+    } else {
+      const dormido = pose === 'dormido', sentado = pose === 'quieto' || pose === 'regazo';
+      const sobre = pose === 'regazo' ? 0.55 : dormido && a.tipo === 'gato' && piso === 1 ? 0.62 : 0;   // en el regazo o sobre la cama
+      v.g.position.y = PISO[piso] + sobre + Math.abs(Math.sin(ph)) * 0.05 * w - (dormido ? 0.25 : 0);
+      v.torso.rotation.z = sentado && !dormido ? 0.5 : 0;
+      v.head.rotation.set(0, 0, sentado ? -0.25 : 0);
+      v.legs.forEach((l) => {
+        let r = w * Math.sin(ph + (l.front ? 0 : Math.PI) + (l.side > 0 ? Math.PI : 0)) * 0.6;
+        if (!l.front) r += -(sentado ? 1.2 : 0) - (dormido ? 1.4 : 0); else r += -(sentado ? 0.5 : 0) - (dormido ? 1.3 : 0);
+        l.piv.rotation.z = r;
+      });
+      v.tail.rotation.x = Math.sin(t * (v.kind === 'perro' ? 9 : 2.5)) * (dormido ? 0.05 : 0.35);
+    }
+  }
+
   function poseAgente(a, v, s, t, dt) {
     if (!a.vivo) {
       const dias = (s.t - a.murio) / MIN_DIA;
@@ -735,8 +907,10 @@ export function crearEscena(host, { onParcela } = {}) {
     }
     v.tomb.visible = false;
     const T = a.tarea, trabajando = T && T.fase === 'trabajo';
-    const hidden = a.dentro;
-    v.g.visible = !hidden;
+    if (a.dentro) { poseInterior(a, v, s, t, dt); return; }   // adentro: se ve a través de la casa transparente
+    if (v.dentroAntes) { v.dentroAntes = false; v.vp = V(a.pos.x, 0, a.pos.z); }
+    const hidden = false;
+    v.g.visible = true;
     // movimiento real entre cuadros → camina
     if (!v.ready || !v.vp) { v.vp = V(a.pos.x, 0, a.pos.z); v.ready = true; v.walkPh = 0; }
     const tx = a.pos.x - v.vp.x, tz = a.pos.z - v.vp.z, lejos = Math.hypot(tx, tz);
@@ -954,6 +1128,18 @@ export function crearEscena(host, { onParcela } = {}) {
     for (const tr of trees) { tr.crown.rotation.z = Math.sin(t * 0.9 + tr.phase) * 0.02 * (1 + lluviaK); }
     (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); v.copa.rotation.z = Math.sin(t * 0.9 + v.fase) * 0.02 * (1 + lluviaK); });
 
+    // la casa se vuelve transparente cuando hay alguien adentro
+    const adentro = s.agentes.some((x) => x.vivo && x.dentro);
+    casaK += ((adentro ? 1 : 0) - casaK) * Math.min(1, dt * 3);
+    for (const tr of transparentables) {
+      const op = 1 - casaK * (1 - tr.min), trans = op < 0.995;
+      if (tr.mat.transparent !== trans) { tr.mat.transparent = trans; tr.mat.depthWrite = !trans; tr.mat.needsUpdate = true; }
+      tr.mat.opacity = op;
+      for (const m of tr.mallas) { m.visible = op > 0.02; m.castShadow = op > 0.6; }
+    }
+    const cocinando = s.agentes.some((x) => x.tarea?.tipo === 'cocinar' && x.dentro);
+    if (hornillas) hornillas.emissiveIntensity = cocinando ? 1.6 + Math.sin(t * 9) * 0.3 : 0;
+    if (fuego) fuego.emissiveIntensity = (night > 0.4 || s.clima.lluvia || (s.t / MIN_DIA / 28 | 0) % 4 === 3) ? 1.8 + Math.sin(t * 7) * 0.4 + Math.sin(t * 13) * 0.2 : 0;
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     efectos(s, dt);
     controls.update();
