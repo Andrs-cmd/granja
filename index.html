@@ -51,6 +51,36 @@
   .caption { position: fixed; left: 50%; top: 22px; transform: translateX(-50%); font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
     opacity: 0; transition: opacity 1.2s; pointer-events: none; text-shadow: 0 1px 10px rgba(0,0,0,.5); z-index: 2; }
   .caption.on { opacity: .9; }
+  /* el jugador: dilemas, ficha de personaje e influencia */
+  .diario li.decision { border-color: #b48ae0; }
+  .dilema { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); width: min(430px, calc(100vw - 24px)); z-index: 6;
+    background: rgba(24,22,30,.94); border: 1px solid rgba(180,138,224,.45); border-radius: 14px; padding: 11px 13px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    backdrop-filter: blur(8px); transition: opacity .35s, transform .35s; }
+  body.con-dilema .caption { top: auto; bottom: 104px; }
+  .dilema.off { opacity: 0; pointer-events: none; transform: translate(-50%, -12px); }
+  .dilema h3 { font-size: 13.5px; margin: 0 0 3px; color: #e6d3ff; } .dilema p { margin: 0 0 8px; font-size: 12px; color: rgba(241,238,232,.82); line-height: 1.35; }
+  .dilema .ops { display: grid; gap: 5px; } .dilema .mas { position: absolute; right: 12px; top: 10px; font-size: 11px; opacity: .6; }
+  .dilema button, .fichapj button { text-align: left; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: inherit; font: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 7px 10px; border-radius: 9px; cursor: pointer; } .dilema button:hover, .fichapj button:hover { background: rgba(180,138,224,.25); border-color: rgba(180,138,224,.6); }
+  .dilema button small, .fichapj button small { display: block; font-weight: 400; font-size: 11px; opacity: .65; margin-top: 1px; }
+  .dilema .reloj { height: 3px; background: rgba(255,255,255,.1); border-radius: 3px; margin-top: 9px; overflow: hidden; } .dilema .reloj i { display: block; height: 100%; background: #b48ae0; }
+  .dilema .nota { font-size: 10.5px; opacity: .55; margin-top: 4px; }
+  .fichapj { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); width: min(340px, calc(100vw - 24px)); z-index: 6;
+    background: rgba(24,22,30,.95); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 11px 13px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .fichapj.off { display: none; } .fichapj .cerrar { position: absolute; right: 8px; top: 6px; background: none; border: 0; font-size: 18px; padding: 2px 6px; }
+  .fichapj h3 { margin: 0 0 2px; font-size: 14px; } .fichapj .sub { font-size: 11.5px; opacity: .75; margin-bottom: 7px; } .fichapj .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .fichapj button:disabled { opacity: .35; cursor: default; }
+  .conf { height: 4px; background: rgba(255,255,255,.1); border-radius: 3px; margin: 3px 0 8px; } .conf i { display: block; height: 100%; background: #e7c46a; border-radius: 3px; }
+  .influ { position: fixed; left: 50%; transform: translateX(-50%); bottom: 62px; z-index: 4; font-size: 12px; letter-spacing: .08em; padding: 4px 10px; border-radius: 99px;
+    background: rgba(18,18,22,.55); border: 1px solid rgba(180,138,224,.25); color: #d9c2f5; pointer-events: none; }
+  @media (max-width: 640px) {
+    .dilema { top: auto; bottom: 58px; padding: 9px 10px 10px; } .dilema.off { transform: translate(-50%, 12px); }
+    .dilema h3 { font-size: 12.5px; } .dilema p { font-size: 11px; margin-bottom: 6px; } .dilema .ops { grid-template-columns: 1fr 1fr; gap: 4px; }
+    .dilema button { font-size: 11.5px; padding: 6px 8px; } .dilema button small { font-size: 10px; } .dilema .nota { display: none; }
+    body.datos .dilema { bottom: auto; top: 8px; }
+    body.con-dilema .caption { bottom: auto; top: 22px; }
+  }
+  @media (max-width: 640px) { .fichapj { bottom: auto; top: 12px; } .influ { bottom: auto; top: 8px; left: auto; right: 10px; transform: none; font-size: 11px; } }
   #loader { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: #1b1a17; color: #a3a09a; font: 600 12px ui-monospace, Consolas, monospace; letter-spacing: .12em; transition: opacity .6s; }
 
   @media (max-width: 1000px) { .card { padding: 8px 9px; } .pj .act { font-size: 11px; } .grid { font-size: 11.5px; } }
@@ -85,6 +115,9 @@
 <div class="tabs" id="tabs"></div>
 <div class="speeds" id="speeds"></div>
 <div class="caption" id="caption"></div>
+<div class="dilema off" id="dilema"></div>
+<div class="fichapj off" id="fichapj"></div>
+<div class="influ" id="influ" title="Influencia: se recarga cada día"></div>
 
 <script type="importmap">
 { "imports": {
@@ -121,9 +154,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 let parcelaSel = null;   // ficha de la parcela que se toque
-const escena = crearEscena(document.getElementById('stage'), { onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); } });
+let fichaId = null;
+const escena = crearEscena(document.getElementById('stage'), { onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); }, onAgente: (id) => { fichaId = fichaId === id ? null : id; pintarJugador(true); } });
 // acceso de depuración desde la consola (no afecta la simulación)
-window.granja = { get estado() { return estado; } };
+window.granja = { get estado() { return estado; }, escena };
 
 // ---------------------------------------------------------------- columnas de datos
 const izq = document.getElementById('izq'), der = document.getElementById('der');
@@ -278,7 +312,51 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } }, 500);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+
+// ---------------------------------------------------------------- el jugador: dilemas, ficha e influencia
+const elDil = document.getElementById('dilema'), elFicha = document.getElementById('fichapj'), elInflu = document.getElementById('influ');
+let htmlDil = '', htmlFicha = '';
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function pintarJugador(forzar = false) {
+  const s = estado, J = s.jugador; if (!J) return;
+  elInflu.textContent = `✦ ${'●'.repeat(Math.floor(J.influencia))}${'○'.repeat(Math.max(0, J.max - Math.floor(J.influencia)))}`;
+  // dilema pendiente (el más antiguo)
+  const d = (s.dilemas || [])[0];
+  document.body.classList.toggle('con-dilema', !!d);
+  if (!d) { elDil.classList.add('off'); htmlDil = ''; }
+  else {
+    const h = `<div class="mas">${s.dilemas.length > 1 ? `+${s.dilemas.length - 1} más` : ''}</div><h3>${esc(d.titulo)}</h3><p>${esc(d.texto)}</p><div class="ops">${d.opciones.map((o) => `<button data-d="${d.id}" data-k="${esc(o.k)}">${esc(o.txt)}${o.pista ? `<small>${esc(o.pista)}</small>` : ''}</button>`).join('')}</div><div class="reloj"><i></i></div><div class="nota">Si no decides, ellos decidirán solos.</div>`;
+    if (h !== htmlDil || forzar) { elDil.innerHTML = h; htmlDil = h; }
+    elDil.classList.remove('off');
+    elDil.querySelector('.reloj i').style.width = Math.max(0, Math.min(100, (d.vence - s.t) / (d.vence - d.creado) * 100)) + '%';
+  }
+  // ficha del personaje tocado
+  const a = fichaId && s.agentes.find((x) => x.id === fichaId);
+  if (!a || !a.vivo) { elFicha.classList.add('off'); htmlFicha = ''; fichaId = null; return; }
+  const conf = J.confianza[a.id] ?? 50;
+  // la cabecera cambia seguido; los botones solo se rehacen si cambia la influencia (para no perder clics)
+  if (!elFicha.querySelector('.cab') || forzar && elFicha.dataset.id !== a.id) { elFicha.innerHTML = '<button class="cerrar" data-cerrar="1">×</button><div class="cab"></div><div class="ops"></div>'; elFicha.dataset.id = a.id; htmlFicha = ''; }
+  const cab = `<h3>${Sim.caraAnimo(a.animo)} ${esc(a.nombre)}</h3>
+    <div class="sub">${esc(a.dentro ? 'En casa · ' + a.accion.toLowerCase() : a.accion)}${a.deseo ? ` · ✨ ${esc(a.deseo.texto)}` : ''}</div>
+    <div class="sub" style="margin:0">Confianza en ti: ${Math.round(conf)} / 100</div><div class="conf"><i style="width:${conf}%"></i></div>`;
+  const elCab = elFicha.querySelector('.cab'); if (elCab.innerHTML !== cab) elCab.innerHTML = cab;
+  const ops = Object.entries(Sim.ACCIONES).map(([k, A]) => `<button data-acc="${k}" ${J.influencia < A.costo ? 'disabled' : ''}>${esc(A.txt)} <span style="opacity:.6">${'●'.repeat(A.costo)}</span><small>${esc(A.pista)}</small></button>`).join('');
+  if (ops !== htmlFicha) { elFicha.querySelector('.ops').innerHTML = ops; htmlFicha = ops; }
+  elFicha.classList.remove('off');
+}
+elDil.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-d]'); if (!b) return;
+  if (Sim.decidir(estado, +b.dataset.d, b.dataset.k)) { guardar(); pintarJugador(true); pintarDatos(); }
+});
+elFicha.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar]')) { fichaId = null; pintarJugador(true); return; }
+  const b = e.target.closest('button[data-acc]'); if (!b || !fichaId) return;
+  const r = Sim.actuar(estado, fichaId, b.dataset.acc);
+  const a = estado.agentes.find((x) => x.id === fichaId);
+  if (r.msg) aviso(r.msg); else if (r.ok) aviso(r.acepto ? `${a.nombre} te hizo caso` : `${a.nombre} no te hizo caso`);
+  guardar(); pintarJugador(true);
+});
 
 // ---------------------------------------------------------------- control de velocidad y botón de datos
 const speeds = document.getElementById('speeds');
@@ -295,7 +373,7 @@ const elegirTab = (k) => { TABS.forEach(([t]) => document.body.classList.toggle(
 TABS.forEach(([k, txt]) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = () => elegirTab(k); tabs.append(b); });
 elegirTab('pj');
 const bDatos = document.createElement('button');
-function aplicarDatos() { tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
+function aplicarDatos() { document.body.classList.toggle('datos', datos); tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
 pintar(); aplicarDatos();

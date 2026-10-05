@@ -17,7 +17,7 @@ const rand = (() => { let s = 11; return () => (s = (s * 16807) % 2147483647) / 
 const angLerp = (a, b, k) => a + (((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * k;
 const yawTo = (dx, dz) => Math.atan2(-dz, dx);
 
-export function crearEscena(host, { onParcela } = {}) {
+export function crearEscena(host, { onParcela, onAgente } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
   renderer.setClearColor(0x000000, 0);
@@ -1281,6 +1281,17 @@ export function crearEscena(host, { onParcela } = {}) {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
     const r = renderer.domElement.getBoundingClientRect();
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    // ¿tocó a una persona? (se proyecta cada una a la pantalla: son pequeñas y así es fácil tocarlas)
+    if (onAgente) {
+      let mejor = null, dmin = 44;
+      for (const [id, v] of Object.entries(vis)) {
+        if (v.kind !== 'humano' || !v.g.visible) continue;
+        const w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera);
+        const sx = (w.x + 1) / 2 * r.width + r.left, sy = (1 - w.y) / 2 * r.height + r.top, dd = Math.hypot(sx - e.clientX, sy - e.clientY);
+        if (w.z < 1 && dd < dmin) { dmin = dd; mejor = id; }
+      }
+      if (mejor) { onAgente(mejor); return; }
+    }
     ray.setFromCamera(mouse, camera);
     const hit = ray.intersectObjects(parcelas.map((p) => p.soil))[0];
     if (hit && onParcela) onParcela(hit.object.userData.parcela);
@@ -1495,6 +1506,8 @@ export function crearEscena(host, { onParcela } = {}) {
   return {
     update,
     seleccionar(i) { seleccion = i; },
+    // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
+    proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,
     get cargada() { return cargada; },
   };

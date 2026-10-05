@@ -403,7 +403,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), comercio: comercioNuevo(inicio),
+    ...placeresNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(),
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -607,7 +607,7 @@ function tick(s, d) {
   actualizarGranja(s, d);
   for (const a of s.agentes) if (a.vivo) { necesidades(s, a, d); comportamiento(s, a, d); }
   encuentros(s);
-  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) vigilar(s);
+  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); }
 }
 
 function nuevoDia(s) {
@@ -638,6 +638,7 @@ function nuevoDia(s) {
   compostDelDia(s);
   placeresDelDia(s);
   comercioDelDia(s);
+  dilemasDelDia(s);
   eventos(s);
   if (dia(s) % DIAS_ESTACION === 0) {
     const e = estacion(s);
@@ -789,7 +790,9 @@ function reproduccion(s) {
   if (e === 0 && dE >= 4 && dE <= 22) {
     for (const g of s.ganado.filter((x) => adulto(x) && x.sexo === 'h' && (x.tipo === 'vaca' || x.tipo === 'oveja'))) {
       if (g.ultimoParto === año || !macho(g.tipo) || enCorral(s) >= CUPO.corral) continue;
-      if (rng(s) > (g.tipo === 'vaca' ? 0.05 : 0.07) * (1 - (g.estres || 0) / 120)) continue;
+      const mult = { muchas: 1.8, normal: 1, pocas: 0.4, ninguna: 0 }[s.politica?.crias || 'normal'];
+      if (rng(s) > (g.tipo === 'vaca' ? 0.05 : 0.07) * (1 - (g.estres || 0) / 120) * mult) continue;
+      if (s.politica?.noParientes && !s.ganado.some((m) => adulto(m) && m.sexo === 'm' && m.tipo === g.tipo && !parientes(s, g, m))) continue;   // se espera sangre nueva
       g.ultimoParto = año;
       const n = g.tipo === 'oveja' && rng(s) < 0.3 && enCorral(s) + 2 <= CUPO.corral ? 2 : 1;
       const crias = Array.from({ length: n }, () => nacer(s, g.tipo, g));
@@ -812,7 +815,7 @@ function reproduccion(s) {
       }
       continue;
     }
-    if ((e === 0 || e === 1) && macho('gallo') && enGallinero(s) < CUPO.gallinero - 1 && rng(s) < 0.02) {
+    if ((e === 0 || e === 1) && macho('gallo') && enGallinero(s) < CUPO.gallinero - 1 && rng(s) < 0.02 * ({ muchas: 1.8, normal: 1, pocas: 0.4, ninguna: 0 }[s.politica?.crias || 'normal'])) {
       g.empolla = dia(s) + 21;   // pone y empolla sus propios huevos
       log(s, `${g.nombre} se puso clueca: empollará sus huevos durante 21 días.`, 'info');
     }
@@ -941,6 +944,7 @@ function elegirCultivo(s, a, invernadero = false, parcela = null) {
     if (!invernadero && !C.estaciones.includes((e + 1) % 4) && C.dias > quedan - 0.5) continue;
     let p = C.raciones / C.dias;
     if (HAB(a).comida === k) p *= 1.15;
+    if (s.politica?.cultivo === k && s.politica.cultivoEst === e) p *= 2.2;   // lo que decidió el jugador
     // rotación: quien sabe de huerto evita repetir y pone fríjol donde falta nitrógeno
     if (parcela) {
       const saber = Math.min(1, 0.35 + nivel(a.xp.huerto) * 0.08 + (tiene(a, 'manoVerde') ? 0.3 : 0) + P5(a, 'responsabilidad') * 0.2);
@@ -1252,7 +1256,7 @@ function elegirTarea(s, a) {
   // sanidad vegetal: quien tiene mano verde ve la plaga antes
   { const ve = tiene(a, 'manoVerde') ? 0.12 : 0.3;
     const p = s.parcelas.filter((q) => q.estado === 'creciendo' && q.plaga > ve && libre(q)).sort((x, y) => y.plaga - x.plaga)[0];
-    if (p) opciones.push(p.plaga > 0.85 && p.salud < 30 ? [84, 'arrancar', { parcela: p.id }] : [80, 'fumigar', { parcela: p.id }]); }
+    if (p) opciones.push(p.plaga > 0.85 && p.salud < 30 ? [84, 'arrancar', { parcela: p.id }] : [p.prioridad > s.t ? 93 : 80, 'fumigar', { parcela: p.id }]); }
   { const p = s.parcelas.find((q) => (q.estado === 'vacia' || q.estado === 'creciendo') && Math.min(q.N, q.P, q.K) < 40 && libre(q));
     if (p && (R.compost || 0) >= 4 && !yaHace('abonar')) opciones.push([57, 'abonar', { parcela: p.id }]); }
   if ((R.pila || 0) > 15 && dia(s) - (s.ultimoVolteo ?? -99) >= 5 && !yaHace('voltearCompost')) opciones.push([40, 'voltearCompost']);
@@ -1261,20 +1265,20 @@ function elegirTarea(s, a) {
   if (s.casa.limpieza < 25 + resp * 35 && !yaHace('limpiarCasa')) opciones.push([45 + resp * 15, 'limpiarCasa']);
   if (R.lana >= 4 && R.abrigos < humanos(s).length + (e >= 2 ? 0 : -1) && !yaHace('tejer')) opciones.push([e >= 2 ? 48 : 30, 'tejer']);
   if (R.potable < consumoAgua(s) * (3 + resp * 4) && R.cruda >= 30 && !yaHace('filtrar')) opciones.push([40, 'filtrar']);
-  { const g = s.ganado.filter((x) => x.vivo && (x.estres || 0) > 45 && !x.enfermo && !esAve(x.tipo) && !(x.cepillado > s.t)).sort((x, y) => y.estres - x.estres)[0]; if (g && !yaHace('cepillar')) opciones.push([g.estres > 70 ? 74 : 48, 'cepillar', { animal: g.id }]); }
+  { const g = s.ganado.filter((x) => x.vivo && (x.estres || 0) > 45 && !x.enfermo && !esAve(x.tipo) && !(x.cepillado > s.t)).sort((x, y) => y.estres - x.estres)[0]; if (g && !yaHace('cepillar')) opciones.push([s.politica?.cepillarHasta > s.t ? 88 : g.estres > 70 ? 74 : 48, 'cepillar', { animal: g.id }]); }
   { const g = s.ganado.find((x) => x.vivo && x.enfermo > 0); if (g && !yaHace('curar')) opciones.push([g.salud < 50 ? 88 : 62, 'curar', { animal: g.id }]); }
   { const f = (s.frutales || []).filter((x) => x.fruta >= 6).sort((x, y) => y.fruta - x.fruta)[0]; if (f && !yaHace('recogerFruta')) opciones.push([f.fruta >= 11 ? 68 : 54, 'recogerFruta', { arbol: f.id }]); }
   { const uvas = s.parras.reduce((t, q) => t + q.uvas, 0); if (uvas >= 14 && !yaHace('vendimia')) opciones.push([uvas >= 40 ? 70 : 52, 'vendimia']); }
-  if (R.uvas >= 10 && !yaHace('pisarUva')) opciones.push([R.uvas >= 30 ? 64 : 46, 'pisarUva']);
+  if (R.uvas >= 10 && !yaHace('pisarUva') && !dilemaDe(s, 'uva')) opciones.push([R.uvas >= 30 ? 64 : 46, 'pisarUva']);
   if (s.matas.some((m) => m.estado === 'lista') && !yaHace('cosecharHierba')) opciones.push([58, 'cosecharHierba']);
-  { const V = s.comercio.visita; if (V && !V.hecho && h >= 8 && h < 17 && !yaHace('comerciar')) opciones.push([62 + (tiene(a, 'ahorradora') ? 10 : 0) + P5(a, 'extraversion') * 8, 'comerciar']); }
+  { const V = s.comercio.visita; if (V && !V.hecho && h >= 8 && h < 17 && !yaHace('comerciar') && !dilemaDe(s, 'venta')) opciones.push([62 + (tiene(a, 'ahorradora') ? 10 : 0) + P5(a, 'extraversion') * 8, 'comerciar']); }
   // conservar la comida
   // (la despensa tiene un límite: frascos, quesos y secos solo hasta llenarla)
   if (R.leche >= 6 && (R.queso || 0) < CAPACIDAD.queso && !yaHace('hacerQueso')) opciones.push([58, 'hacerQueso']);
   if (R.raciones > 70 && (e === 2 || R.raciones > 140) && (R.conservas || 0) < CAPACIDAD.conservas && !yaHace('hacerConservas')) opciones.push([44 + (e === 2 ? 10 : 0), 'hacerConservas']);
   if (obra(s, 'secadero') && R.raciones > 50 && (R.secos || 0) < CAPACIDAD.secos && e !== 3 && !llueve && h > 8 && h < 16 && !yaHace('secar')) opciones.push([36, 'secar']);
   // obras de Andrés (o de quien tenga el oficio)
-  { const o = (s.obras || []).find((x) => x.progreso < 1);
+  { const o = (s.obras || []).find((x) => x.id === s.politica?.obra && x.progreso < 1) || (s.obras || []).find((x) => x.progreso < 1);
     if (o && !yaHace('construir') && (tiene(a, 'manitas') || nivel(a.xp.carpinteria) >= 3)) opciones.push([34 + (tiene(a, 'manitas') ? 14 : 0) + (o.id === 'bodega' && R.raciones > 120 ? 10 : 0), 'construir', { obra: o.id }]); }
   // jardines de María
   { const j = (s.jardines || []).filter((x) => x.cuidado < 0.85).sort((x, y) => x.cuidado - y.cuidado)[0];
@@ -1283,7 +1287,7 @@ function elegirTarea(s, a) {
   const henoMeta = 50 + 32 * enCorral(s);
   if (s.granja.pasto >= 50 && (e === 1 || e === 2) && R.heno < henoMeta && !yaHace('segar')) opciones.push([R.heno < henoMeta * 0.75 && e === 2 ? 66 : 40, 'segar']);
   if (R.cruda < 150 + resp * 200 && !yaHace('sacarAgua') && e !== 0) opciones.push([35, 'sacarAgua']);
-  const trabajoValido = opciones.filter((o) => !llueve || ['filtrar', 'limpiarCasa', 'tejer', 'reparar'].includes(o[1]) || o[0] >= 92);
+  const trabajoValido = opciones.filter((o) => (!llueve || ['filtrar', 'limpiarCasa', 'tejer', 'reparar'].includes(o[1]) || o[0] >= 92) && (!(a.diaLibre > s.t) || o[0] >= 90));
 
   // después de una discusión: el más amable (o el menos rencoroso) pide perdón
   const pend = s.pareja.pendiente;
@@ -1322,6 +1326,7 @@ function elegirTarea(s, a) {
   for (const k of ['vino', 'hierba']) {
     const P = a.placer?.[k], gustoP = HAB(a).placeres?.[k] ?? 0;
     if (!P || gustoP <= 0 || (R[k] || 0) < (k === 'vino' ? 0.25 : 0.5) || n.comida < 30) continue;
+    if (k === 'vino' && a.tomarHoy && h >= 18.5 && h < 23) { a.tomarHoy = false; ocio.push([200, 'tomarVino']); continue; }
     const horaOk = k === 'vino' ? h >= 18.5 && h < 23 : h >= 10 && h < 23;
     if (!horaOk) continue;
     const dias = (s.t - P.ult) / MIN_DIA;
@@ -1659,6 +1664,8 @@ function completar(s, a, T) {
           log(s, `🏗️ ${a.nombre} terminó ${o.nombre}: ${info[5]}.`, 'logro');
           for (const h of humanos(s)) recuerdo(s, h, `Terminamos ${o.nombre}`, 10, 48);
           memoria(s, a, `Construyó ${o.nombre}`, 1);
+          const quedan = s.obras.filter((x) => x.progreso < 1).slice(0, 3);
+          if (quedan.length > 1) proponer(s, 'obra', '¿Qué construye Andrés ahora?', 'Terminó una obra. Elige la próxima.', [...quedan.map((x) => ({ k: x.id, txt: x.nombre[0].toUpperCase() + x.nombre.slice(1), pista: OBRAS.find((y) => y[0] === x.id)[5] })), { k: 'libre', txt: 'La que él quiera', pista: '' }], 'libre', {}, 12, 0);
         }
       }
       break;
@@ -1744,6 +1751,11 @@ function completar(s, a, T) {
       s.parras.forEach((q) => { q.uvas = 0; });
       R.uvas += n; s.stats.uvas = (s.stats.uvas || 0) + n;
       log(s, `🍇 ${a.nombre} hizo la vendimia: ${n} canastos de uva.`, 'bueno'); recuerdo(s, a, 'La vendimia', 5, 12);
+      if (R.uvas >= 20) proponer(s, 'uva', `Vendimia: ${Math.round(R.uvas)} canastos de uva`, 'La uva se pisa para vino (un mes de fermentación) o se aprovecha de otra forma.', [
+        { k: 'vino', txt: 'Todo para vino', pista: 'para tomar y vender' },
+        { k: 'fresca', txt: 'Mitad fresca para comer', pista: 'más comida ahora, menos vino' },
+        { k: 'pasas', txt: 'Mitad en pasas', pista: 'duran todo el invierno' },
+      ], 'vino', {}, 6, 20);
       break;
     }
     case 'pisarUva': {
@@ -1886,6 +1898,12 @@ function comercioDelDia(s) {
   C.visita = { dia: d, precios, hecho: false, bolsa: Math.round(90 + rng(s) * 80) }; C.visitas += 1;
   const caro = Object.entries(precios).sort((x, y) => y[1] / MERCADO[y[0]].base - x[1] / MERCADO[x[0]].base)[0][0];
   log(s, `🛒 Llegó ${COMERCIANTE} con su carreta. Hoy paga bien ${MERCADO[caro].nombre}.`, 'info');
+  proponer(s, 'venta', `${COMERCIANTE} llegó a la granja`, `Hoy paga bien ${MERCADO[caro].nombre} (${precios[caro]} monedas). Vino a ${precios.vino}, hierba a ${precios.hierba}. Tienen ${Math.round(C.monedas)} monedas ahorradas.`, [
+    { k: 'normal', txt: 'Vender lo que sobra', pista: 'guardan lo que la casa necesita' },
+    { k: 'todo', txt: 'Vender todo lo posible', pista: 'más monedas, menos reservas' },
+    { k: 'renta', txt: 'Solo vino y hierba', pista: 'la comida se queda en casa' },
+    { k: 'guardar', txt: 'No vender nada', pista: 'solo comprar con los ahorros' },
+  ], 'normal', {}, 9, 0);
 }
 function animalDeFuera(s, tipo, sexo) {
   const t = tipo === 'gallo' ? 'gallo' : tipo;
@@ -1902,11 +1920,15 @@ function comerciar(s, a) {
   const regatea = tiene(a, 'ahorradora') ? 1.1 : 1 + (P5(a, 'extraversion') - 0.5) * 0.1;
   const vivos = humanos(s).length;
   // 1) lo que sobra: se guarda lo que la casa necesita y se ofrece el resto
+  const modo = V.modo || 'normal', Pol = s.politica;
   const reserva = { raciones: 30 + vivos * 28, conservas: 18, queso: 5, secos: 12, huevos: 10, lana: 8, abrigos: vivos + 1, vino: 12 + Math.max(...humanos(s).map((x) => x.placer.vino.dep)) * 20, hierba: 5 + Math.max(...humanos(s).map((x) => x.placer.hierba.dep)) * 10 };
   const vende = [];
   let ganado = 0;
   C.ganancias ||= {};
+  if (modo === 'todo') for (const k of Object.keys(reserva)) reserva[k] *= k === 'raciones' ? 0.6 : 0.4;
+  if (Pol.venderPlacer) { reserva[Pol.venderPlacer] = 0; Pol.venderPlacer = null; }
   for (const k of ['vino', 'hierba', 'queso', 'abrigos', 'lana', 'conservas', 'secos', 'huevos', 'raciones']) {   // primero lo que más deja
+    if (modo === 'guardar' || (modo === 'renta' && k !== 'vino' && k !== 'hierba')) continue;
     const precio = V.precios[k] * regatea;
     const sobra = Math.min(TOPE[k], Math.floor(((R[k] || 0) - reserva[k]) * (k === 'raciones' ? 0.5 : 0.7)), Math.floor((V.bolsa - ganado) / precio));
     if (sobra < (k === 'raciones' || k === 'huevos' ? 6 : 1)) continue;
@@ -1917,13 +1939,14 @@ function comerciar(s, a) {
   // animales: si el corral está lleno se vende el más consanguíneo (sin dejar el rebaño sin macho)
   for (const tipo of ['vaca', 'oveja']) {
     const corral = enCorral(s), del = s.ganado.filter((g) => g.vivo && g.tipo === tipo && g.crec >= 1);
-    if (corral < CUPO.corral - 1 || del.length < 4 || V.bolsa - ganado < TIENDA[tipo] * 0.7) continue;
+    if ((corral < CUPO.corral - 1 && !Pol.venderEstresados) || modo === 'guardar' || del.length < 4 || V.bolsa - ganado < TIENDA[tipo] * 0.7) continue;
     const machos = del.filter((g) => g.sexo === 'm').length;
-    const g = del.filter((x) => x.sexo === 'h' || machos > 1).sort((x, y) => (y.consang || 0) - (x.consang || 0) || y.edad - x.edad)[0];
+    const g = del.filter((x) => x.sexo === 'h' || machos > 1).sort((x, y) => Pol.venderEstresados ? (y.estres || 0) - (x.estres || 0) : (y.consang || 0) - (x.consang || 0) || y.edad - x.edad)[0];
     if (!g) continue;
     s.ganado.splice(s.ganado.indexOf(g), 1); ganado += TIENDA[tipo] * 0.7;
     vende.push(`${g.nombre} (${tipo})`);
   }
+  Pol.venderEstresados = false;
   C.monedas = Math.round((C.monedas + ganado) * 10) / 10;
   // 2) lo que se necesita, en orden de urgencia
   const compra = [];
@@ -1968,6 +1991,196 @@ function comerciar(s, a) {
   recuerdo(s, a, compra.length ? 'Buen trueque' : 'Charló con el comerciante', compra.length ? 5 : 2, 12);
   a.n.social = Math.min(100, a.n.social + 25);
   log(s, `🛒 ${a.nombre} negoció con ${COMERCIANTE}${vende.length ? `: entregó ${vende.join(', ')}` : ''}${compra.length ? `${vende.length ? ' y' : ':'} se trajo ${compra.join(', ')}` : vende.length ? '' : ', pero no había nada que cambiar'}. Quedan ${Math.round(C.monedas)} monedas.`, compra.length || vende.length ? 'bueno' : 'info');
+}
+
+// ---------------------------------------------------------------- el jugador: dilemas, consejos e influencia
+// el jugador es el "espíritu del orbe": no controla, influye. Si no responde a tiempo, ellos deciden solos.
+const jugadorNuevo = () => ({
+  jugador: { influencia: 3, max: 6, confianza: Object.fromEntries(PERSONAJES.filter((p) => p.tipo === 'humano').map((p) => [p.id, 50])), decididas: 0, solos: 0, consejos: 0, rechazos: 0 },
+  dilemas: [], politica: {}, enfriar: {}, sigDilema: 1,
+});
+const HORAS_DILEMA = 8;
+function proponer(s, tipo, titulo, texto, opciones, defecto, datos = {}, horas = HORAS_DILEMA, enfria = 2) {
+  s.dilemas ||= [];
+  const clave = tipo + (datos.quien || '');
+  if (s.dilemas.some((d) => d.clave === clave) || s.dilemas.length >= 4) return null;
+  if ((s.enfriar[clave] || -1e9) > s.t) return null;
+  const d = { id: s.sigDilema++, clave, tipo, titulo, texto, opciones, defecto, datos, creado: s.t, vence: s.t + horas * 60 };
+  s.dilemas.push(d); s.enfriar[clave] = s.t + enfria * MIN_DIA;
+  return d;
+}
+const dilemaDe = (s, tipo) => (s.dilemas || []).find((d) => d.tipo === tipo);
+// el jugador responde
+export function decidir(s, id, k) {
+  const d = (s.dilemas || []).find((x) => x.id === id);
+  if (!d || !d.opciones.some((o) => o.k === k)) return false;
+  s.dilemas = s.dilemas.filter((x) => x !== d);
+  s.jugador.decididas += 1;
+  resolver(s, d, k, true);
+  return true;
+}
+function revisarDilemas(s) {
+  for (const d of [...(s.dilemas || [])]) {
+    if (s.t < d.vence) continue;
+    s.dilemas = s.dilemas.filter((x) => x !== d);
+    s.jugador.solos += 1;
+    resolver(s, d, d.defecto, false);
+  }
+}
+// ¿la persona sigue el consejo? depende de cuánto confía en el espíritu y de su carácter
+function aceptaConsejo(s, a) {
+  const c = s.jugador.confianza[a.id] ?? 50;
+  const agobio = s.t - (a.ultimoConsejo ?? -1e9) < 6 * 60 ? 0.25 : 0;   // consejos seguidos: lo agobias
+  const ok = rng(s) < 0.35 + c / 160 + P5(a, 'amabilidad') * 0.15 - (irritable(a) ? 0.15 : 0) - (tiene(a, 'grunon') ? 0.08 : 0) - agobio;
+  a.ultimoConsejo = s.t;
+  s.jugador.confianza[a.id] = Math.max(0, Math.min(100, c + (ok ? 1 : -3) - (agobio ? 1 : 0)));
+  if (ok) s.jugador.consejos += 1; else s.jugador.rechazos += 1;
+  return ok;
+}
+function resolver(s, d, k, jugador) {
+  const op = d.opciones.find((o) => o.k === k) || d.opciones[0];
+  const pre = jugador ? '🕯️ Decidiste' : '🤷 Sin tu consejo, decidieron';
+  const P = s.politica, R = s.rec;
+  const quien = d.datos.quien ? s.agentes.find((x) => x.id === d.datos.quien && x.vivo) : null;
+  // consejos a una persona: los puede rechazar
+  if (jugador && quien && d.tipo !== 'perdon' && k !== 'nada') {
+    if (!aceptaConsejo(s, quien)) { log(s, `🕯️ Le aconsejaste a ${quien.nombre} «${op.txt.toLowerCase()}», pero no te hizo caso.`, 'decision'); return; }
+    log(s, `🕯️ ${quien.nombre} siguió tu consejo: ${op.txt.toLowerCase()}.`, 'decision');
+  } else log(s, `${pre}: ${d.titulo.toLowerCase()} → ${op.txt.toLowerCase()}.`, 'decision');
+  switch (d.tipo) {
+    case 'crias': P.crias = k; break;
+    case 'parientes': P.noParientes = k === 'esperar'; break;
+    case 'cultivo': P.cultivo = k === 'libre' ? null : k; P.cultivoEst = estacion(s); break;
+    case 'venta': if (s.comercio.visita) s.comercio.visita.modo = k; break;
+    case 'uva': P.uva = k; aplicarUva(s, k); break;
+    case 'obra': P.obra = k === 'libre' ? null : k; break;
+    case 'plaga': { const q = s.parcelas[d.datos.parcela]; if (!q) break; if (k === 'arrancar' && q.estado === 'creciendo') { q.estado = 'muerta'; q.ultimo = q.cultivo; q.plaga = 0; } if (k === 'fumigar') q.prioridad = s.t + MIN_DIA; break; }
+    case 'estresAnimal': if (k === 'cepillar') P.cepillarHasta = s.t + MIN_DIA; if (k === 'vender') P.venderEstresados = true; break;
+    case 'estres': {
+      if (!quien) break;
+      if (k === 'libre') { quien.diaLibre = s.t + MIN_DIA * 0.7; soltarTarea(s, quien); recuerdo(s, quien, 'Un día libre', 8, 18); }
+      if (k === 'vino' && R.vino >= 0.5) { quien.tomarHoy = true; }
+      if (k === 'hablar') { soltarTarea(s, quien); if (invitar(s, quien, 'conversar')) recuerdo(s, quien, 'Desahogarse', 5, 12); }
+      if (k === 'dormir') { soltarTarea(s, quien); crearTarea(s, quien, 'siesta'); }
+      break;
+    }
+    case 'placer': {
+      if (!quien) break;
+      const kk = d.datos.placer;
+      if (k === 'hablar') { const Pq = quien.placer[kk]; Pq.pausa = dia(s) + 21; s.pareja.tension = Math.min(100, (s.pareja.tension || 0) + 5); recuerdo(s, quien, 'Decidió cuidarse', 3, 24); }
+      if (k === 'vender') P.venderPlacer = kk;
+      break;
+    }
+    case 'perdon': {
+      const x = s.agentes.find((y) => y.id === k && y.vivo);
+      if (x && s.pareja.pendiente) { s.pareja.pendiente.perdon = true; soltarTarea(s, x); if (invitar(s, x, 'reconciliar')) log(s, `${x.nombre} fue a buscar a su pareja para hacer las paces.`, 'info'); }
+      break;
+    }
+  }
+}
+function aplicarUva(s, k) {
+  const R = s.rec;
+  if (k === 'fresca' && R.uvas >= 2) { const n = Math.floor(R.uvas * 0.5); R.uvas -= n; R.raciones += Math.round(n * 0.7); log(s, `🍇 La mitad de la uva (${n} canastos) se comió fresca: +${Math.round(n * 0.7)} raciones.`, 'info'); }
+  if (k === 'pasas' && R.uvas >= 2) { const n = Math.floor(R.uvas * 0.5); R.uvas -= n; R.secos = (R.secos || 0) + Math.round(n * 0.4); log(s, `🍇 La mitad de la uva se secó como pasas: +${Math.round(n * 0.4)} secos.`, 'info'); }
+}
+// las ocasiones en que la granja te pide una decisión
+function dilemasDelDia(s) {
+  const e = estacion(s), dE = dia(s) % DIAS_ESTACION, R = s.rec;
+  s.jugador.influencia = Math.min(s.jugador.max, (s.jugador.influencia || 0) + 3);
+  // qué sembrar esta estación
+  if (dE === 0 && e !== 3) {
+    const ops = Object.entries(CULTIVOS).filter(([, C]) => C.estaciones.includes(e)).map(([k, C]) => ({ k, txt: `Priorizar ${C.nombre.toLowerCase()}`, pista: k === 'frijol' ? 'devuelve nitrógeno al suelo' : `${C.raciones} raciones en ${C.dias} días` }));
+    proponer(s, 'cultivo', `Comienza ${ESTACIONES[e].toLowerCase()}: ¿qué sembrar?`, 'El huerto se planea para la estación. Puedes inclinar la siembra hacia un cultivo.', [...ops, { k: 'libre', txt: 'Que decidan ellos', pista: 'rotación según su experiencia' }], 'libre', {}, 12, 20);
+  }
+  // temporada de crías
+  if (e === 0 && dE === 2) {
+    const corral = enCorral(s);
+    proponer(s, 'crias', 'Temporada de crías', `En el potrero hay ${corral} de ${CUPO.corral} lugares. ¿Cuántas crías buscar este año?`, [
+      { k: 'muchas', txt: 'Muchas crías', pista: 'el rebaño crece; más pasto y heno' },
+      { k: 'normal', txt: 'Lo normal', pista: 'lo que la naturaleza dé' },
+      { k: 'pocas', txt: 'Pocas', pista: 'menos bocas, más descanso para el pasto' },
+      { k: 'ninguna', txt: 'Ninguna este año', pista: 'se separan los machos' },
+    ], corral > CUPO.corral - 3 ? 'pocas' : 'normal', {}, 16, 20);
+  }
+  // sangre cerrada
+  const vivos = s.ganado.filter((g) => g.vivo), cons = vivos.length ? vivos.reduce((t, g) => t + (g.consang || 0), 0) / vivos.length : 0;
+  if (e === 0 && dE === 3 && cons > 0.08) proponer(s, 'parientes', 'La sangre del rebaño se cierra', `La consanguinidad promedio es ${Math.round(cons * 100)} %. ¿Dejar que se crucen parientes?`, [
+    { k: 'esperar', txt: 'No cruzar parientes', pista: 'menos crías, más sanas' },
+    { k: 'permitir', txt: 'Que se crucen igual', pista: 'más crías, más débiles' },
+  ], 'permitir', {}, 16, 30);
+  // animales estresados
+  const est = vivos.length ? vivos.reduce((t, g) => t + (g.estres || 0), 0) / vivos.length : 0;
+  if (est > 48) proponer(s, 'estresAnimal', 'Los animales están estresados', `El estrés promedio del rebaño está en ${Math.round(est)}. Rinden menos y enferman más.`, [
+    { k: 'cepillar', txt: 'Dedicar el día a calmarlos', pista: 'se cepillan antes que otras tareas' },
+    { k: 'vender', txt: 'Vender los más estresados', pista: 'al próximo comerciante' },
+    { k: 'nada', txt: 'Esperar a que pase', pista: '' },
+  ], 'nada', {}, 10, 6);
+  // dependencia
+  for (const a of humanos(s)) for (const k of ['vino', 'hierba']) {
+    const Pq = a.placer?.[k];
+    if (Pq && Pq.dep > 0.4 && !(Pq.pausa > dia(s))) proponer(s, 'placer', `${a.nombre} está ${k === 'vino' ? 'tomando' : 'fumando'} demasiado`, `Ya ${k === 'vino' ? 'toma' : 'fuma'} casi todos los días (dependencia ${Math.round(Pq.dep * 100)} %).`, [
+      { k: 'hablar', txt: 'Que lo hablen ahora', pista: 'puede dejarlo un tiempo; algo de tensión' },
+      { k: 'vender', txt: `Vender ${k === 'vino' ? 'el vino' : 'la hierba'} al comerciante`, pista: 'si no hay, no hay' },
+      { k: 'nada', txt: 'No intervenir', pista: '' },
+    ], 'nada', { quien: a.id, placer: k }, 10, 8);
+  }
+  // plagas graves
+  const q = s.parcelas.find((x) => x.estado === 'creciendo' && x.plaga > 0.5);
+  if (q) proponer(s, 'plaga', `Plaga fuerte en la parcela ${q.id + 1}`, `${q.plagaTipo === 'hongo' ? 'Un hongo' : 'Insectos'} atacan ${CULTIVOS[q.cultivo]?.nombre.toLowerCase()} (${Math.round(q.plaga * 100)} %). Se puede contagiar a las vecinas.`, [
+    { k: 'fumigar', txt: 'Tratarla ya', pista: 'puede salvarse' },
+    { k: 'arrancar', txt: 'Arrancarla', pista: 'se pierde, pero protege las demás' },
+    { k: 'nada', txt: 'Que ellos vean', pista: '' },
+  ], 'nada', { parcela: q.id }, 8, 3);
+}
+// estrés de las personas y peleas: se revisa cada media hora
+function dilemasDelMomento(s) {
+  const h = hora(s);
+  for (const a of humanos(s)) {
+    if (!despierto(s, a) || h < 8 || h > 20) continue;
+    if (a.animo < 42 || (a.n.energia < 22 && h < 17)) {
+      const ops = [{ k: 'libre', txt: 'Tómate el día', pista: 'deja el trabajo que no sea urgente' }, { k: 'hablar', txt: 'Habla con tu pareja', pista: 'desahogarse ayuda' }];
+      if (s.rec.vino >= 0.5) ops.push({ k: 'vino', txt: 'Una copa esta noche', pista: 'alegra… y tiene sus riesgos' });
+      if (a.n.energia < 40) ops.push({ k: 'dormir', txt: 'Échate una siesta', pista: 'recupera energía' });
+      ops.push({ k: 'nada', txt: 'Que siga', pista: '' });
+      proponer(s, 'estres', `${a.nombre} está ${a.n.energia < 22 ? 'agotado' : 'de mal ánimo'}`, `Ánimo ${Math.round(a.animo)} · energía ${Math.round(a.n.energia)}. ¿Qué le aconsejas?`, ops, 'nada', { quien: a.id }, 5, 2);
+    }
+  }
+  const pend = s.pareja.pendiente, [x, y] = humanos(s);
+  if (pend && x && y && s.t - pend.t > 30 && !pend.preguntado && (pend.preguntado = true)) proponer(s, 'perdon', 'Discutieron', `${x.nombre} y ${y.nombre} siguen enojados. ¿Quién debería dar el primer paso?`, [
+    { k: x.id, txt: `${x.nombre}`, pista: 'pide perdón' }, { k: y.id, txt: `${y.nombre}`, pista: 'pide perdón' }, { k: 'tiempo', txt: 'Que se den espacio', pista: 'se enfría, pero puede quedar rencor' },
+  ], 'tiempo', {}, 4, 1);
+}
+// las acciones directas (cuestan influencia)
+export const ACCIONES = {
+  animar: { txt: 'Darle ánimo', costo: 1, pista: 'un empujón de alegría' },
+  descansar: { txt: 'Sugerir un descanso', costo: 1, pista: 'deja lo que hace y descansa' },
+  hablar: { txt: 'Que busque a su pareja', costo: 1, pista: 'una buena conversación' },
+  deseo: { txt: 'Impulsar su deseo', costo: 2, pista: 'puede que lo logre' },
+  calmar: { txt: 'Ayudarle a calmarse', costo: 1, pista: 'baja la tensión y las ganas de tomar' },
+};
+export function actuar(s, id, accion) {
+  const a = s.agentes.find((x) => x.id === id && x.vivo && x.tipo === 'humano'), A = ACCIONES[accion], J = s.jugador;
+  if (!a || !A || J.influencia < A.costo) return { ok: false, msg: !A ? '' : J.influencia < A.costo ? 'No te queda influencia: se recarga cada día.' : '' };
+  J.influencia -= A.costo;
+  if (!aceptaConsejo(s, a)) { log(s, `🕯️ Intentaste ${A.txt.toLowerCase()} a ${a.nombre}, pero no te hizo caso.`, 'decision'); return { ok: true, acepto: false }; }
+  switch (accion) {
+    case 'animar': recuerdo(s, a, 'Sintió compañía', 8, 12); break;
+    case 'descansar': soltarTarea(s, a); crearTarea(s, a, a.n.energia < 50 ? 'siesta' : 'descansar'); break;
+    case 'hablar': soltarTarea(s, a); invitar(s, a, 'conversar'); break;
+    case 'calmar': s.pareja.tension = Math.max(0, (s.pareja.tension || 0) - 12); for (const k of ['vino', 'hierba']) a.placer[k].ult = s.t; recuerdo(s, a, 'Respiró hondo', 4, 8); break;
+    case 'deseo': {
+      const de = a.deseo?.id;
+      if (de === 'nocheRomantica' || de === 'regalo') { s.pareja.afinidad = Math.min(100, s.pareja.afinidad + 3); (pareja(s, a) || {}).deseoSex = 90; a.deseoSex = 90; }
+      else if (de === 'paseo' && s.agentes.some((x) => x.tipo === 'perro' && x.vivo)) { soltarTarea(s, a); crearTarea(s, a, 'pasearPerro'); }
+      else if (de === 'nadarJuntos' && estacion(s) !== 3) { soltarTarea(s, a); iniciarOcio(s, a, 'nadar'); }
+      else if (de === 'casaImpecable') { soltarTarea(s, a); crearTarea(s, a, 'limpiarCasa'); }
+      else if (de === 'abrigo' && s.rec.lana >= 4) { soltarTarea(s, a); crearTarea(s, a, 'tejer'); }
+      else if (de === 'arcoiris' || de === 'cenaEspecial' || de === 'nacimiento' || de === 'subirNivel' || de === 'cosecharFavorito') recuerdo(s, a, 'Con ilusión por su deseo', 5, 24);
+      break;
+    }
+  }
+  log(s, `🕯️ ${a.nombre}: ${A.txt.toLowerCase()}.`, 'decision');
+  return { ok: true, acepto: true };
 }
 
 // ---------------------------------------------------------------- encuentros
@@ -2176,6 +2389,7 @@ function migrar(s) {
     { const n = placeresNuevos(); s.parras ??= n.parras; s.matas ??= n.matas; s.barricas ??= []; s.curado ??= [];
       for (let i = s.parras.length; i < PARRAS.length; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
+    if (!s.jugador) Object.assign(s, jugadorNuevo());
     for (const k of ['uvas', 'vino', 'hierba', 'medicina', 'libros']) s.rec[k] ??= { vino: 6, hierba: 3, medicina: 1 }[k] ?? 0;
     for (const a of s.agentes) if (a.tipo === 'humano') { a.placer ??= placerNuevo(); a.deseoSex ??= 40; }
     for (const g of s.ganado) { g.enfermo ??= 0; g.adn ??= adnFundador(s); g.consang ??= 0; g.estres ??= 10; g.generacion ??= 0; g.padre ??= null; }
