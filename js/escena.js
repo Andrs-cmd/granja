@@ -414,8 +414,9 @@ export function crearEscena(host, { onParcela } = {}) {
   // el anillo nuevo (fuera del rectángulo de la granja): un bosque en el borde
   const fueraGranja = (x, z) => x < BLOQUE.x0 + 1 || x > BLOQUE.x1 - 1 || z < BLOQUE.z0 + 1 || z > BLOQUE.z1 - 1;
   const ESTANQUE = { x: -16, z: 47, rx: 7, rz: 3.6 };
-  for (let k = 0; k < 70; k++) {
-    const ang = rand() * Math.PI * 2, r = 38 + rand() * 9.5;
+  const libreAnillo = (x, z) => fueraGranja(x, z) && enTerreno(x, z, 2) && Math.hypot((x - ESTANQUE.x) / (ESTANQUE.rx + 2.5), (z - ESTANQUE.z) / (ESTANQUE.rz + 2.5)) >= 1;
+  for (let k = 0; k < 12; k++) {   // pocos árboles: el anillo es sobre todo arbustos con flores
+    const ang = rand() * Math.PI * 2, r = 40 + rand() * 7;
     const x = CENTER.x + Math.cos(ang) * r, z = CENTER.z + Math.sin(ang) * r;
     if (!fueraGranja(x, z) || !enTerreno(x, z, 3) || Math.hypot((x - ESTANQUE.x) / (ESTANQUE.rx + 3), (z - ESTANQUE.z) / (ESTANQUE.rz + 3)) < 1) continue;
     makeTree(x, z, 0.8 + rand() * 0.6);
@@ -431,6 +432,47 @@ export function crearEscena(host, { onParcela } = {}) {
     root.add(new THREE.Mesh(mergeGeometries(geos), junco));
     for (let k = 0; k < 4; k++) { const n = new THREE.Mesh(new THREE.CircleGeometry(0.4, 10), LEAF(0x4f8a34)); n.rotation.x = -Math.PI / 2; n.position.set(ESTANQUE.x + (rand() - 0.5) * 8, 0.04, ESTANQUE.z + (rand() - 0.5) * 3); root.add(n); }   // nenúfares
   }
+  // arbustos con flores, rocas con musgo, troncos caídos, hongos y colmenas
+  {
+    const verdes = [0x4d7a2b, 0x5f8f34, 0x6f9a44].map((c) => LEAF(c));
+    const floresB = [0xe4507a, 0xf2c94c, 0xf5f1e6, 0x9b6ad8, 0xf28c3a].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }));
+    const roca = new THREE.MeshStandardMaterial({ color: 0x8f8a82, roughness: 1, flatShading: true }), musgo = LEAF(0x5a8a3a);
+    const tronco = new THREE.MeshStandardMaterial({ color: 0x6b5644, roughness: 1, flatShading: true });
+    const hongo = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }), pie = new THREE.MeshStandardMaterial({ color: 0xf2efe8 });
+    const punto = () => { for (let i = 0; i < 30; i++) { const ang = rand() * Math.PI * 2, r = 35 + rand() * 13.5, x = CENTER.x + Math.cos(ang) * r, z = CENTER.z + Math.sin(ang) * r; if (libreAnillo(x, z)) return [x, z]; } return null; };
+    for (let k = 0; k < 95; k++) {   // arbustos floridos
+      const p = punto(); if (!p) continue;
+      const g = new THREE.Group(); g.position.set(p[0], 0, p[1]); const sc = 1.1 + rand() * 0.9; g.scale.setScalar(sc); root.add(g);
+      const c = floresB[Math.floor(rand() * floresB.length)];
+      for (let i = 0; i < 3 + Math.floor(rand() * 3); i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45 + rand() * 0.3, 1), verdes[i % 3]); m.position.set((rand() - 0.5) * 1.1, 0.4 + rand() * 0.3, (rand() - 0.5) * 1.1); m.scale.y = 0.8; m.castShadow = true; g.add(m); }
+      for (let i = 0; i < 14; i++) { const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), c); const a = rand() * 6.28; f.position.set(Math.cos(a) * (0.5 + rand() * 0.3), 0.55 + rand() * 0.45, Math.sin(a) * (0.5 + rand() * 0.3)); g.add(f); }
+    }
+    for (let k = 0; k < 18; k++) {   // rocas con musgo
+      const p = punto(); if (!p) continue;
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5 + rand() * 0.7, 0), roca); m.position.set(p[0], 0.25, p[1]); m.scale.y = 0.6; m.rotation.y = rand() * 6; m.castShadow = true; root.add(m);
+      const mm = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35, 0), musgo); mm.position.set(p[0] + 0.15, 0.5, p[1]); mm.scale.set(1, 0.35, 1); root.add(mm);
+    }
+    for (let k = 0; k < 6; k++) {   // troncos caídos con hongos
+      const p = punto(); if (!p) continue;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 2.4 + rand(), 8), tronco); t.rotation.set(0, rand() * 6, Math.PI / 2); t.position.set(p[0], 0.28, p[1]); t.castShadow = true; root.add(t);
+      for (let i = 0; i < 4; i++) { const g = new THREE.Group(); g.position.set(p[0] + (rand() - 0.5) * 1.6, 0, p[1] + (rand() - 0.5) * 1.6); root.add(g); const st = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.22, 6), pie); st.position.y = 0.11; g.add(st); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), hongo); cap.position.y = 0.2; g.add(cap); }
+    }
+    // colmenas junto al campo de flores (las abejas polinizan los jardines y el huerto)
+    const madera = new THREE.MeshStandardMaterial({ color: 0xe0c08a, roughness: 0.8 }), tapa = new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.8 });
+    for (const [x, z] of [[38.5, -3], [40.5, 1], [39.5, 5]]) {
+      const g = new THREE.Group(); g.position.set(x, 0, z); root.add(g);
+      for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.32, 0.6), madera); m.position.y = 0.3 + i * 0.33; m.castShadow = true; g.add(m); }
+      const tp = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.08, 0.75), tapa); tp.position.y = 1.3; g.add(tp);
+      const pt = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.14, 0.6), tapa); pt.position.y = 0.07; g.add(pt);
+    }
+    var abejas = (() => {   // puntitos que revolotean entre las flores
+      const N = 24, geo = new THREE.BufferGeometry(), pos = new Float32Array(N * 3);
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xf2c94c, size: 0.18 }));
+      root.add(pts);
+      return { pts, pos, N };
+    })();
+  }
   // praderas de flores silvestres en el anillo
   {
     const colores = [0xf2f0e6, 0xf2c94c, 0xe4507a, 0x9b6ad8].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 }));
@@ -442,9 +484,7 @@ export function crearEscena(host, { onParcela } = {}) {
     }
     porColor.forEach((gs, i) => { if (gs.length) root.add(new THREE.Mesh(mergeGeometries(gs), colores[i])); });
   }
-  // bordes del terreno ampliado
-  for (const [x, z, sc] of [[-31, 32, 1.2], [-24, 37, 1.0], [16, 37.5, 1.1], [27, 36.5, 1.25], [36, 30, 1.0], [36, 14, 1.15], [35.5, -6, 1.0], [34, -24, 1.2], [21, -25.5, 1.05],
-    [-13, -26, 1.1], [-20, 33, 0.95], [-30.5, 27, 0.9]]) makeTree(x, z, sc);
+  // (los bordes los cubre el anillo exterior: pocos árboles y muchos arbustos)
   for (const [x, z, s] of [[-7.6, 7.2, 0.9], [30, 25, 1.0], [24, 31, 0.9], [-12, 36, 1.0], [35, 4, 0.9], [-2, -27, 0.9], [12, -27, 1.0], [-7.0, -1.5, 1.0], [12.9, 2.5, 0.9], [-1.0, -8.6, 0.9], [4.5, -9.0, 1.0], [22.6, 22.0, 1.0], [-8.4, 18.5, 0.9], [11.0, 26.0, 0.9], [-3.0, 26.0, 1.0], [23.0, 9.0, 0.8]]) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); root.add(g);
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.35, 1), LEAFS[Math.floor(rand() * LEAFS.length)]); m.position.set((rand() - 0.5) * 1.1, 0.45 + rand() * 0.35, (rand() - 0.5) * 1.1); m.scale.y = 0.85; m.castShadow = true; g.add(m); }
@@ -1241,6 +1281,9 @@ export function crearEscena(host, { onParcela } = {}) {
       v.cuerpo.scale.set(1, Math.max(0.05, o.progreso), 1);
     }
     esculturasVis.forEach((g, i) => { g.visible = i < (s.esculturas || 0); });
+    abejas.pts.visible = day > 0.3 && !s.clima.lluvia && ((s.t / MIN_DIA / 28) | 0) % 4 !== 3;
+    if (abejas.pts.visible) for (let i = 0; i < abejas.N; i++) { const a = t * (0.6 + (i % 5) * 0.13) + i * 1.7; abejas.pos.set([30 + Math.cos(a) * (4 + (i % 4) * 2) + Math.sin(a * 3.1) * 0.6, 0.9 + Math.sin(a * 2.3 + i) * 0.35, 3 + Math.sin(a * 0.9) * (3 + (i % 3)) + Math.cos(a * 2.7) * 0.5], i * 3); }
+    abejas.pts.geometry.attributes.position.needsUpdate = true;
     (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); v.copa.rotation.z = Math.sin(t * 0.9 + v.fase) * 0.02 * (1 + lluviaK); });
 
     // la casa se vuelve transparente cuando hay alguien adentro
