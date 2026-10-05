@@ -398,8 +398,8 @@ export const SOMBRAS = { corral: [{ x: -26, z: 12 }, { x: -25.5, z: -18.5 }], av
 // y cada animal pasta suelto alrededor de ella, en su propio lugar (algunos se van a explorar lejos)
 // lugares donde el gato se trepa: [x, z, altura ('techo' = la cumbre de la casa, la calcula la escena), base para subir, nombre]
 export const TREPADEROS = [
-  ...FRUTALES.map((f) => ({ x: f.x + 0.3, z: f.z, alto: 2.5, base: { x: f.x + 1.0, z: f.z + 0.5 }, nombre: f.tipo === 'manzano' ? 'a un manzano' : 'a un naranjo', arbol: true })),
-  ...SOMBRAS.corral.concat(SOMBRAS.aves).map((q) => ({ x: q.x + 0.3, z: q.z, alto: 3.4, base: { x: q.x + 1.1, z: q.z + 0.6 }, nombre: 'a un árbol del potrero', arbol: true })),
+  ...FRUTALES.map((f) => ({ x: f.x + 0.2, z: f.z, alto: 3.35, base: { x: f.x + 1.0, z: f.z + 0.5 }, nombre: f.tipo === 'manzano' ? 'a un manzano' : 'a un naranjo', arbol: true })),
+  ...SOMBRAS.corral.concat(SOMBRAS.aves).map((q) => ({ x: q.x + 0.3, z: q.z, alto: 7.6, base: { x: q.x + 1.1, z: q.z + 0.6 }, nombre: 'a un árbol del potrero', arbol: true })),
   { x: 0, z: 0, alto: 'techo', base: { x: 6.9, z: 3.2 }, nombre: 'al techo de la casa', techo: true },
   { x: LUGAR.caseta.x, z: LUGAR.caseta.z, alto: 1.75, base: { x: LUGAR.caseta.x + 1.2, z: LUGAR.caseta.z + 0.4 }, nombre: `a la caseta del perro` },
   { x: LUGAR.gallinero.x, z: LUGAR.gallinero.z, alto: 2.95, base: { x: LUGAR.gallinero.x - 2.0, z: LUGAR.gallinero.z + 1.6 }, nombre: 'al techo del gallinero' },

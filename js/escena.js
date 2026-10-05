@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { montarUtileria } from './utileria.js';
+import { armarPerro, armarGato } from './mascotas3d.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -1708,6 +1709,19 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       });
     }).catch((e) => console.warn('[granja] no se pudieron cargar los cuerpos nuevos; quedan los de siempre', e));
   }
+  // Berlín y Axel (Animals Asset Pack de Styloo, CC0): el perro con sus animaciones, el gato movido por código
+  {
+    const L = new GLTFLoader(), cargar = (u) => new Promise((ok, mal) => L.load(u, ok, undefined, mal));
+    const MASC = { nube: ['modelo/perro.glb', armarPerro, 0.78], esmoquin: ['modelo/gato.glb', armarGato, 0.38] };
+    for (const [id, [u, armar, alto]] of Object.entries(MASC)) {
+      cargar(u).then((g) => {
+        const v = vis[id]; if (!v) return;
+        const ctrl = armar(g, alto);
+        v.g.children.forEach((c) => { c.visible = false; });
+        v.g.add(ctrl.raiz); v.mascota = ctrl;
+      }).catch((e) => console.warn('[granja] no se pudo cargar', u, e));
+    }
+  }
   function animar(v, nombre, ts = 1) {
     const a = v.acciones[nombre]; if (!a) return;
     a.timeScale = ts;
@@ -1724,6 +1738,24 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const CHARLA = ['conversar', 'reconciliar', 'tomarVino', 'fumar', 'cenar'];
   function poseAgente(a, v, s, t, dt) {
     poseAgenteBase(a, v, s, t, dt);
+    if (v.mascota) {
+      // la pose de la mascota según lo que hace
+      const T = a.tarea, tp = T?.tipo, fase = T?.fase;
+      const w = v.g.getWorldPosition(new THREE.Vector3());
+      const rap = v.wPrev && dt > 0 ? Math.hypot(w.x - v.wPrev.x, w.z - v.wPrev.z) / dt : 0; v.wPrev = w;
+      v.rap = (v.rap ?? 0) + (Math.min(rap, 12) - (v.rap ?? 0)) * Math.min(1, dt * 6);
+      let e = 'quieto', ts = 1;
+      if (!a.vivo || (['dormir', 'dormirCon'].includes(tp) && fase === 'trabajo') || (tp === 'siesta' && fase === 'trabajo')) e = 'dormido';
+      else if (tp === 'pelea') e = 'pelea';
+      else if (a.trepado || (tp === 'regazo' && fase === 'trabajo') || (tp === 'ladrar' && fase === 'trabajo')) e = 'sentado';
+      else if (v.rap > 0.25) { const prisa = ['perseguir', 'huir', 'jugarJuntos', 'jugar', 'pelota'].includes(tp) || v.rap > 3.2; e = prisa ? 'corre' : 'camina'; ts = THREE.MathUtils.clamp(v.rap / (prisa ? 3.0 : 1.4), 0.6, 2.2); }
+      else if (['jugar', 'jugarJuntos'].includes(tp)) e = 'juega';
+      v.mascota.estado(e, ts);
+      v.g.rotation.x = 0; v.g.rotation.z = 0;
+      v.mascota.raiz.position.y = (a.vivo ? (v.altura || 0) : 0) - v.g.position.y;
+      v.mascota.update(dt);
+      return;
+    }
     if (!v.modelo) return;
     const m = v.modelo, T = a.tarea, tipo = T && T.fase === 'trabajo' ? T.tipo : null;
     // velocidad real en pantalla

@@ -1,0 +1,22 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Visor de mascotas</title>
+<style>html,body{margin:0;height:100%;background:#20232a;color:#eee;font:13px system-ui}#b{position:fixed;left:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap}button{background:#333;color:#eee;border:1px solid #555;border-radius:6px;padding:4px 7px}</style></head><body><div id="b"></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { armarPerro, armarGato } from '../js/mascotas3d.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(devicePixelRatio); r.outputColorSpace = THREE.SRGBColorSpace; document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x9cc4e4);
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 100); cam.position.set(0.6, 0.7, 2.2);
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(0, 0.3, 0);
+sc.add(new THREE.HemisphereLight(0xffffff, 0x556644, 1.8)); const d = new THREE.DirectionalLight(0xffffff, 2.5); d.position.set(3, 5, 4); sc.add(d);
+const piso = new THREE.Mesh(new THREE.CircleGeometry(3, 40), new THREE.MeshStandardMaterial({ color: 0x6f9a44 })); piso.rotation.x = -Math.PI / 2; sc.add(piso);
+const L = new GLTFLoader(), carga = (u) => new Promise((ok) => L.load(u, ok));
+const perro = armarPerro(await carga('../modelo/perro.glb')), gato = armarGato(await carga('../modelo/gato.glb'));
+perro.raiz.position.x = -0.5; gato.raiz.position.x = 0.5; sc.add(perro.raiz, gato.raiz);
+window.estado = (e, ts = 1) => { perro.estado(e, ts); gato.estado(e, ts); };
+for (const e of ['quieto', 'camina', 'corre', 'sentado', 'dormido', 'juega', 'pelea']) { const b = document.createElement('button'); b.textContent = e; b.onclick = () => window.estado(e); document.getElementById('b').append(b); }
+window.estado('camina');
+const clk = new THREE.Clock(); r.setAnimationLoop(() => { const dt = clk.getDelta(); perro.update(dt); gato.update(dt); ctl.update(); r.render(sc, cam); });
+</script></body></html>

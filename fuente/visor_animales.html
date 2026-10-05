@@ -1,0 +1,31 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Visor de animales</title>
+<style>html,body{margin:0;height:100%;background:#20232a;color:#eee;font:13px system-ui}#b{position:fixed;left:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap}button{background:#333;color:#eee;border:1px solid #555;border-radius:6px;padding:4px 7px}</style></head><body><div id="b"></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(devicePixelRatio); r.outputColorSpace = THREE.SRGBColorSpace; document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x9cc4e4);
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 100); cam.position.set(0, 1.2, 4.5);
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(0, 0.4, 0);
+sc.add(new THREE.HemisphereLight(0xffffff, 0x556644, 1.8)); const d = new THREE.DirectionalLight(0xffffff, 2.5); d.position.set(3, 5, 4); sc.add(d);
+const L = new GLTFLoader(), carga = (u) => new Promise((ok) => L.load(u, ok));
+const lista = [['animales/styloo/stylooanimalassetpack/glb/dog.glb', -1.5], ['animales/styloo/stylooanimalassetpack/glb/cat.glb', -0.5], ['animales/quat_dog.glb', 0.5], ['animales/quat_cat.glb', 1.5]];
+const mixers = []; window.info = [];
+for (const [u, x] of lista) {
+  const g = await carga(u); const o = g.scene; const box = new THREE.Box3().setFromObject(o), sz = box.getSize(new THREE.Vector3());
+  const k = 0.8 / Math.max(sz.x, sz.y, sz.z); o.scale.setScalar(k); o.position.x = x; sc.add(o);
+  const mx = new THREE.AnimationMixer(o); mixers.push(mx);
+  const c = g.animations.find((a) => /walk/i.test(a.name)) || g.animations[0]; if (c) mx.clipAction(c).play();
+  window.info.push({ u, clips: g.animations.map((a) => a.name), tam: sz.toArray().map((n) => n.toFixed(2)) });
+}
+// prueba: las animaciones del perro sobre el gato (mismo esqueleto)
+window.probar = async (nombre) => {
+  const perro = await carga('animales/styloo/stylooanimalassetpack/glb/dog.glb');
+  const clip = perro.animations.find((c) => c.name === nombre);
+  const gatoMx = mixers[1]; gatoMx.stopAllAction(); const soloRot = clip.clone(); soloRot.tracks = soloRot.tracks.filter((t) => !t.name.endsWith('.position') && !t.name.endsWith('.scale'));
+  gatoMx.clipAction(soloRot).play(); return soloRot.tracks.length + ' pistas';
+};
+const clk = new THREE.Clock(); r.setAnimationLoop(() => { const dt = clk.getDelta(); mixers.forEach((m) => m.update(dt)); ctl.update(); r.render(sc, cam); });
+</script></body></html>
