@@ -115,7 +115,8 @@ if (estado && estado.guardadoReal && !estado.fin) {
 }
 if (!estado) estado = nueva(1 + Math.max(0, ...Sim.historial().map((h) => h.generacion)));
 
-const escena = crearEscena(document.getElementById('stage'));
+let parcelaSel = null;   // ficha de la parcela que se toque
+const escena = crearEscena(document.getElementById('stage'), { onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); } });
 // acceso de depuración desde la consola (no afecta la simulación)
 window.granja = { get estado() { return estado; } };
 
@@ -186,9 +187,25 @@ function pintarDatos() {
   const animales = grupos.map(([ic, txt, f]) => { const l = vivosG.filter(f); return l.length ? `<span title="${l.map((g) => g.nombre).join(', ')}">${ic} ${l.length} ${txt.split('|')[l.length === 1 ? 0 : 1]}</span>` : ''; }).join('')
     + (s.ganado.some((g) => g.empolla) ? '<span>🥚 empollando</span>' : '');
   const huerto = s.parcelas.map((p) => p.cultivo ? `${ICO[p.cultivo]}${p.estado === 'lista' ? '✓' : p.estado === 'muerta' ? '✗' : Math.floor(Math.min(1, p.crec / Sim.CULTIVOS[p.cultivo].dias) * 100) + '%'}` : '·').join('  ');
+  const P = s.parcelas, prom = (k) => P.reduce((t, p) => t + (p[k] ?? 0), 0) / P.length;
+  const plagas = P.filter((p) => (p.plaga || 0) > 0.05 && p.cultivo).length;
+  let ficha = '';
+  if (parcelaSel != null && P[parcelaSel]) {
+    const p = P[parcelaSel], C = p.cultivo ? Sim.CULTIVOS[p.cultivo] : null;
+    const est = !C ? 'en descanso' : p.estado === 'lista' ? 'lista para cosechar' : p.estado === 'muerta' ? 'perdida' : `${Math.floor(Math.min(1, p.crec / C.dias) * 100)} %`;
+    ficha = `<div class="card"><h4>Parcela ${parcelaSel + 1}</h4><div class="grid">
+      <span>${C ? ICO[p.cultivo] + ' ' + C.nombre : '🟫 Vacía'}</span><b>${est}</b>
+      <span>🧪 N · P · K</span><b class="${Math.min(p.N, p.P, p.K) < 30 ? 'warn' : ''}">${Math.round(p.N)} · ${Math.round(p.P)} · ${Math.round(p.K)}</b>
+      <span>⚗️ pH</span><b class="${Math.abs(p.ph - 6.5) > 0.8 ? 'warn' : ''}">${p.ph.toFixed(1)}</b>
+      <span>💧 Humedad</span><b>${Math.round(p.agua)} %${(p.encharcado || 0) > 90 ? ' · encharcada' : ''}</b>
+      ${C ? `<span>🌿 Salud</span><b class="${p.salud < 50 ? 'warn' : ''}">${Math.round(p.salud)} %</b>` : ''}
+      ${(p.plaga || 0) > 0.05 ? `<span>${p.plagaTipo === 'hongo' ? '🍄 Hongo' : '🐛 Insectos'}</span><b class="warn">${Math.round(p.plaga * 100)} %</b>` : ''}
+      <span>↺ Antes</span><b>${p.ultimo ? Sim.CULTIVOS[p.ultimo].nombre : '—'}</b></div></div>`;
+  }
   der.innerHTML = `
     <div class="card"><div class="gen">Generación ${s.generacion} · ${años ? `${años} año${años > 1 ? 's' : ''} y ` : ''}${vividos % Sim.DIAS_ANIO} días</div>
-      <div class="fecha">${Sim.fechaTxt(s)}</div>${clima ? `<div style="margin-top:3px">${clima}</div>` : ''}</div>
+      <div class="fecha">${Sim.fechaTxt(s)}</div><div style="margin-top:3px">🌡️ ${s.clima.temp ?? '–'} °C · 💧 ${s.clima.hum ?? '–'} %${s.clima.granizando ? ' · 🧊 granizo' : ''}${s.clima.ola > 0 ? ' · 🔥 ola de calor' : ''}${s.clima.frente > 0 ? ' · 🌬️ frente frío' : ''}</div>${clima ? `<div style="margin-top:3px">${clima}</div>` : ''}</div>
+    ${ficha}
     <div class="card"><h4>Despensa</h4><div class="grid">
       <span>🥔 Raciones</span><b class="${dias < 4 ? 'warn' : ''}">${Math.floor(R.raciones)} · ≈${dias} d</b>
       <span>🥚 Huevos</span><b>${Math.floor(R.huevos)}</b>
@@ -203,7 +220,11 @@ function pintarDatos() {
       <span>🌾 Pasto</span><b>${Math.round(s.granja.pasto)} %</b>
       <span>🟨 Heno</span><b>${Math.round(R.heno)}</b>
       <span>🧶 Lana</span><b>${Math.round(R.lana)} · ${R.abrigos} abrigo${R.abrigos === 1 ? '' : 's'}</b>
-      <span>🍼 Nacidos</span><b>${s.stats.nacimientos || 0}</b></div>
+      <span>🍼 Nacidos</span><b>${s.stats.nacimientos || 0}</b>
+      <span>🧪 Suelo N·P·K</span><b class="${Math.min(prom('N'), prom('P'), prom('K')) < 35 ? 'warn' : ''}">${Math.round(prom('N'))} · ${Math.round(prom('P'))} · ${Math.round(prom('K'))}</b>
+      <span>⚗️ pH medio</span><b>${prom('ph').toFixed(1)}</b>
+      ${plagas ? `<span>🐛 Plagas</span><b class="warn">${plagas} parcela${plagas > 1 ? 's' : ''}</b>` : ''}
+      <span>♻️ Compost</span><b>${Math.round(R.compost || 0)}</b></div>
       <div class="animales" style="margin-top:6px">${animales}</div>
       <div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Huerto: ${huerto}</div></div>
     <div class="card"><h4>Hogar</h4><div class="grid">

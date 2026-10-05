@@ -17,10 +17,11 @@ export const TANQUE_MAX = 600;
 export const VERSION = 4;
 
 export const CULTIVOS = {
-  lechuga: { nombre: 'Lechuga', dias: 7, raciones: 6, semillas: [1, 2], estaciones: [0, 2] },
-  papa: { nombre: 'Papa', dias: 14, raciones: 14, semillas: [1, 2], estaciones: [0, 1, 2] },
-  frijol: { nombre: 'Fríjol', dias: 12, raciones: 10, semillas: [1, 3], estaciones: [0, 1] },
-  maiz: { nombre: 'Maíz', dias: 18, raciones: 20, semillas: [1, 2], estaciones: [1] },
+  // npk: lo que gasta del suelo en todo su ciclo (el fríjol devuelve nitrógeno: es leguminosa)
+  lechuga: { nombre: 'Lechuga', dias: 7, raciones: 6, semillas: [1, 2], estaciones: [0, 2], npk: [14, 6, 10], frio: 0.6 },
+  papa: { nombre: 'Papa', dias: 14, raciones: 14, semillas: [1, 2], estaciones: [0, 1, 2], npk: [22, 14, 30], frio: 1 },
+  frijol: { nombre: 'Fríjol', dias: 12, raciones: 10, semillas: [1, 3], estaciones: [0, 1], npk: [-24, 12, 12], frio: 1 },
+  maiz: { nombre: 'Maíz', dias: 18, raciones: 20, semillas: [1, 2], estaciones: [1], npk: [40, 14, 20], frio: 1.2 },
 };
 
 // ---------------------------------------------------------------- mapa (coordenadas de la escena)
@@ -42,11 +43,14 @@ export const LUGAR = {
   pesebre: { x: -11.4, z: -2.0 },
   bebederoGanado: { x: -11.4, z: 2.6 },
   heno: { x: -12.6, z: -12.6 },
+  compost: { x: -7.5, z: 26.5 },
   gallinero: { x: 19.0, z: -11.6 },
   grano: { x: 15.8, z: -6.0 },
   piscina: { x: 13.2, z: 14.2 },
 };
 export const PASEO = [{ x: -8.4, z: 8.6 }, { x: -8.4, z: 37.0 }, { x: 34.0, z: 37.0 }, { x: 34.0, z: 19.5 }, { x: 12.8, z: 19.0 }, { x: 12.8, z: 8.6 }, { x: 1.0, z: 8.6 }];
+export const SUELO_INICIAL = { N: 62, P: 55, K: 58, ph: 6.5 };
+const sueloNuevo = () => ({ ...SUELO_INICIAL, salud: 100, plaga: 0, plagaTipo: null, ultimo: null, encharcado: 0 });
 export const PARCELAS = [
   { x: -1.3, z: 16.7 }, { x: 3.0, z: 16.7 }, { x: 7.3, z: 16.7 },
   { x: -1.3, z: 19.5 }, { x: 3.0, z: 19.5 }, { x: 7.3, z: 19.5 },
@@ -67,6 +71,7 @@ export const JARDINES = [
 // obras de Andrés, en el orden en que las emprende: [id, nombre, horas de trabajo, x, z, para qué sirve]
 export const OBRAS = [
   ['bodega', 'una bodega fría', 30, -7.5, -16.5, 'la comida fresca dura mucho más'],
+  ['drenaje', 'una zanja de drenaje', 14, 3, 35.6, 'el huerto ya no se encharca con las tormentas'],
   ['secadero', 'un secadero', 12, 17, 26, 'se puede secar fruta y verdura al sol'],
   ['pergola', 'una pérgola', 18, 25, 20.5, 'un rincón romántico junto a la piscina'],
   ['horno', 'un horno de barro', 20, 11, -9, 'pan casero: las comidas alegran más'],
@@ -96,6 +101,7 @@ const AREA = {
   sembrar: 'huerto', regar: 'huerto', cosechar: 'huerto', limpiar: 'huerto', sacarAgua: 'agua', filtrar: 'agua', alimentar: 'cuidado',
   cocinar: 'casa', limpiarCasa: 'casa', tejer: 'casa', ordenar: 'granja', recogerHuevos: 'granja', esquilar: 'granja', segar: 'granja', alimentarGanado: 'granja',
   reparar: 'carpinteria', curar: 'cuidado', recogerFruta: 'huerto',
+  fumigar: 'huerto', arrancar: 'huerto', abonar: 'huerto', voltearCompost: 'granja',
   construir: 'carpinteria', esculpir: 'carpinteria', cuidarJardin: 'huerto', hacerConservas: 'casa', hacerQueso: 'granja', secar: 'casa',
 };
 
@@ -322,7 +328,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     casa: { limpieza: 80, estado: 100 },
     desbloqueos: [], zorro: null,
     pareja: { afinidad: 70, tension: 0, pendiente: null, discusiones: 0, charlas: 0, intimidad: 0, ultimaCena: -1, ultimaIntimidad: -1, recetaNueva: false },
-    parcelas: PARCELAS.map((p, i) => ({ id: i, x: p.x, z: p.z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null })),
+    parcelas: PARCELAS.map((p, i) => ({ id: i, x: p.x, z: p.z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null, ...sueloNuevo() })),
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
@@ -339,6 +345,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
   const nombres = s.agentes.map((a) => a.nombre);
   log(s, `${generacion > 1 ? `Generación ${generacion}. ` : ''}${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)} empiezan su vida en la granja, con vacas, ovejas y un gallinero.`, 'info');
   decidirClima(s);
+  climaAhora(s);
   revisarDeseos(s);
   return s;
 }
@@ -350,12 +357,32 @@ export function log(s, texto, tipo = 'info') {
 function efecto(s, tipo, x, z, extra = {}) { s.efectos.push({ tipo, x, z, t: s.t, ...extra }); if (s.efectos.length > 24) s.efectos.shift(); }
 
 // ---------------------------------------------------------------- clima
+const TEMP_BASE = [15, 23, 13, 3], AMPLITUD = [6, 7, 6, 5], HUM_BASE = [68, 52, 74, 80];
 function decidirClima(s) {
-  const prob = s.sequia > 0 ? 0 : [0.4, 0.15, 0.3, 0.2][estacion(s)];
+  const e = estacion(s);
+  // anomalía del día: días más fríos o más calurosos de lo normal; a veces olas de calor o frentes fríos
+  const C = s.clima;
+  C.anomalia = (C.anomalia || 0) * 0.6 + (rng(s) - 0.5) * 5;
+  if (C.ola > 0) C.ola -= 1; else if (e === 1 && rng(s) < 0.04) { C.ola = 3 + Math.floor(rng(s) * 4); log(s, '🔥 Llega una ola de calor: el suelo se seca rápido y las plantas sufren.', 'aviso'); }
+  if (C.frente > 0) C.frente -= 1; else if ((e === 2 || e === 0) && rng(s) < 0.035) { C.frente = 2 + Math.floor(rng(s) * 3); log(s, '🌬️ Entra un frente frío: puede helar en la madrugada.', 'aviso'); }
+  const prob = s.sequia > 0 ? 0 : [0.4, 0.15, 0.3, 0.2][e];
+  C.granizo = null;
   if (rng(s) < prob) {
     const inicio = dia(s) * MIN_DIA + Math.floor(rng(s) * 20 * 60);
-    s.clima.lluviaHoy = { desde: inicio, hasta: inicio + 120 + Math.floor(rng(s) * 300) };
-  } else s.clima.lluviaHoy = null;
+    const tormenta = rng(s) < 0.22;
+    C.lluviaHoy = { desde: inicio, hasta: inicio + (tormenta ? 300 + Math.floor(rng(s) * 360) : 120 + Math.floor(rng(s) * 300)), tormenta };
+    if ((e === 0 || e === 1) && rng(s) < 0.12) { const g0 = inicio + 30 + Math.floor(rng(s) * 60); C.granizo = { desde: g0, hasta: g0 + 15 + Math.floor(rng(s) * 25), aplicado: false }; }
+  } else C.lluviaHoy = null;
+}
+// temperatura (°C) y humedad (%) de este momento
+function climaAhora(s) {
+  const e = estacion(s), h = hora(s), C = s.clima;
+  let t = TEMP_BASE[e] + (C.anomalia || 0) + AMPLITUD[e] * Math.sin((h - 9) / 24 * Math.PI * 2);
+  if (C.ola > 0) t += 8;
+  if (C.frente > 0) t -= 8;
+  if (C.lluvia) t -= 3;
+  let hum = HUM_BASE[e] + (C.lluvia ? 25 : 0) + (h < 7 || h > 21 ? 10 : 0) - (t - TEMP_BASE[e]) * 1.4 - (s.sequia > 0 ? 18 : 0);
+  C.temp = Math.round(t * 10) / 10; C.hum = Math.round(Math.max(18, Math.min(100, hum)));
 }
 
 // ---------------------------------------------------------------- avance del tiempo (continuo)
@@ -372,6 +399,8 @@ function tick(s, d) {
   s.t += d;
   if (dia(s) !== diaAntes) nuevoDia(s);
   s.efectos = s.efectos.filter((e) => s.t - e.t < 8);
+  climaAhora(s);
+  granizada(s);
 
   const L = s.clima.lluviaHoy;
   const llueve = !!(L && s.t >= L.desde && s.t < L.hasta);
@@ -432,6 +461,8 @@ function nuevoDia(s) {
   }
   revisarDeseos(s);
   mascotasDelDia(s);
+  plagasDelDia(s);
+  compostDelDia(s);
   eventos(s);
   if (dia(s) % DIAS_ESTACION === 0) {
     const e = estacion(s);
@@ -464,13 +495,7 @@ function eventos(s) {
     if (gato && rng(s) < 0.45) log(s, `Una plaga de ratones atacó la parcela ${p.id + 1}, pero ${gato.nombre} la ahuyentó.`, 'bueno');
     else if (perro && perro.n.diversion > 40 && rng(s) < 0.4) log(s, `${perro.nombre} espantó a los animales que querían comerse la parcela ${p.id + 1}.`, 'bueno');
     else if (gallinas && rng(s) < 0.15 * gallinas) log(s, `Las gallinas se comieron los insectos que atacaban la parcela ${p.id + 1}.`, 'bueno');
-    else { p.estado = 'muerta'; log(s, `Una plaga acabó con ${CULTIVOS[p.cultivo].nombre.toLowerCase()} de la parcela ${p.id + 1}.`, 'malo'); perdidaDeCosecha(s, 'una plaga se comió una parcela'); }
-  }
-  if (e === 2 && dE === 23 && rng(s) < 0.4) {
-    const muertas = s.parcelas.filter((p) => p.estado === 'creciendo');
-    muertas.forEach((p) => { p.estado = 'muerta'; });
-    log(s, `Helada temprana${muertas.length ? `: se perdieron ${muertas.length} parcelas` : ''}.`, 'malo');
-    if (muertas.length) perdidaDeCosecha(s, 'la helada quemó el huerto');
+    else { p.plaga = Math.max(p.plaga || 0, 0.2); p.plagaTipo = 'insecto'; log(s, `🐛 Apareció una plaga de insectos en la parcela ${p.id + 1}.`, 'aviso'); }
   }
   const sinAbrigo = frio(s) && s.rec.abrigos < humanos(s).length;
   for (const a of s.agentes) {
@@ -504,7 +529,7 @@ function eventos(s) {
   s.belleza = Math.round(Math.min(100, flores * 8 + (s.esculturas || 0) * 5 + (obra(s, 'pergola') ? 6 : 0) + (obra(s, 'fuente') ? 9 : 0) + (obra(s, 'invernadero') ? 3 : 0) + s.casa.limpieza * 0.05 + (s.casa.estado ?? 100) * 0.05));
   // los frutales maduran en su temporada; si nadie recoge, la fruta se cae
   for (const f of s.frutales || []) {
-    if (FRUTA[f.tipo].estaciones.includes(estacion(s))) f.fruta = Math.min(14, f.fruta + 1.3 + rng(s) * 0.6);
+    if (FRUTA[f.tipo].estaciones.includes(estacion(s))) f.fruta = Math.min(14, f.fruta + (1.3 + rng(s) * 0.6) * (1 + polinizacion(s) * 0.3));
     else f.fruta *= 0.6;
     if (f.fruta > 12) f.fruta -= 0.8;
   }
@@ -613,29 +638,118 @@ function reproduccion(s) {
 // ---------------------------------------------------------------- huerto
 const EVAP = [35, 55, 30, 20];
 function actualizarParcelas(s, d) {
-  const e = estacion(s);
+  const e = estacion(s), tormenta = s.clima.lluvia && s.clima.lluviaHoy?.tormenta;
   for (const p of s.parcelas) {
+    // encharcamiento con tormentas; la zanja de drenaje lo evita
+    if (tormenta && !obra(s, 'drenaje')) { p.encharcado = (p.encharcado || 0) + d; if (p.encharcado > 120 && s.clima.diaInundacion !== dia(s)) { s.clima.diaInundacion = dia(s); log(s, '🌊 La tormenta encharcó el huerto: las raíces se pueden pudrir.', 'aviso'); } }
+    else p.encharcado = Math.max(0, (p.encharcado || 0) - (obra(s, 'drenaje') ? 6 : 1.5) * d);
+    if (p.estado === 'vacia') {   // la tierra en descanso se recupera
+      const k = d / MIN_DIA;
+      for (const n of ['N', 'P', 'K']) if (p[n] < 60) p[n] = Math.min(60, p[n] + 0.55 * k);
+      p.ph += (6.5 - p.ph) * 0.01 * k;
+      p.plaga = 0;
+    }
     if (p.estado === 'vacia' || p.estado === 'muerta') continue;
-    p.agua = Math.max(0, p.agua - (EVAP[e] * (s.sequia > 0 ? 1.3 : 1) / MIN_DIA) * d);
-    const C = CULTIVOS[p.cultivo], temporada = C.estaciones.includes(e) || (obra(s, 'invernadero') && p.id >= 9);
+    const calorX = s.clima.temp > 30 ? 1.5 : s.clima.temp > 26 ? 1.2 : 1;
+    p.agua = Math.max(0, p.agua - (EVAP[e] * (s.sequia > 0 ? 1.3 : 1) * calorX / MIN_DIA) * d);
+    const C = CULTIVOS[p.cultivo], inv = obra(s, 'invernadero') && p.id >= 9, temporada = C.estaciones.includes(e) || inv;
     if (p.estado === 'creciendo') {
-      if (p.agua > 0 && temporada) p.crec += (d / MIN_DIA) * (mejora(s, 'compost') ? 1.15 : 1);
+      // la planta crece según el agua, los nutrientes, el pH, su salud y las abejas
+      const nutr = Math.min(1, Math.min(p.N, p.P, p.K) / 35), ph = 1 - Math.min(0.5, Math.abs(p.ph - 6.5) * 0.35);
+      const abejas = e <= 1 ? polinizacion(s) * 0.12 : 0;
+      const ritmo = (0.45 + 0.55 * nutr) * ph * (0.5 + 0.5 * p.salud / 100) * (1 + abejas) * (mejora(s, 'compost') ? 1.15 : 1);
+      if (p.agua > 0 && temporada) {
+        p.crec += (d / MIN_DIA) * ritmo;
+        // lo que la planta saca del suelo (el fríjol fija nitrógeno) y el suelo se acidifica de a poco
+        const k = d / MIN_DIA / C.dias;
+        p.N = Math.max(0, Math.min(100, p.N - C.npk[0] * k)); p.P = Math.max(0, p.P - C.npk[1] * k); p.K = Math.max(0, p.K - C.npk[2] * k);
+        p.ph = Math.max(4.5, p.ph - 0.004 * d / MIN_DIA);
+      }
+      // helada: el frío quema lo que no está en el invernadero
+      if (!inv && s.clima.temp < -0.5) {
+        p.salud = Math.max(0, p.salud - (-s.clima.temp - 0.5) * 0.12 * C.frio * d);
+        if (s.clima.diaHelada !== dia(s)) { s.clima.diaHelada = dia(s); log(s, `❄️ Heló en la madrugada (${s.clima.temp} °C): se quemaron hojas en el huerto.`, 'malo'); }
+      }
+      // calor y sed
+      if (s.clima.temp > 31 && p.agua < 30 && !inv) p.salud = Math.max(0, p.salud - (s.clima.temp - 31) * 0.02 * d);
+      // encharcamiento: las raíces se pudren si el agua no drena
+      if (p.encharcado > 360) p.salud = Math.max(0, p.salud - 0.05 * d);
+      // plagas: avanzan con humedad (hongos) o calor (insectos) y dañan la planta
+      if (p.plaga > 0) {
+        const gallinas = p.plagaTipo === 'insecto' && s.ganado.some((g) => g.vivo && g.tipo === 'gallina') ? 0.7 : 1;
+        const fuerza = p.plagaTipo === 'hongo' ? s.clima.hum / 70 : Math.max(0.3, s.clima.temp / 20);
+        p.plaga = Math.min(1, p.plaga + 0.18 * fuerza * gallinas * d / MIN_DIA);
+        p.salud = Math.max(0, p.salud - p.plaga * 14 * d / MIN_DIA);
+      }
+      if (p.salud <= 0) {
+        p.estado = 'muerta';
+        const causa = p.plaga > 0.5 ? (p.plagaTipo === 'hongo' ? 'un hongo' : 'una plaga de insectos') : s.clima.temp < 0 ? 'la helada' : p.encharcado > 360 ? 'el encharcamiento' : 'el clima';
+        log(s, `${C.nombre} de la parcela ${p.id + 1} se perdió por ${causa}.`, 'malo');
+        perdidaDeCosecha(s, `${causa} acabó con ${C.nombre.toLowerCase()}`);
+        p.ultimo = p.cultivo;
+        continue;
+      }
       if (p.agua <= 0 || !temporada) p.secoMin += d; else p.secoMin = Math.max(0, p.secoMin - 0.5 * d);
       if (p.secoMin > MIN_DIA * 2) {
         p.estado = 'muerta';
         log(s, `Se murió ${C.nombre.toLowerCase()} de la parcela ${p.id + 1} (${!temporada ? 'fuera de temporada' : 'falta de agua'}).`, 'malo');
         perdidaDeCosecha(s, `se secó ${C.nombre.toLowerCase()}`);
       } else if (p.crec >= C.dias) {
-        p.estado = 'lista'; p.listaMin = 0;
+        p.estado = 'lista'; p.listaMin = 0; p.plaga = Math.min(p.plaga, 0.4);
         log(s, `${C.nombre} de la parcela ${p.id + 1} lista para cosechar.`, 'bueno');
       }
     } else if (p.estado === 'lista') {
       p.listaMin += d;
-      if (p.listaMin > MIN_DIA * 6) { p.estado = 'muerta'; log(s, `${C.nombre} de la parcela ${p.id + 1} se pudrió sin cosechar.`, 'malo'); }
+      if (p.listaMin > MIN_DIA * 6) { p.estado = 'muerta'; p.ultimo = p.cultivo; log(s, `${C.nombre} de la parcela ${p.id + 1} se pudrió sin cosechar.`, 'malo'); }
     }
   }
 }
-function elegirCultivo(s, a, invernadero = false) {
+// abejas: con jardines en flor polinizan el huerto y los frutales (0..1)
+function polinizacion(s) {
+  const j = s.jardines || []; if (!j.length) return 0;
+  return Math.min(1, j.reduce((t, x) => t + x.flores, 0) / j.length * 1.4);
+}
+function granizada(s) {
+  const G = s.clima.granizo;
+  s.clima.granizando = !!(G && s.t >= G.desde && s.t < G.hasta);
+  if (!s.clima.granizando || G.aplicado) return;
+  G.aplicado = true;
+  let n = 0;
+  for (const p of s.parcelas) if (p.estado === 'creciendo' || p.estado === 'lista') { if (obra(s, 'invernadero') && p.id >= 9) continue; p.salud = Math.max(0, p.salud - (25 + rng(s) * 35)); n++; }
+  for (const f of s.frutales || []) f.fruta *= 0.5;
+  s.casa.estado = Math.max(0, (s.casa.estado ?? 100) - 4);
+  log(s, `🧊 Granizada: golpeó ${n ? `${n} parcela${n > 1 ? 's' : ''}, ` : ''}los frutales y el techo.`, 'malo');
+  humanos(s).forEach((a) => recuerdo(s, a, 'La granizada', -6, 24));
+}
+const vecinas = (s, p) => s.parcelas.filter((q) => q !== p && Math.hypot(q.x - p.x, q.z - p.z) < 4.9);
+function plagasDelDia(s) {
+  const hum = s.clima.hum, temp = s.clima.temp;
+  for (const p of s.parcelas) {
+    if (p.estado !== 'creciendo') continue;
+    // aparecen más en monocultivo (mismo cultivo que la vez pasada o que las vecinas) y con humedad o calor
+    if (!p.plaga) {
+      const mono = (p.ultimo === p.cultivo ? 3 : 1) * (vecinas(s, p).filter((q) => q.cultivo === p.cultivo).length >= 2 ? 1.5 : 1);
+      if (rng(s) < 0.006 * mono * (hum > 75 ? 1.8 : 1) * (temp > 22 ? 1.5 : 1)) { p.plaga = 0.06; p.plagaTipo = hum > 70 ? 'hongo' : 'insecto'; }
+    }
+  }
+  // contagio a las vecinas (más con humedad si es hongo, con calor si son insectos)
+  for (const p of s.parcelas.filter((q) => q.plaga > 0.3 && q.estado !== 'vacia')) {
+    for (const q of vecinas(s, p)) {
+      if (q.estado !== 'creciendo' || q.plaga > 0) continue;
+      const k = p.plagaTipo === 'hongo' ? hum / 70 : temp / 22;
+      if (rng(s) < 0.25 * k) { q.plaga = 0.08; q.plagaTipo = p.plagaTipo; if (s.clima.diaContagio !== dia(s)) { s.clima.diaContagio = dia(s); log(s, `${p.plagaTipo === 'hongo' ? '🍄 El hongo' : '🐛 La plaga'} saltó de la parcela ${p.id + 1} a la ${q.id + 1}.`, 'aviso'); } }
+    }
+  }
+}
+function compostDelDia(s) {
+  const R = s.rec, adultos = (t) => s.ganado.filter((g) => g.vivo && g.tipo === t && g.crec >= 1).length;
+  R.pila = (R.pila || 0) + adultos('vaca') * 1.0 + adultos('oveja') * 0.4 + (adultos('gallina') + adultos('gallo')) * 0.08;   // estiércol a la pila
+  const volteada = dia(s) - (s.ultimoVolteo ?? -99) <= 6;
+  const m = R.pila * (volteada ? 0.035 : 0.012);
+  R.pila -= m; R.compost = Math.min(80, (R.compost || 0) + m * 0.7);
+  if (estacion(s) === 3 || TEMP_BASE[estacion(s)] < 14) R.ceniza = Math.min(30, (R.ceniza || 0) + 0.4);   // la chimenea deja ceniza
+}
+function elegirCultivo(s, a, invernadero = false, parcela = null) {
   const e = estacion(s), quedan = DIAS_ESTACION - (dia(s) % DIAS_ESTACION) - hora(s) / 24;
   const opciones = [];
   for (const [k, C] of Object.entries(CULTIVOS)) {
@@ -643,6 +757,13 @@ function elegirCultivo(s, a, invernadero = false) {
     if (!invernadero && !C.estaciones.includes((e + 1) % 4) && C.dias > quedan - 0.5) continue;
     let p = C.raciones / C.dias;
     if (HAB(a).comida === k) p *= 1.15;
+    // rotación: quien sabe de huerto evita repetir y pone fríjol donde falta nitrógeno
+    if (parcela) {
+      const saber = Math.min(1, 0.35 + nivel(a.xp.huerto) * 0.08 + (tiene(a, 'manoVerde') ? 0.3 : 0) + P5(a, 'responsabilidad') * 0.2);
+      if (parcela.ultimo === k) p *= 1 - 0.7 * saber;
+      if (k === 'frijol' && parcela.N < 45) p *= 1 + 1.2 * saber;
+      if ((k === 'maiz' || k === 'papa') && parcela.ultimo === 'frijol') p *= 1 + 0.4 * saber;
+    }
     if (s.parcelas.some((x) => x.cultivo === k)) p *= 1 - P5(a, 'apertura') * 0.35;
     opciones.push([p, k]);
   }
@@ -806,6 +927,7 @@ const DURACION = {
   descansar: 40, leer: 60, tallar: 50, contemplar: 35, jugarGato: 25, pasearPerro: 0, conversar: 25, cocinar: 45, cenar: 35, limpiarCasa: 40, siesta: 50,
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
   reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
+  fumigar: 20, arrancar: 25, abonar: 20, voltearCompost: 30,
   construir: 90, esculpir: 80, cuidarJardin: 45, hacerConservas: 60, hacerQueso: 50, secar: 40,
 };
 const COMIDAS = [['desayuno', 6.5, 9, 20], ['almuerzo', 12, 13.5, 30], ['cena', 19, 20.5, 45]];   // [comida, desde, hasta, minutos de cocina]
@@ -833,6 +955,7 @@ function crearTarea(s, a, tipo, extra = {}) {
   else if (tipo === 'nadar') t.destino = { ...LUGAR.piscina };
   else if (tipo === 'reparar') t.destino = { x: LUGAR.taller.x + 0.6, z: LUGAR.taller.z + 1.0 };
   else if (tipo === 'construir') { const o = OBRAS.find((x) => x[0] === t.obra); t.destino = { x: o[3] + 1.6, z: o[4] + 1.2 }; }
+  else if (tipo === 'voltearCompost') t.destino = { x: LUGAR.compost.x + 1.2, z: LUGAR.compost.z + 0.4 };
   else if (tipo === 'esculpir') t.destino = { x: LUGAR.taller.x - 0.4, z: LUGAR.taller.z + 1.0 };
   else if (tipo === 'cuidarJardin') { const j = s.jardines[t.jardin]; t.destino = { x: j.x - 2.1, z: j.z + 0.3 }; }
   else if (tipo === 'secar') { const o = OBRAS.find((x) => x[0] === 'secadero'); t.destino = { x: o[3] + 1.2, z: o[4] + 1.0 }; }
@@ -908,9 +1031,16 @@ function elegirTarea(s, a) {
   const hambreGranja = s.ganado.some((g) => g.vivo && g.hambre < 30 && !esAve(g.tipo));
   if (animalesGranja && !yaHace('alimentarGanado') && ((R.pesebre < 3 && (e === 3 || s.granja.pasto < 25 || hambreGranja) && (R.heno >= 2 || (hambreGranja && R.raciones > reservaHumana))) || (R.bebederoGanado < 15 && R.cruda >= 20) || (e === 3 && R.grano < 0.5 && R.raciones >= 1)))
     opciones.push([hambreGranja ? 92 : 72, 'alimentarGanado']);
-  { const p = s.parcelas.find((p) => p.estado === 'vacia' && libre(p) && (elegirCultivo(s, a) || (obra(s, 'invernadero') && p.id >= 9))); const c = p && elegirCultivo(s, a, obra(s, 'invernadero') && p.id >= 9); if (p && c) opciones.push([comidaTotal(s) > 300 ? 28 : 70, 'sembrar', { parcela: p.id, cultivo: c }]); }
+  { const p = s.parcelas.find((p) => p.estado === 'vacia' && libre(p) && (elegirCultivo(s, a) || (obra(s, 'invernadero') && p.id >= 9))); const c = p && elegirCultivo(s, a, obra(s, 'invernadero') && p.id >= 9, p); if (p && c) opciones.push([comidaTotal(s) > 300 ? 28 : 70, 'sembrar', { parcela: p.id, cultivo: c }]); }
   if ((R.comedero < 0.5 || R.bebedero < 2) && (comidaTotal(s) >= 1 || R.cruda >= 3) && !yaHace('alimentar') && s.agentes.some((x) => x.tipo !== 'humano' && x.vivo)) opciones.push([65, 'alimentar']);
   { const p = s.parcelas.find((p) => p.estado === 'muerta' && libre(p)); if (p) opciones.push([60, 'limpiar', { parcela: p.id }]); }
+  // sanidad vegetal: quien tiene mano verde ve la plaga antes
+  { const ve = tiene(a, 'manoVerde') ? 0.12 : 0.3;
+    const p = s.parcelas.filter((q) => q.estado === 'creciendo' && q.plaga > ve && libre(q)).sort((x, y) => y.plaga - x.plaga)[0];
+    if (p) opciones.push(p.plaga > 0.85 && p.salud < 30 ? [84, 'arrancar', { parcela: p.id }] : [80, 'fumigar', { parcela: p.id }]); }
+  { const p = s.parcelas.find((q) => (q.estado === 'vacia' || q.estado === 'creciendo') && Math.min(q.N, q.P, q.K) < 40 && libre(q));
+    if (p && (R.compost || 0) >= 4 && !yaHace('abonar')) opciones.push([57, 'abonar', { parcela: p.id }]); }
+  if ((R.pila || 0) > 15 && dia(s) - (s.ultimoVolteo ?? -99) >= 5 && !yaHace('voltearCompost')) opciones.push([40, 'voltearCompost']);
   if (R.nido >= 2 && !yaHace('recogerHuevos')) opciones.push([55, 'recogerHuevos']);
   { const o = s.ganado.find((g) => g.vivo && g.tipo === 'oveja' && g.crec >= 1 && g.lana >= 70); if (o && (e === 0 || e === 1) && !yaHace('esquilar')) opciones.push([52, 'esquilar', { oveja: o.id }]); }
   if (s.casa.limpieza < 25 + resp * 35 && !yaHace('limpiarCasa')) opciones.push([45 + resp * 15, 'limpiarCasa']);
@@ -1013,7 +1143,7 @@ export const ACCION = {
   leer: 'Leyendo', tallar: 'Tallando madera', contemplar: 'Contemplando el paisaje', jugarGato: 'Jugando con el gato', pasearPerro: 'Paseando al perro',
   conversar: 'Conversando', cocinar: 'Cocinando la cena', cenar: 'Cenando juntos', limpiarCasa: 'Limpiando la casa', siesta: 'Tomando la siesta',
   ordenar: 'Ordeñando a la vaca', recogerHuevos: 'Recogiendo huevos', esquilar: 'Esquilando una oveja', segar: 'Segando pasto para heno', alimentarGanado: 'Alimentando la granja',
-  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
+  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
   recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
   seguir: 'Acompañando a la pareja', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
 };
@@ -1023,7 +1153,7 @@ const VA_A = {
   descansar: 'Va a la banca', leer: 'Va a leer', tallar: 'Va a tallar madera', contemplar: 'Va a mirar el paisaje', jugarGato: 'Va a jugar con el gato',
   pasearPerro: 'Paseando al perro', conversar: 'Va a conversar', cocinar: 'Va a cocinar', cenar: 'Va a cenar', limpiarCasa: 'Va a limpiar la casa', siesta: 'Va a la siesta',
   ordenar: 'Va a ordeñar', recogerHuevos: 'Va al gallinero', esquilar: 'Va a esquilar', segar: 'Va a segar', alimentarGanado: 'Va al pesebre', tejer: 'Va a tejer', nadar: 'Va a la piscina',
-  reparar: 'Va al taller a reparar', curar: 'Va a curar un animal', recogerFruta: 'Va a los frutales', construir: 'Va a la obra', esculpir: 'Va al taller a esculpir', cuidarJardin: 'Va al jardín', secar: 'Va al secadero', reconciliar: 'Va a hacer las paces', recogerFlores: 'Va a recoger flores', jugarPerro: 'Va a jugar con el perro',
+  reparar: 'Va al taller a reparar', curar: 'Va a curar un animal', recogerFruta: 'Va a los frutales', construir: 'Va a la obra', fumigar: 'Va a tratar una plaga', abonar: 'Va a abonar', voltearCompost: 'Va al compost', esculpir: 'Va al taller a esculpir', cuidarJardin: 'Va al jardín', secar: 'Va al secadero', reconciliar: 'Va a hacer las paces', recogerFlores: 'Va a recoger flores', jugarPerro: 'Va a jugar con el perro',
 };
 
 const OCIO_LLENA = { cuidarJardin: 0.7, esculpir: 0.6, leer: 0.7, tallar: 0.75, contemplar: 0.8, jugarGato: 1.1, descansar: 0.35, siesta: 0.3, tejer: 0.6, nadar: 1.1, recogerFlores: 0.8, jugarPerro: 1.2 };
@@ -1222,17 +1352,25 @@ function completar(s, a, T) {
     case 'cosechar':
       if (p.estado === 'lista') {
         const C = CULTIVOS[p.cultivo];
-        const rac = Math.round(C.raciones * mod(a, 'cosecha') * (1 + 0.03 * nivel(a.xp.huerto)));
+        const nutr = Math.max(0.4, Math.min(1.1, Math.min(p.N, p.P, p.K) / 45));
+        const rot = p.ultimo === p.cultivo ? 0.75 : p.ultimo === 'frijol' && (p.cultivo === 'maiz' || p.cultivo === 'papa') ? 1.15 : 1;
+        const rac = Math.max(1, Math.round(C.raciones * mod(a, 'cosecha') * (1 + 0.03 * nivel(a.xp.huerto)) * nutr * rot * (0.3 + 0.7 * p.salud / 100)));
+        if (rot < 1 && rng(s) < 0.5) log(s, `Repetir ${C.nombre.toLowerCase()} en la misma tierra rindió menos.`, 'info');
+        if (rot > 1 && rng(s) < 0.5) log(s, `El fríjol dejó la tierra rica en nitrógeno: buena cosecha de ${C.nombre.toLowerCase()}.`, 'bueno');
         const sem = C.semillas[0] + Math.floor(rng(s) * (C.semillas[1] - C.semillas[0] + 1)) + (mejora(s, 'semillasSelectas') ? 1 : 0);
         R.raciones += rac; R.semillas[p.cultivo] = (R.semillas[p.cultivo] || 0) + sem;
         s.stats.cosechas += 1; s.stats.raciones += rac; s.ultimaCosecha = p.cultivo;
         log(s, `${a.nombre} cosechó ${C.nombre.toLowerCase()}: +${rac} raciones y ${sem} semilla${sem > 1 ? 's' : ''}.`, 'bueno');
         recuerdo(s, a, 'Buena cosecha', 5, 10);
         for (const h of humanos(s)) { if (HAB(h).comida === p.cultivo) cumplirDeseo(s, h, 'cosecharFavorito'); if (s.stats.cosechas === 1) memoria(s, h, 'La primera cosecha', 1); }
-        Object.assign(p, { cultivo: null, crec: 0, estado: 'vacia', secoMin: 0 });
+        Object.assign(p, { ultimo: p.cultivo, cultivo: null, crec: 0, estado: 'vacia', secoMin: 0, salud: 100, plaga: 0, plagaTipo: null });
       }
       break;
-    case 'limpiar': Object.assign(p, { cultivo: null, crec: 0, estado: 'vacia', secoMin: 0 }); break;
+    case 'limpiar': Object.assign(p, { ultimo: p.ultimo || p.cultivo, cultivo: null, crec: 0, estado: 'vacia', secoMin: 0, salud: 100, plaga: 0, plagaTipo: null }); break;
+    case 'fumigar': if (p) { const tipo = p.plagaTipo; p.plaga = Math.max(0, p.plaga - 0.55); if (!p.plaga) p.plagaTipo = null; log(s, `${a.nombre} trató la parcela ${p.id + 1} con ${tipo === 'hongo' ? 'caldo de ceniza' : 'purín de ortiga'}.`, 'info'); } break;
+    case 'arrancar': if (p) { p.estado = 'muerta'; p.ultimo = p.cultivo; p.plaga = 0; log(s, `${a.nombre} arrancó las plantas enfermas de la parcela ${p.id + 1} para que no contagien.`, 'aviso'); recuerdo(s, a, 'Tuvo que arrancar plantas enfermas', -4, 12); } break;
+    case 'abonar': if (p && (R.compost || 0) >= 4) { R.compost -= 4; p.N = Math.min(100, p.N + 20); p.P = Math.min(100, p.P + 7); p.K = Math.min(100, p.K + 18); if ((R.ceniza || 0) >= 2 && p.ph < 6.3) { R.ceniza -= 2; p.ph = Math.min(7.2, p.ph + 0.35); } } break;
+    case 'voltearCompost': s.ultimoVolteo = dia(s); recuerdo(s, a, 'Olor a tierra buena', 1, 4); break;
     case 'alimentar':
       if (R.raciones >= 1 && R.comedero < 2) { const c = Math.min(2 - R.comedero, R.raciones); R.raciones -= c; R.comedero += c; }
       if (R.cruda >= 1 && R.bebedero < 6) { const l = Math.min(6 - R.bebedero, R.cruda); R.cruda -= l; R.bebedero += l; }
@@ -1540,6 +1678,8 @@ export function cargar() {
       if (a.tipo !== 'humano') a.vinculo ??= Object.fromEntries(PERSONAJES.filter((h) => h.tipo === 'humano').map((h) => [h.id, Math.round((h.habitos?.animales?.[a.id] ?? 0.5) * 100)]));
     }
     for (let i = s.parcelas.length; i < PARCELAS.length; i++) s.parcelas.push({ id: i, x: PARCELAS[i].x, z: PARCELAS[i].z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null });
+    for (const p of s.parcelas) for (const [k, v] of Object.entries(sueloNuevo())) p[k] ??= v;
+    for (const [id, nombre, horas] of OBRAS) if (!s.obras?.some((o) => o.id === id)) (s.obras ||= []).splice(OBRAS.findIndex((o) => o[0] === id), 0, { id, nombre, horas, progreso: 0 });
     s.frutales ??= FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 }));
     s.jardines ??= JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 }));
     s.obras ??= OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })); s.esculturas ??= 0; s.avanceEscultura ??= 0; s.belleza ??= 10;

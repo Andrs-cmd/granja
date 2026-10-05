@@ -79,6 +79,8 @@ export function crearEscena(host, { onParcela } = {}) {
   // ------------------------------------------------------------ terreno circular, del ancho del orbe
   const BW = BLOQUE.x1 - BLOQUE.x0, BD = BLOQUE.z1 - BLOQUE.z0;
   const RT = 50;   // radio del terreno
+  const PASTO_BASE = new THREE.Color(0x6f9a44), ESCARCHA = new THREE.Color(0xd8e6ee);
+  const pastoTerreno = new THREE.MeshStandardMaterial({ color: PASTO_BASE.clone(), roughness: 1 });
   const enTerreno = (x, z, m = 0) => Math.hypot(x - CENTER.x, z - CENTER.z) < RT - m;
   {
     const capa = (r0, r1, h, y, color) => {
@@ -92,7 +94,7 @@ export function crearEscena(host, { onParcela } = {}) {
       forma.holes.push(hueco);
       const g = new THREE.ExtrudeGeometry(forma, { depth: 0.55, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 3, curveSegments: 96 });
       g.rotateX(-Math.PI / 2); g.translate(0, -0.67, 0);
-      const pasto = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x6f9a44, roughness: 1 }));
+      const pasto = new THREE.Mesh(g, pastoTerreno);
       pasto.receiveShadow = true; pasto.castShadow = true; root.add(pasto);
     }
     capa(RT - 0.2, RT - 0.4, 3.3, -2.35, 0x7a4b2b);
@@ -309,7 +311,13 @@ export function crearEscena(host, { onParcela } = {}) {
     const sel = new THREE.Mesh(new THREE.RingGeometry(0, 1, 4), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0, depthWrite: false }));
     sel.rotation.set(-Math.PI / 2, 0, Math.PI / 4); sel.scale.set(PLOT_W * 0.78, PLOT_D * 0.78, 1); sel.position.y = 0.2; g.add(sel);
     const plants = new THREE.Group(); g.add(plants);
-    parcelas.push({ g, soil, soilMat, plants, sel, key: '' });
+    // charco cuando se encharca
+    const charco = new THREE.Mesh(new THREE.PlaneGeometry(PLOT_W - 0.2, PLOT_D - 0.2), new THREE.MeshStandardMaterial({ color: 0x5a8fb0, roughness: 0.1, transparent: true, opacity: 0.7 }));
+    charco.rotation.x = -Math.PI / 2; charco.position.y = 0.19; charco.visible = false; g.add(charco);
+    // bichos o esporas revoloteando cuando hay plaga
+    const bichos = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(12 * 3), 3)), new THREE.PointsMaterial({ color: 0x2a2018, size: 0.12 }));
+    bichos.visible = false; g.add(bichos);
+    parcelas.push({ g, soil, soilMat, plants, sel, charco, bichos, key: '' });
   }
   // (las posiciones vienen del estado en la primera actualización)
 
@@ -553,6 +561,9 @@ export function crearEscena(host, { onParcela } = {}) {
       const caja = new THREE.Mesh(new THREE.BoxGeometry(13.4, 2.4, 3.2), vidrio); caja.position.y = 1.2; cuerpo.add(caja);
       for (let k = -3; k <= 3; k++) for (const pz of [-1.6, 1.6]) add(new THREE.BoxGeometry(0.08, 2.4, 0.08), andamioMat, k * 2.2, 1.2, pz);
       for (const pz of [-1.6, 1.6]) add(new THREE.BoxGeometry(13.4, 0.08, 0.08), andamioMat, 0, 2.4, pz);
+    } else if (id === 'drenaje') {
+      add(new THREE.BoxGeometry(15, 0.06, 0.7), new THREE.MeshStandardMaterial({ color: 0x3d2c1e, roughness: 1 }), 0, 0.03, 0);
+      for (let k = 0; k < 22; k++) add(new THREE.IcosahedronGeometry(0.16, 0), piedraObra, -7.2 + k * 0.68, 0.08, (k % 2 ? 0.42 : -0.42));
     } else if (id === 'fuente') {
       add(new THREE.CylinderGeometry(1.5, 1.6, 0.5, 18, 1, true), piedraObra, 0, 0.25, 0).material.side = THREE.DoubleSide;
       const agua = new THREE.Mesh(new THREE.CircleGeometry(1.45, 18), new THREE.MeshStandardMaterial({ color: 0x4aa3d0, roughness: 0.1 })); agua.rotation.x = -Math.PI / 2; agua.position.y = 0.38; cuerpo.add(agua);
@@ -566,6 +577,10 @@ export function crearEscena(host, { onParcela } = {}) {
     obrasVis[id] = { g, cuerpo, andamio };
   }
 
+  // pila de compost (crece con el estiércol)
+  const compostVis = new THREE.Mesh(new THREE.SphereGeometry(1.3, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1, flatShading: true }));
+  compostVis.position.set(LUGAR.compost.x, 0, LUGAR.compost.z); compostVis.castShadow = true; root.add(compostVis);
+  { const cerco = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.08, 4, 16), new THREE.MeshStandardMaterial({ color: 0x9a7350 })); cerco.rotation.x = Math.PI / 2; cerco.position.set(LUGAR.compost.x, 0.25, LUGAR.compost.z); root.add(cerco); }
   // ------------------------------------------------------------ esculturas de Andrés
   const marmol = new THREE.MeshStandardMaterial({ color: 0xd9d4ca, roughness: 0.55 });
   const esculturasVis = ESCULTURAS.map((e) => {
@@ -1199,13 +1214,13 @@ export function crearEscena(host, { onParcela } = {}) {
 
     palette(e, lluviaK);
     skyMat.uniforms.uTop.value.copy(pal.top); skyMat.uniforms.uHor.value.copy(pal.hor);
-    hemi.color.copy(pal.hs); hemi.groundColor.copy(pal.hg); hemi.intensity = 0.65 + day * 0.55;
+    hemi.color.copy(pal.hs); hemi.groundColor.copy(pal.hg); hemi.intensity = 1.05 + day * 0.65 + night * 0.9;   // más luz en todo el orbe (también de noche)
     const sunUp = e > -0.02;
     dir.copy(sunUp ? sunPos : moonPos).sub(CENTER).normalize();
     key.position.copy(CENTER).addScaledVector(dir, 60);
-    if (sunUp) { key.color.copy(SUN_LOW).lerp(SUN_HIGH, smooth(e, 0.02, 0.45)); key.intensity = 3.2 * smooth(e, -0.02, 0.2) * (1 - lluviaK * 0.55); }
-    else { key.color.copy(MOON); key.intensity = 0.95 * night * (1 - lluviaK * 0.6); }
-    renderer.toneMappingExposure = 1.0 + night * 0.2;
+    if (sunUp) { key.color.copy(SUN_LOW).lerp(SUN_HIGH, smooth(e, 0.02, 0.45)); key.intensity = 3.9 * smooth(e, -0.02, 0.2) * (1 - lluviaK * 0.5); }
+    else { key.color.copy(MOON); key.intensity = 1.5 * night * (1 - lluviaK * 0.5); }
+    renderer.toneMappingExposure = 1.12 + night * 0.55;
     starMat.opacity = night * (1 - lluviaK) * (0.75 + 0.25 * Math.sin(t * 2));
 
     // luces
@@ -1213,11 +1228,12 @@ export function crearEscena(host, { onParcela } = {}) {
     const homeOn = 1 - smooth(e, -0.06, 0.04);
     interior.forEach((pl) => { pl.intensity = 22 * homeOn; });
     porch.intensity = 14 * homeOn;
-    for (const l of lamps) { l.pl.intensity = 60 * homeOn; l.lm.emissiveIntensity = 4 * homeOn; }
+    for (const l of lamps) { l.pl.intensity = 95 * homeOn; l.lm.emissiveIntensity = 4.5 * homeOn; }
     haloMat.opacity = homeOn;
 
     // lluvia
-    rainMat.opacity = lluviaK * 0.55;
+    rainMat.opacity = lluviaK * (s.clima.granizando ? 0.95 : 0.55);
+    rainMat.color.setHex(s.clima.granizando ? 0xffffff : 0xcfe2ff);
     rain.visible = lluviaK > 0.02;
     if (rain.visible) {
       const pa = rainGeo.attributes.position;
@@ -1240,8 +1256,24 @@ export function crearEscena(host, { onParcela } = {}) {
         if (p.cultivo) for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
           const pl = planta(p.cultivo); pl.position.set(-1.25 + c * 0.83, 0.17, -0.45 + r * 0.9); pl.rotation.y = rand() * 6; v.plants.add(pl);
         }
+        v.hoja = p.cultivo ? MAT[p.cultivo].clone() : null;   // material propio: amarillea o se mancha según la salud y la plaga
       }
-      if (!p.cultivo) return;
+      // suelo pobre: tierra más pálida; encharcado: charco
+      v.charco.visible = (p.encharcado || 0) > 90;
+      if ((p.N ?? 60) < 35) v.soilMat.color.lerp(new THREE.Color(0xb59a74), 0.5);
+      if (!p.cultivo) { v.bichos.visible = false; return; }
+      if (v.hoja) {
+        v.hoja.color.copy(MAT[p.cultivo].color);
+        const malestar = Math.max(1 - (p.salud ?? 100) / 100, (p.plaga || 0) * 0.8);
+        v.hoja.color.lerp(new THREE.Color(p.plagaTipo === 'hongo' ? 0xcfcfb8 : (p.plaga || 0) > 0.1 ? 0x8a6a3a : 0xc9b04a), Math.min(0.85, malestar));
+      }
+      v.bichos.visible = (p.plaga || 0) > 0.15;
+      if (v.bichos.visible) {
+        v.bichos.material.color.setHex(p.plagaTipo === 'hongo' ? 0xf2f0e6 : 0x2a2018);
+        const pa = v.bichos.geometry.attributes.position;
+        for (let k = 0; k < 12; k++) { const a = t * (1.5 + (k % 3)) + k * 2.1; pa.setXYZ(k, Math.cos(a) * (0.6 + (k % 4) * 0.35), 0.5 + Math.sin(a * 1.7 + k) * 0.25 + (k % 3) * 0.15, Math.sin(a * 0.8) * 0.8); }
+        pa.needsUpdate = true;
+      }
       const C = CULTIVOS[p.cultivo];
       const g = p.estado === 'lista' ? 1 : Math.min(1, p.crec / C.dias);
       const dead = p.estado === 'muerta', dry = Math.max(0, 1 - p.agua / 25);
@@ -1249,10 +1281,13 @@ export function crearEscena(host, { onParcela } = {}) {
         pl.scale.set(0.25 + g * 0.75, (0.15 + g * 0.85) * (dead ? 0.35 : 1 - dry * 0.15), 0.25 + g * 0.75);
         pl.rotation.z = Math.sin(t * 1.2 + j) * 0.04;
         if (pl.userData.fruto) pl.userData.fruto.visible = p.estado === 'lista';
-        for (const hm of pl.userData.hojas || []) hm.material = dead ? MAT.muerto : dry > 0.6 ? MAT.seco : MAT[p.cultivo];
+        for (const hm of pl.userData.hojas || []) hm.material = dead ? MAT.muerto : dry > 0.6 ? MAT.seco : v.hoja;
       });
     });
 
+    const escarcha = Math.max(0, Math.min(1, -(s.clima.temp ?? 10) / 4 + 0.2)) * (night > 0.2 || (s.t % MIN_DIA) / 60 < 9 ? 1 : 0.3);
+    pastoTerreno.color.copy(PASTO_BASE).lerp(ESCARCHA, escarcha * 0.7);
+    compostVis.scale.set(1, Math.max(0.15, Math.min(1.6, (s.rec.pila || 0) / 60)), 1);
     tankLevel(s.rec.cruda / TANQUE_MAX);
     poseGanado(s, t, dt);
     pastoMat.color.setHSL(0.18 + Math.min(1, s.granja.pasto / 100) * 0.1, 0.45, 0.28 + Math.min(1, s.granja.pasto / 100) * 0.08);
