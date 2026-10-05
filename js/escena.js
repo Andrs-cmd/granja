@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -76,40 +76,31 @@ export function crearEscena(host, { onParcela } = {}) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   }
 
-  // ------------------------------------------------------------ bloque de tierra
+  // ------------------------------------------------------------ terreno circular, del ancho del orbe
   const BW = BLOQUE.x1 - BLOQUE.x0, BD = BLOQUE.z1 - BLOQUE.z0;
+  const RT = 50;   // radio del terreno
+  const enTerreno = (x, z, m = 0) => Math.hypot(x - CENTER.x, z - CENTER.z) < RT - m;
   {
-    const layer = (h, inset, y, color, r) => {
-      const m = new THREE.Mesh(new RoundedBoxGeometry(BW - inset, h, BD - inset, 3, r), new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+    const capa = (r0, r1, h, y, color) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 128), new THREE.MeshStandardMaterial({ color, roughness: 1 }));
       m.position.set(CENTER.x, y, CENTER.z); m.receiveShadow = true; m.castShadow = true; root.add(m); return m;
     };
     {
-      const rr = (x0, z0, x1, z1, r, path) => {
-        path.moveTo(x0 + r, -z0); path.lineTo(x1 - r, -z0); path.quadraticCurveTo(x1, -z0, x1, -z0 - r);
-        path.lineTo(x1, -z1 + r); path.quadraticCurveTo(x1, -z1, x1 - r, -z1);
-        path.lineTo(x0 + r, -z1); path.quadraticCurveTo(x0, -z1, x0, -z1 + r);
-        path.lineTo(x0, -z0 - r); path.quadraticCurveTo(x0, -z0, x0 + r, -z0);
-        return path;
-      };
-      const b = 0.12;
-      const shape = rr(BLOQUE.x0 + b, BLOQUE.z0 + b, BLOQUE.x1 - b, BLOQUE.z1 - b, 0.6, new THREE.Shape());
-      shape.holes.push(rr(PISCINA.x0 - b, PISCINA.z0 - b, PISCINA.x1 + b, PISCINA.z1 + b, 0.3, new THREE.Path()));
-      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.55, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 3, curveSegments: 6 });
+      const forma = new THREE.Shape(); forma.absarc(CENTER.x, -CENTER.z, RT - 0.12, 0, Math.PI * 2, false);
+      const hueco = new THREE.Path(), b = 0.12;
+      hueco.moveTo(PISCINA.x0 - b, -(PISCINA.z0 - b)); hueco.lineTo(PISCINA.x1 + b, -(PISCINA.z0 - b)); hueco.lineTo(PISCINA.x1 + b, -(PISCINA.z1 + b)); hueco.lineTo(PISCINA.x0 - b, -(PISCINA.z1 + b)); hueco.lineTo(PISCINA.x0 - b, -(PISCINA.z0 - b));
+      forma.holes.push(hueco);
+      const g = new THREE.ExtrudeGeometry(forma, { depth: 0.55, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 3, curveSegments: 96 });
       g.rotateX(-Math.PI / 2); g.translate(0, -0.67, 0);
-      const grass = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x6f9a44, roughness: 1 }));
-      grass.receiveShadow = true; grass.castShadow = true; root.add(grass);
+      const pasto = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x6f9a44, roughness: 1 }));
+      pasto.receiveShadow = true; pasto.castShadow = true; root.add(pasto);
     }
-    layer(3.3, 0.35, -2.35, 0x7a4b2b, 0.22);
-    layer(1.6, 0.8, -4.55, 0x5d5751, 0.3);
+    capa(RT - 0.2, RT - 0.4, 3.3, -2.35, 0x7a4b2b);
+    capa(RT - 0.5, RT - 0.9, 1.6, -4.55, 0x5d5751);
     const geos = [];
-    for (let i = 0; i < 110; i++) {
-      const side = Math.floor(rand() * 4), g = new THREE.IcosahedronGeometry(0.18 + rand() * 0.22, 0);
-      const y = -1.2 - rand() * 3.2, u = (rand() - 0.5) * 0.9;
-      if (side === 0) g.translate(CENTER.x + u * BW, y, CENTER.z + (BD - 0.35) / 2);
-      if (side === 1) g.translate(CENTER.x + u * BW, y, CENTER.z - (BD - 0.35) / 2);
-      if (side === 2) g.translate(CENTER.x + (BW - 0.35) / 2, y, CENTER.z + u * BD);
-      if (side === 3) g.translate(CENTER.x - (BW - 0.35) / 2, y, CENTER.z + u * BD);
-      geos.push(g);
+    for (let i = 0; i < 220; i++) {
+      const ang = rand() * Math.PI * 2, g = new THREE.IcosahedronGeometry(0.18 + rand() * 0.22, 0);
+      g.translate(CENTER.x + Math.cos(ang) * (RT - 0.25), -1.2 - rand() * 3.2, CENTER.z + Math.sin(ang) * (RT - 0.25)); geos.push(g);
     }
     root.add(new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ color: 0x8b847c, roughness: 1, flatShading: true })));
   }
@@ -171,7 +162,7 @@ export function crearEscena(host, { onParcela } = {}) {
   const rainGeo = new THREE.BufferGeometry();
   const rainPos = new Float32Array(RAIN * 6), rainV = new Float32Array(RAIN);
   for (let i = 0; i < RAIN; i++) {
-    const x = CENTER.x + (rand() - 0.5) * (BW - 1), z = CENTER.z + (rand() - 0.5) * (BD - 1), y = rand() * 42;
+    const ang = rand() * Math.PI * 2, rr = Math.sqrt(rand()) * (RT - 1), x = CENTER.x + Math.cos(ang) * rr, z = CENTER.z + Math.sin(ang) * rr, y = rand() * 42;
     rainPos.set([x, y, z, x, y - 0.6, z], i * 6); rainV[i] = 18 + rand() * 8;
   }
   rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
@@ -420,6 +411,37 @@ export function crearEscena(host, { onParcela } = {}) {
     trees.push({ crown, phase: rand() * 6.28 });
   }
   makeTree(-6.8, -12.0, 1.2); makeTree(8.5, -12.6, 1.3); makeTree(-17.5, 26.5, 1.05); makeTree(22.6, 4.8, 1.0); makeTree(6.0, 25.5, 0.9); makeTree(1.0, -13.5, 1.1);
+  // el anillo nuevo (fuera del rectángulo de la granja): un bosque en el borde
+  const fueraGranja = (x, z) => x < BLOQUE.x0 + 1 || x > BLOQUE.x1 - 1 || z < BLOQUE.z0 + 1 || z > BLOQUE.z1 - 1;
+  const ESTANQUE = { x: -16, z: 47, rx: 7, rz: 3.6 };
+  for (let k = 0; k < 70; k++) {
+    const ang = rand() * Math.PI * 2, r = 38 + rand() * 9.5;
+    const x = CENTER.x + Math.cos(ang) * r, z = CENTER.z + Math.sin(ang) * r;
+    if (!fueraGranja(x, z) || !enTerreno(x, z, 3) || Math.hypot((x - ESTANQUE.x) / (ESTANQUE.rx + 3), (z - ESTANQUE.z) / (ESTANQUE.rz + 3)) < 1) continue;
+    makeTree(x, z, 0.8 + rand() * 0.6);
+  }
+  // estanque con juncos y piedras
+  {
+    const agua = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshStandardMaterial({ color: 0x3a8fb7, roughness: 0.15, metalness: 0.1 }));
+    agua.rotation.x = -Math.PI / 2; agua.scale.set(ESTANQUE.rx, ESTANQUE.rz, 1); agua.position.set(ESTANQUE.x, 0.02, ESTANQUE.z); root.add(agua);
+    const orilla = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 40), new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 1 }));
+    orilla.rotation.x = -Math.PI / 2; orilla.scale.set(ESTANQUE.rx, ESTANQUE.rz, 1); orilla.position.set(ESTANQUE.x, 0.03, ESTANQUE.z); root.add(orilla);
+    const junco = LEAF(0x5c8a3a), geos = [];
+    for (let k = 0; k < 60; k++) { const a = rand() * Math.PI * 2, g = new THREE.CylinderGeometry(0.03, 0.04, 0.8 + rand() * 0.6, 4); g.translate(ESTANQUE.x + Math.cos(a) * ESTANQUE.rx * (1.02 + rand() * 0.12), 0.45, ESTANQUE.z + Math.sin(a) * ESTANQUE.rz * (1.02 + rand() * 0.12)); geos.push(g); }
+    root.add(new THREE.Mesh(mergeGeometries(geos), junco));
+    for (let k = 0; k < 4; k++) { const n = new THREE.Mesh(new THREE.CircleGeometry(0.4, 10), LEAF(0x4f8a34)); n.rotation.x = -Math.PI / 2; n.position.set(ESTANQUE.x + (rand() - 0.5) * 8, 0.04, ESTANQUE.z + (rand() - 0.5) * 3); root.add(n); }   // nenúfares
+  }
+  // praderas de flores silvestres en el anillo
+  {
+    const colores = [0xf2f0e6, 0xf2c94c, 0xe4507a, 0x9b6ad8].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 }));
+    const porColor = colores.map(() => []);
+    for (let k = 0; k < 900; k++) {
+      const ang = rand() * Math.PI * 2, r = 36 + rand() * 13, x = CENTER.x + Math.cos(ang) * r, z = CENTER.z + Math.sin(ang) * r;
+      if (!fueraGranja(x, z) || !enTerreno(x, z, 1)) continue;
+      const g = new THREE.IcosahedronGeometry(0.09, 0); g.translate(x, 0.18 + rand() * 0.12, z); porColor[k % 4].push(g);
+    }
+    porColor.forEach((gs, i) => { if (gs.length) root.add(new THREE.Mesh(mergeGeometries(gs), colores[i])); });
+  }
   // bordes del terreno ampliado
   for (const [x, z, sc] of [[-31, 32, 1.2], [-24, 37, 1.0], [16, 37.5, 1.1], [27, 36.5, 1.25], [36, 30, 1.0], [36, 14, 1.15], [35.5, -6, 1.0], [34, -24, 1.2], [21, -25.5, 1.05],
     [-13, -26, 1.1], [-20, 33, 0.95], [-30.5, 27, 0.9]]) makeTree(x, z, sc);
@@ -440,6 +462,83 @@ export function crearEscena(host, { onParcela } = {}) {
     // cerco bajo alrededor del tronco
     const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 5, 14), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 })); anillo.rotation.x = Math.PI / 2; anillo.position.y = 0.06; t.add(anillo);
     return { copa, frutas, fase: rand() * 6 };
+  });
+
+  // ------------------------------------------------------------ jardines de María: canteros con flores
+  const jardinesVis = JARDINES.map((j) => {
+    const g = new THREE.Group(); g.position.set(j.x, 0, j.z); root.add(g);
+    const tierra = new THREE.Mesh(new RoundedBoxGeometry(3.6, 0.22, 2.4, 2, 0.08), new THREE.MeshStandardMaterial({ color: 0x5e4029, roughness: 1 }));
+    tierra.position.y = 0.08; tierra.receiveShadow = true; g.add(tierra);
+    const borde = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 4, 24), new THREE.MeshStandardMaterial({ color: 0xbdb7aa, roughness: 1 })); borde.rotation.x = Math.PI / 2; borde.scale.set(1, 0.68, 1); borde.position.y = 0.14; g.add(borde);
+    const tallo = LEAF(0x4f8a34), petalo = new THREE.MeshStandardMaterial({ color: j.flor, roughness: 0.6 }), centro = new THREE.MeshStandardMaterial({ color: 0xf2c94c, roughness: 0.6 });
+    const flores = [];
+    for (let k = 0; k < 26; k++) {
+      const f = new THREE.Group(); f.position.set(-1.5 + (k % 7) * 0.5 + (rand() - 0.5) * 0.15, 0.18, -0.9 + Math.floor(k / 7) * 0.6 + (rand() - 0.5) * 0.15); g.add(f);
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.45, 4), tallo); st.position.y = 0.22; f.add(st);
+      const cab = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 0), petalo); cab.position.y = 0.48; cab.scale.set(1, 0.6, 1); f.add(cab);
+      const c = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), centro); c.position.y = 0.52; f.add(c);
+      flores.push(f);
+    }
+    return { flores, fase: rand() * 6 };
+  });
+
+  // ------------------------------------------------------------ obras de Andrés: se ven en construcción hasta quedar listas
+  const piedraObra = new THREE.MeshStandardMaterial({ color: 0x9d968b, roughness: 1, flatShading: true });
+  const barro = new THREE.MeshStandardMaterial({ color: 0xb06a42, roughness: 1, flatShading: true });
+  const andamioMat = new THREE.MeshStandardMaterial({ color: 0xc9a46c, roughness: 0.9 });
+  const obrasVis = {};
+  for (const [id, , , x, z] of OBRAS) {
+    const g = new THREE.Group(); g.position.set(x, 0, z); root.add(g);
+    const cuerpo = new THREE.Group(); g.add(cuerpo);
+    const add = (geo, mat, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = m.receiveShadow = true; cuerpo.add(m); return m; };
+    if (id === 'bodega') {
+      add(new THREE.BoxGeometry(3.2, 2.0, 3.0), piedraObra, 0, 1.0, 0);
+      const techo = add(new THREE.CylinderGeometry(1.6, 1.6, 3.2, 12, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x6b5a4a, roughness: 1 }), 0, 2.0, 0); techo.rotation.set(0, 0, Math.PI / 2); techo.rotation.y = Math.PI / 2;
+      add(new THREE.BoxGeometry(0.9, 1.4, 0.1), new THREE.MeshStandardMaterial({ color: 0x4a3020 }), 0, 0.7, 1.52);
+    } else if (id === 'secadero') {
+      for (const dz of [-0.8, 0, 0.8]) { add(new THREE.BoxGeometry(2.4, 0.05, 0.5), andamioMat, 0, 1.0, dz); for (let k = 0; k < 6; k++) add(new THREE.SphereGeometry(0.08, 6, 4), new THREE.MeshStandardMaterial({ color: [0xd2342c, 0xf28c1e, 0xf2c94c][k % 3] }), -1 + k * 0.4, 1.06, dz); }
+      for (const [px, pz] of [[-1.2, -1], [1.2, -1], [-1.2, 1], [1.2, 1]]) add(new THREE.BoxGeometry(0.08, 1.1, 0.08), andamioMat, px, 0.55, pz);
+    } else if (id === 'pergola') {
+      for (const [px, pz] of [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]]) add(new THREE.BoxGeometry(0.18, 2.8, 0.18), andamioMat, px, 1.4, pz);
+      for (let k = -2; k <= 2; k++) add(new THREE.BoxGeometry(3.8, 0.1, 0.12), andamioMat, 0, 2.85, k * 0.85);
+      for (let k = 0; k < 14; k++) add(new THREE.IcosahedronGeometry(0.3 + rand() * 0.2, 0), LEAF(0x4d7a2b), (rand() - 0.5) * 3.6, 2.95, (rand() - 0.5) * 3.6);
+      for (let k = 0; k < 10; k++) add(new THREE.SphereGeometry(0.07, 6, 4), new THREE.MeshStandardMaterial({ color: 0xc36bd8 }), (rand() - 0.5) * 3.4, 2.75, (rand() - 0.5) * 3.4);
+    } else if (id === 'horno') {
+      add(new THREE.CylinderGeometry(1.3, 1.4, 0.6, 14), piedraObra, 0, 0.3, 0);
+      add(new THREE.SphereGeometry(1.15, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), barro, 0, 0.6, 0);
+      add(new THREE.BoxGeometry(0.5, 0.45, 0.2), new THREE.MeshStandardMaterial({ color: 0x1a120c }), 0, 0.85, 1.05);
+      add(new THREE.CylinderGeometry(0.14, 0.16, 0.8, 8), barro, -0.4, 1.8, -0.3);
+    } else if (id === 'invernadero') {
+      const vidrio = new THREE.MeshStandardMaterial({ color: 0xcfeef7, roughness: 0.05, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+      const caja = new THREE.Mesh(new THREE.BoxGeometry(13.4, 2.4, 3.2), vidrio); caja.position.y = 1.2; cuerpo.add(caja);
+      for (let k = -3; k <= 3; k++) for (const pz of [-1.6, 1.6]) add(new THREE.BoxGeometry(0.08, 2.4, 0.08), andamioMat, k * 2.2, 1.2, pz);
+      for (const pz of [-1.6, 1.6]) add(new THREE.BoxGeometry(13.4, 0.08, 0.08), andamioMat, 0, 2.4, pz);
+    } else if (id === 'fuente') {
+      add(new THREE.CylinderGeometry(1.5, 1.6, 0.5, 18, 1, true), piedraObra, 0, 0.25, 0).material.side = THREE.DoubleSide;
+      const agua = new THREE.Mesh(new THREE.CircleGeometry(1.45, 18), new THREE.MeshStandardMaterial({ color: 0x4aa3d0, roughness: 0.1 })); agua.rotation.x = -Math.PI / 2; agua.position.y = 0.38; cuerpo.add(agua);
+      add(new THREE.CylinderGeometry(0.18, 0.25, 1.5, 10), piedraObra, 0, 0.75, 0);
+      add(new THREE.CylinderGeometry(0.55, 0.3, 0.2, 14), piedraObra, 0, 1.5, 0);
+      const chorro = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xbfe6f5, transparent: true, opacity: 0.55, roughness: 0.1 })); chorro.position.y = 1.95; chorro.rotation.x = Math.PI; cuerpo.add(chorro);
+    }
+    // andamio mientras está en obra
+    const andamio = new THREE.Group(); g.add(andamio);
+    for (const [px, pz] of [[-1.9, -1.9], [1.9, -1.9], [-1.9, 1.9], [1.9, 1.9]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.0, 0.1), andamioMat); m.position.set(px * (id === 'invernadero' ? 3.6 : 1), 1.5, px === 0 ? 0 : pz); andamio.add(m); }
+    obrasVis[id] = { g, cuerpo, andamio };
+  }
+
+  // ------------------------------------------------------------ esculturas de Andrés
+  const marmol = new THREE.MeshStandardMaterial({ color: 0xd9d4ca, roughness: 0.55 });
+  const esculturasVis = ESCULTURAS.map((e) => {
+    const g = new THREE.Group(); g.position.set(e.x, 0, e.z); g.rotation.y = rand() * 6; g.visible = false; root.add(g);
+    const add = (geo, px, py, pz, mat = marmol) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = true; g.add(m); return m; };
+    add(new THREE.BoxGeometry(0.9, 0.7, 0.9), 0, 0.35, 0, piedraObra);
+    if (e.tipo === 'buho') { add(new THREE.SphereGeometry(0.42, 12, 10), 0, 1.1, 0).scale.set(1, 1.2, 1); add(new THREE.SphereGeometry(0.3, 12, 10), 0, 1.7, 0); for (const sz of [-1, 1]) add(new THREE.ConeGeometry(0.08, 0.25, 5), 0, 2.0, sz * 0.15); }
+    if (e.tipo === 'espiral') add(new THREE.TorusKnotGeometry(0.4, 0.1, 64, 8, 2, 3), 0, 1.3, 0);
+    if (e.tipo === 'figura') { add(new THREE.CapsuleGeometry(0.22, 0.9, 4, 10), 0, 1.4, 0); add(new THREE.SphereGeometry(0.2, 10, 8), 0, 2.15, 0); }
+    if (e.tipo === 'caballo') { add(new THREE.BoxGeometry(1.0, 0.45, 0.35), 0, 1.35, 0); add(new THREE.BoxGeometry(0.25, 0.6, 0.25), 0.55, 1.7, 0).rotation.z = -0.4; for (const [px, pz] of [[-0.4, -0.12], [-0.4, 0.12], [0.4, -0.12], [0.4, 0.12]]) add(new THREE.BoxGeometry(0.1, 0.6, 0.1), px, 0.95, pz); }
+    if (e.tipo === 'pareja') { add(new THREE.CapsuleGeometry(0.2, 0.9, 4, 10), -0.14, 1.4, 0).rotation.z = 0.12; add(new THREE.CapsuleGeometry(0.18, 0.8, 4, 10), 0.14, 1.35, 0).rotation.z = -0.12; add(new THREE.SphereGeometry(0.17, 10, 8), -0.2, 2.1, 0); add(new THREE.SphereGeometry(0.16, 10, 8), 0.18, 1.98, 0); }
+    if (e.tipo === 'gato') { add(new THREE.SphereGeometry(0.35, 12, 10), 0, 1.0, 0).scale.set(1, 1.3, 1); add(new THREE.SphereGeometry(0.22, 10, 8), 0, 1.55, 0); for (const sz of [-1, 1]) add(new THREE.ConeGeometry(0.07, 0.18, 4), 0, 1.75, sz * 0.12); add(new THREE.TorusGeometry(0.3, 0.05, 6, 12, Math.PI), -0.2, 0.85, 0); }
+    return g;
   });
 
   // tronco para tallar madera (con virutas) y mirador de piedras
@@ -670,9 +769,9 @@ export function crearEscena(host, { onParcela } = {}) {
       v.last.copy(v.vp);
       v.g.position.set(v.vp.x, aves && v.moving > 0.3 ? Math.abs(Math.sin(v.walkPh)) * 0.05 : 0, v.vp.z);
       v.g.rotation.set(0, v.yaw, 0);
-      v.legs.forEach((l, j) => { l.rotation.z = Math.sin(v.walkPh + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI / 2 : 0)) * 0.45 * v.moving; });
+      v.legs.forEach((l, j) => { l.rotation.z = Math.sin(v.walkPh + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI / 2 : 0)) * (a.comiendo ? 0.22 : 0.45) * v.moving; });
       if (a.crec < 1 && !aves && !moving) v.g.position.y += Math.max(0, Math.sin(t * 3 + a.pos.x)) * 0.06;   // las crías brincan
-      const come = a.comiendo && !moving;
+      const come = a.comiendo;   // pastan caminando con la cabeza abajo
       if (aves) v.head.rotation.z = come ? -0.9 + Math.max(0, Math.sin(t * 9 + a.pos.x)) * 0.6 : Math.sin(t * 2 + a.pos.z) * 0.15;
       else v.head.rotation.z = come ? -0.75 + Math.sin(t * 1.5) * 0.08 : Math.sin(t * 0.7 + a.pos.x) * 0.1;
       if (v.kind === 'vaca' && a.sexo !== 'm') { v.ubre.scale.setScalar(0.7 + Math.min(1, a.ubre / 12) * 0.7); v.cola.rotation.x = Math.sin(t * 2 + a.pos.z) * 0.3; }
@@ -796,7 +895,8 @@ export function crearEscena(host, { onParcela } = {}) {
     const T = a.tarea, tp = T?.tipo, i = a.id === 'tomas' ? 0 : 1;
     if (a.tipo === 'humano') {
       if (tp === 'dormir') return SITIO['cama' + i];
-      if (tp === 'cocinar') return SITIO.estufa;
+      if (tp === 'cocinar' || tp === 'hacerConservas') return SITIO.estufa;
+      if (tp === 'hacerQueso') return SITIO.fregadero;
       if (tp === 'cenar' || tp === 'comer') return SITIO['silla' + i];
       if (tp === 'beber' || tp === 'filtrar') return SITIO.fregadero;
       if (tp === 'leer') return i === 0 ? SITIO.sofa0 : SITIO.sillonAlto;
@@ -940,6 +1040,9 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (tp === 'curar') f = s.ganado.find((g) => g.id === T.animal)?.pos;
       else if (tp === 'reparar') f = LUGAR.taller;
       else if (tp === 'recogerFruta') f = s.frutales?.[T.arbol];
+      else if (tp === 'construir') { const o = OBRAS.find((x) => x[0] === T.obra); if (o) f = { x: o[3], z: o[4] }; }
+      else if (tp === 'cuidarJardin') f = s.jardines?.[T.jardin];
+      else if (tp === 'secar') { const o = OBRAS.find((x) => x[0] === 'secadero'); f = { x: o[3], z: o[4] }; }
       else if (tp === 'alimentar' || ((tp === 'comer' || tp === 'beber') && v.kind !== 'humano')) f = LUGAR.comedero;
       else if (['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
       else if (tp === 'contemplar') v.yaw = angLerp(v.yaw, -Math.PI / 4, Math.min(1, dt * 4));
@@ -963,10 +1066,10 @@ export function crearEscena(host, { onParcela } = {}) {
     }
     if (v.kind === 'humano') {
       const tipo = trabajando ? T.tipo : null;
-      const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tipo) ? 1 : 0;
-      const asiento = tipo === 'tallar' ? 0.5 : 0.85;
+      const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir'].includes(tipo) ? 1 : 0;
+      const asiento = tipo === 'tallar' || tipo === 'esculpir' ? 0.5 : 0.85;
       const agachado = tipo === 'jugarGato' || tipo === 'ordenar' || tipo === 'jugarPerro' || tipo === 'curar';
-      const bend = ['recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
+      const bend = ['construir', 'cuidarJardin', 'secar', 'recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
       const zancada = v.ficha.fisico?.andar !== 'cadera';
@@ -990,7 +1093,7 @@ export function crearEscena(host, { onParcela } = {}) {
         let z = sw + sit * 0.5, x = 0;
         if (bend) z += tipo === 'regar' ? 0.9 : tipo === 'sacarAgua' ? 1.6 + work * 0.6 * (j ? 1 : -1) : agachado ? 0.7 + Math.max(0, Math.sin(t * 5)) * 0.6 * j : 0.9 + work * 0.35 * (j ? 1 : -1);
         if (tipo === 'leer') z = 1.0;
-        if (tipo === 'tallar') z = 0.9 + (j ? Math.sin(t * 7) * 0.25 : 0);
+        if (tipo === 'tallar' || tipo === 'esculpir') z = 0.9 + (j ? Math.sin(t * 7) * 0.25 : 0);
         if (tipo === 'contemplar') { z = -0.35; x = (j ? 1 : -1) * 0.15; }   // manos atrás
         if ((tipo === 'conversar' || tipo === 'reconciliar') && j) z = 0.5 + habla * 0.7;              // gesticula al hablar
         if (abrazando) { z = 1.35; x = (j ? -1 : 1) * 0.45; }
@@ -998,7 +1101,7 @@ export function crearEscena(host, { onParcela } = {}) {
       });
       if (tipo === 'tejer') v.arms.forEach((arm, j) => arm.rotation.set(0, 0, 1.0 + Math.sin(t * 8 + j * Math.PI) * 0.12));
       v.libro.visible = tipo === 'leer';
-      v.pieza.visible = tipo === 'tallar';
+      v.pieza.visible = tipo === 'tallar' || tipo === 'esculpir';
       v.head.rotation.set(0, 0, bend ? -0.3 : lee ? -0.35 : tipo === 'contemplar' ? 0.15 : tipo === 'siesta' ? -0.45 : 0);
     } else {
       const tipo = trabajando ? T.tipo : null;
@@ -1126,6 +1229,18 @@ export function crearEscena(host, { onParcela } = {}) {
     comida.visible = s.rec.comedero > 0.05; comida.scale.set(1.2, 0.3 + Math.min(1, s.rec.comedero / 2) * 0.5, 1.2);
     aguaBowl.visible = s.rec.bebedero > 0.2;
     for (const tr of trees) { tr.crown.rotation.z = Math.sin(t * 0.9 + tr.phase) * 0.02 * (1 + lluviaK); }
+    (s.jardines || []).forEach((j, i) => {
+      const v = jardinesVis[i]; if (!v) return;
+      const f = Math.max(0, Math.min(1, j.flores));
+      v.flores.forEach((fl, k) => { const umbral = (k % 13) / 13; const vivo = f > umbral * 0.9; fl.visible = vivo; if (vivo) fl.scale.setScalar(0.4 + f * 0.8); fl.rotation.z = Math.sin(t * 1.4 + k + v.fase) * 0.08; });
+    });
+    for (const o of s.obras || []) {
+      const v = obrasVis[o.id]; if (!v) continue;
+      v.g.visible = o.progreso > 0.001;
+      v.andamio.visible = o.progreso > 0 && o.progreso < 1;
+      v.cuerpo.scale.set(1, Math.max(0.05, o.progreso), 1);
+    }
+    esculturasVis.forEach((g, i) => { g.visible = i < (s.esculturas || 0); });
     (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); v.copa.rotation.z = Math.sin(t * 0.9 + v.fase) * 0.02 * (1 + lluviaK); });
 
     // la casa se vuelve transparente cuando hay alguien adentro

@@ -195,6 +195,9 @@ function pintarDatos() {
       <span>🥛 Leche</span><b>${R.leche.toFixed(1)} L</b>
       <span>🚰 Potable</span><b class="${R.potable < 6 ? 'warn' : ''}">${Math.floor(R.potable)} L</b>
       <span>🛢️ Tanque</span><b>${Math.floor(R.cruda)} L</b>
+      ${R.conservas >= 1 ? `<span>🫙 Conservas</span><b>${Math.floor(R.conservas)}</b>` : ''}
+      ${R.queso >= 0.5 ? `<span>🧀 Queso</span><b>${Math.floor(R.queso)}</b>` : ''}
+      ${R.secos >= 1 ? `<span>☀️ Secos</span><b>${Math.floor(R.secos)}</b>` : ''}
       <span>🌱 Semillas</span><b>${sem}</b></div></div>
     <div class="card"><h4>Granja</h4><div class="grid">
       <span>🌾 Pasto</span><b>${Math.round(s.granja.pasto)} %</b>
@@ -207,6 +210,9 @@ function pintarDatos() {
       ${hum === 2 ? `<span>💞 Relación</span><b class="${s.pareja.afinidad < 35 ? 'warn' : ''}">${Math.round(s.pareja.afinidad)} / 100</b>` : ''}
       ${hum === 2 && s.pareja.tension > 5 ? `<span>😤 Tensión</span><b class="${s.pareja.tension > 40 ? 'warn' : ''}">${Math.round(s.pareja.tension)}</b>` : ''}
       <span>🧹 Limpieza</span><b class="${s.casa.limpieza < 30 ? 'warn' : ''}">${Math.round(s.casa.limpieza)} %</b>
+      <span>🌸 Belleza</span><b>${s.belleza ?? 0}</b>
+      ${(() => { const o = (s.obras || []).find((x) => x.progreso < 1); return o ? `<span>🏗️ Obra</span><b title="${o.nombre}">${Math.round(o.progreso * 100)} %</b>` : ''; })()}
+      ${s.esculturas ? `<span>🗿 Esculturas</span><b>${s.esculturas}</b>` : ''}
       <span>🔨 Estado</span><b class="${(s.casa.estado ?? 100) < 40 ? 'warn' : ''}">${Math.round(s.casa.estado ?? 100)} %</b>
       ${(s.desbloqueos || []).length ? `<span>🔓 Mejoras</span><b title="${s.desbloqueos.map((k) => Object.values(Sim.DESBLOQUEOS).flat().find((d) => d[1] === k)?.[2]).join(', ')}">${s.desbloqueos.length}</b>` : ''}</div></div>
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
