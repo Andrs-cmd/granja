@@ -179,7 +179,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const windows = [];
   const interior = [[1.0, 2.6, 1.5], [-1.0, 6.2, 0]].map(([x, y, z]) => { const pl = new THREE.PointLight(0xffb36b, 0, 11, 2); pl.position.set(x, y, z); root.add(pl); return pl; });
   const porch = new THREE.PointLight(0xffbf7a, 0, 9, 2); porch.position.set(-1.8, 3.1, 6.6); root.add(porch);
-  let cargada = false, casaK = 0;
+  let cargada = false, casaK = 0, alturaTecho = 9.5;
   const transparentables = [];   // paredes, techo, losa, puertas y marcos: se desvanecen cuando hay alguien adentro
   const MIN_OPAC = { Techo: 0, Pared: 0.16, Losa: 0.45, Puerta: 0.25, Marco: 0.3 };
 
@@ -267,6 +267,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       caja(0.3, 0.6, 0.3, mAcento, 0, Y3 + hp + 0.1, 0);
       techoAlto = Y3 + hp; pendTecho = Math.atan(hp / (D / 2 + A));
     }
+    alturaTecho = techoAlto + (P.forma === 'plano' ? 0.75 : 0.05);
     // porche de la granja americana
     if (P.porche) { caja(7.2, 0.12, 2.6, mLosa, -2.2, 0.06, HZ1 + 1.3); const r = caja(7.4, 0.14, 2.8, mTecho, -2.2, 3.4, HZ1 + 1.3); r.rotation.x = -0.12; for (const x of [-5.6, -2.2, 1.2]) caja(0.2, 3.3, 0.2, mPared, x, 1.65, HZ1 + 2.5); }
     // terraza alta (sobre el porche o el estudio)
@@ -1450,6 +1451,11 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       const sleep = tipo === 'dormir' ? 1 : 0, sit = !w && !sleep ? 1 : 0, eat = tipo === 'comer' || tipo === 'beber' ? 1 : 0;
       const juega = a.tarea?.tipo === 'jugar' ? 1 : 0;
       v.g.position.y = Math.abs(Math.sin(ph)) * 0.05 * w - sleep * 0.25 + juega * Math.max(0, Math.sin(t * 5)) * 0.45;
+      // trepado: sube de a poco hasta el árbol, el techo, la caseta o el gallinero
+      const alto = a.trepado ? (a.trepado.alto === 'techo' ? alturaTecho : a.trepado.alto) : 0;
+      v.altura = (v.altura || 0) + (alto - (v.altura || 0)) * Math.min(1, dt * 2.2);
+      v.g.position.y += v.altura;
+      if (a.tarea?.tipo === 'pelea') { v.g.position.y += Math.abs(Math.sin(t * 14 + v.yaw)) * 0.25; v.g.rotation.z = Math.sin(t * 11) * 0.5; }
       v.torso.rotation.z = sit * (eat ? -0.25 : 0.5) * (1 - sleep);
       v.head.rotation.set(0, 0, eat ? -0.5 : sit * -0.25);
       v.legs.forEach((l) => {
@@ -1676,7 +1682,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // ------------------------------------------------------------ efectos flotantes: corazones, charla, discusión, kikirikí
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const efectosVis = new Map();
-  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓', ladrido: '🐕💥' };
+  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓', ladrido: '🐕💥', pelea: '💥😾', alboroto: '🐔💨' };
   let tReal = 0;
   // ------------------------------------------------------------ cuerpos reales (Universal Base Characters de Quaternius, CC0) con animaciones
   // el muñeco de cajas sigue calculando dónde está cada uno y qué hace (queda invisible);

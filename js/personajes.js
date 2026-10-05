@@ -54,7 +54,9 @@ export const RASGOS = {
   // mascotas
   jugueton: { nombre: 'Juguetón', desc: 'Trae la pelota para que jueguen con él.', mod: { jugueton: 1 } },
   guardian: { nombre: 'Guardián', desc: 'De noche espanta a los zorros que rondan el gallinero.', mod: { guardian: 1 } },
-  travieso: { nombre: 'Travieso', desc: 'Tumba cosas en la casa y se roba algún huevo.', mod: { travieso: 1 } },
+  travieso: { nombre: 'Travieso', desc: 'Molesta a las gallinas, tumba cosas en la casa y se roba algún huevo.', mod: { travieso: 1 } },
+  trepador: { nombre: 'Trepador', desc: 'Se sube a los árboles, al techo de la casa, a la caseta y al gallinero.', mod: { trepador: 1 } },
+  protector: { nombre: 'Protector', desc: 'Le ladra a los extraños y no deja que nadie se acerque a su gente.', mod: { protector: 1 } },
   mimoso: { nombre: 'Mimoso', desc: 'Se sube al regazo de quien lee o teje y consuela a quien está triste.', mod: { mimoso: 1 } },
 };
 
@@ -78,12 +80,12 @@ export const PERSONAJES = [
     voz: 'Directa y rápida; se enoja fácil pero se le pasa trabajando.',
   },
   {
-    id: 'nube', tipo: 'perro', nombre: 'Berlín', rasgos: ['leal', 'jugueton', 'guardian'],
+    id: 'nube', tipo: 'perro', nombre: 'Berlín', rasgos: ['leal', 'protector', 'jugueton', 'guardian'],
     fisico: { detalles: ['collar'] },
     motivacion: 'Estar cerca de su gente (y salir a pasear).',
   },
   {
-    id: 'esmoquin', tipo: 'gato', nombre: 'Axel', rasgos: ['cazador', 'travieso', 'mimoso'],
+    id: 'esmoquin', tipo: 'gato', nombre: 'Axel', rasgos: ['trepador', 'travieso', 'cazador', 'mimoso'],
     fisico: { detalles: [] },
     motivacion: 'Su independencia, los ratones y dormir con quien más lo necesite.',
   },

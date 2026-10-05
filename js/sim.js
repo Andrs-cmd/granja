@@ -396,6 +396,17 @@ const CUPO = { corral: 18, gallinero: 24 };   // crece con el establo y el galli
 export const SOMBRAS = { corral: [{ x: -26, z: 12 }, { x: -25.5, z: -18.5 }], aves: [{ x: 26.5, z: -16.5 }] };
 // el rebaño se mueve como rebaño: una zona de pastoreo que va recorriendo todo el potrero durante el día,
 // y cada animal pasta suelto alrededor de ella, en su propio lugar (algunos se van a explorar lejos)
+// lugares donde el gato se trepa: [x, z, altura ('techo' = la cumbre de la casa, la calcula la escena), base para subir, nombre]
+export const TREPADEROS = [
+  ...FRUTALES.map((f) => ({ x: f.x + 0.3, z: f.z, alto: 2.5, base: { x: f.x + 1.0, z: f.z + 0.5 }, nombre: f.tipo === 'manzano' ? 'a un manzano' : 'a un naranjo', arbol: true })),
+  ...SOMBRAS.corral.concat(SOMBRAS.aves).map((q) => ({ x: q.x + 0.3, z: q.z, alto: 3.4, base: { x: q.x + 1.1, z: q.z + 0.6 }, nombre: 'a un árbol del potrero', arbol: true })),
+  { x: 0, z: 0, alto: 'techo', base: { x: 6.9, z: 3.2 }, nombre: 'al techo de la casa', techo: true },
+  { x: LUGAR.caseta.x, z: LUGAR.caseta.z, alto: 1.75, base: { x: LUGAR.caseta.x + 1.2, z: LUGAR.caseta.z + 0.4 }, nombre: `a la caseta del perro` },
+  { x: LUGAR.gallinero.x, z: LUGAR.gallinero.z, alto: 2.95, base: { x: LUGAR.gallinero.x - 2.0, z: LUGAR.gallinero.z + 1.6 }, nombre: 'al techo del gallinero' },
+  { x: LUGAR.pozo.x, z: LUGAR.pozo.z, alto: 2.7, base: { x: LUGAR.pozo.x + 1.3, z: LUGAR.pozo.z }, nombre: 'al techito del pozo' },
+];
+const trepaderoCerca = (a, soloArboles) => TREPADEROS.map((q, i) => [q, i]).filter(([q]) => !soloArboles || q.arbol || q.techo)
+  .sort((x, y) => Math.hypot(x[0].base.x - a.pos.x, x[0].base.z - a.pos.z) - Math.hypot(y[0].base.x - a.pos.x, y[0].base.z - a.pos.z))[0][1];
 function focoRebano(s, aves) {
   const F = (s.granja.foco ||= {}), k = aves ? 'aves' : 'corral', Z = aves ? GALLINERO : CORRAL;
   if (!F[k] || s.t >= F[k].hasta) F[k] = { ...puntoEn(s, Z, aves ? 3 : 4.5), hasta: s.t + 90 + rng(s) * 120, id: (F[k]?.id || 0) + 1 };
@@ -1448,7 +1459,7 @@ export const ACCION = {
   ordenar: 'Ordeñando a la vaca', recogerHuevos: 'Recogiendo huevos', esquilar: 'Esquilando una oveja', segar: 'Segando pasto para heno', alimentarGanado: 'Alimentando la granja',
   tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', cepillar: 'Cepillando y calmando un animal', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
   recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', vendimia: 'Vendimiando', renovar: 'Construyendo un proyecto', entrenar: 'Entrenando', hornear: 'Horneando', pisarUva: 'Pisando uva en el lagar', cosecharHierba: 'Cosechando la hierba', tomarVino: 'Tomando vino', fumar: 'Fumando', comerciar: 'Haciendo trueque con el comerciante', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
-  seguir: 'Acompañando a la pareja', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
+  seguir: 'Acompañando a la pareja', trepar: 'Trepado mirando todo', huir: 'Huyendo', molestarGallinas: 'Persiguiendo gallinas', perseguir: 'Persiguiendo al gato', pelea: 'Peleando', ladrar: 'Ladrando', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
 };
 const VA_A = {
   comer: 'Va a comer', beber: 'Va a beber', dormir: 'Va a dormir', filtrar: 'Va a filtrar agua', sacarAgua: 'Va al pozo',
@@ -2376,6 +2387,7 @@ function comportamientoAnimal(s, a, d) {
     a.tarea = perro ? { tipo: 'refugio', fase: 'camino', destino: { x: LUGAR.caseta.x + 0.2, z: LUGAR.caseta.z }, trabajo: 0 }
       : { tipo: 'refugio', fase: 'camino', destino: { ...LUGAR.puerta }, trabajo: 0, dentro: true };
   }
+  if (a.trepado && a.tarea?.tipo !== 'trepar') { const q = TREPADEROS[a.trepado.sitio]; if (q) a.pos = { ...q.base }; a.trepado = null; }   // se baja
   if (!a.tarea) {
     const cocinando = humanos(s).find((h) => h.tarea?.tipo === 'cocinar' && h.tarea.fase === 'trabajo');
     if (n.agua < 45 && R.bebedero >= 0.5) a.tarea = { tipo: 'beber', fase: 'camino', destino: { x: LUGAR.comedero.x - 0.5, z: LUGAR.comedero.z + 0.4 }, trabajo: 3 };
@@ -2388,6 +2400,28 @@ function comportamientoAnimal(s, a, d) {
       a.tarea = { tipo: 'jugarJuntos', fase: 'camino', destino: { ...lugar }, trabajo: 15 + rng(s) * 20, centro: lugar, con: o.id };
       o.tarea = { tipo: 'jugarJuntos', fase: 'camino', destino: { x: lugar.x + 1.5, z: lugar.z }, trabajo: a.tarea.trabajo, centro: lugar, con: a.id };
       if (rng(s) < 0.25) log(s, `${a.nombre} y ${o.nombre} jugaron a perseguirse por el jardín.`, 'info');
+    }
+    // el gato se trepa por todos lados: árboles, techo de la casa, caseta, gallinero, pozo
+    else if (gato && !esNoche(s) && n.energia > 30 && rng(s) < 0.09 * (tiene(a, 'trepador') ? 1.6 : 1)) {
+      const i = Math.floor(rng(s) * TREPADEROS.length), q = TREPADEROS[i];
+      a.tarea = { tipo: 'trepar', fase: 'camino', destino: { ...q.base }, trabajo: 25 + rng(s) * 50, sitio: i };
+    }
+    // y se mete al gallinero a molestar a las gallinas
+    else if (gato && tiene(a, 'travieso') && !esNoche(s) && n.energia > 35 && rng(s) < 0.05 && s.ganado.some((g) => g.vivo && esAve(g.tipo) && !g.refugio)) {
+      a.tarea = { tipo: 'molestarGallinas', fase: 'camino', destino: puntoEn(s, GALLINERO, 2), trabajo: 10 + rng(s) * 12 };
+    }
+    // el perro molesta al gato: lo persigue (el gato huye a trepar) y a veces se pelean
+    else if (perro && !esNoche(s) && n.energia > 35 && rng(s) < 0.05 * (tiene(a, 'jugueton') ? 1.5 : 1) && (() => { const c = s.agentes.find((x) => x.tipo === 'gato' && x.vivo); return c && !c.dentro && !c.trepado && !['dormir', 'dormirCon', 'regazo', 'huir', 'pelea'].includes(c.tarea?.tipo) && Math.hypot(c.pos.x - a.pos.x, c.pos.z - a.pos.z) < 25; })()) {
+      const c = s.agentes.find((x) => x.tipo === 'gato' && x.vivo);
+      const i = trepaderoCerca(c, true);
+      c.tarea = { tipo: 'huir', fase: 'camino', destino: { ...TREPADEROS[i].base }, trabajo: 1, sitio: i };
+      a.tarea = { tipo: 'perseguir', fase: 'trabajo', trabajo: 10, con: c.id };
+      if (rng(s) < 0.35) log(s, `${a.nombre} salió corriendo detrás de ${c.nombre}.`, 'info');
+    }
+    // protector: le ladra a los extraños (el comerciante)
+    else if (perro && tiene(a, 'protector') && s.comercio?.visita && !s.comercio.visita.ladrado && hora(s) > 7) {
+      s.comercio.visita.ladrado = true;
+      a.tarea = { tipo: 'ladrar', fase: 'camino', destino: { x: LUGAR.carreta.x - 2.6, z: LUGAR.carreta.z + 0.6 }, trabajo: 6 };
     }
     // el perro sale a pasear solo; el gato explora el terreno
     else if (!esNoche(s) && n.energia > 30 && rng(s) < 0.12 && !humanos(s).some((h) => h.tarea?.tipo === 'pasearPerro')) {
@@ -2435,7 +2469,102 @@ function comportamientoAnimal(s, a, d) {
   }
   if (T.fase === 'camino') {
     if (a.dentro && !T.dentro) { a.dentro = false; a.pos = { ...LUGAR.puerta }; }
-    if (mover(a, T.destino, d)) { T.fase = 'trabajo'; if (T.dentro) a.dentro = true; }
+    if (mover(a, T.destino, d * (T.tipo === 'huir' ? 1.35 : 1))) { T.fase = 'trabajo'; if (T.dentro) a.dentro = true; }
+    return;
+  }
+  if (T.tipo === 'huir') {   // llegó al árbol: se trepa
+    a.tarea = { tipo: 'trepar', fase: 'trabajo', destino: { ...T.destino }, trabajo: 18 + rng(s) * 30, sitio: T.sitio, huyendo: true };
+    return;
+  }
+  if (T.tipo === 'trepar') {
+    const q = TREPADEROS[T.sitio] || TREPADEROS[0];
+    if (!T.arriba) {
+      T.arriba = true; a.trepado = { alto: q.alto, sitio: T.sitio }; a.pos = { x: q.x, z: q.z };
+      if (!T.huyendo && rng(s) < 0.2) log(s, `🐈‍⬛ ${a.nombre} se trepó ${q.nombre} y mira todo desde arriba.`, 'info');
+      if (q.arbol && rng(s) < 0.05) {
+        const h = favorito(s, a) || humanos(s)[0];
+        T.trabajo += 40;
+        if (h) { log(s, `${a.nombre} se subió ${q.nombre} y no sabía bajar: ${h.nombre} tuvo que bajarlo.`, 'info'); vincular(s, a, h, 4); recuerdo(s, h, `Bajó a ${a.nombre} del árbol`, 3, 8); }
+      }
+    }
+    n.diversion = Math.min(100, n.diversion + 0.6 * d); n.energia = Math.min(100, n.energia + 0.04 * d);
+    T.trabajo -= d;
+    if (T.trabajo <= 0) { a.trepado = null; a.pos = { ...T.destino }; a.tarea = null; }
+    return;
+  }
+  if (T.tipo === 'molestarGallinas') {
+    const aves = s.ganado.filter((g) => g.vivo && esAve(g.tipo) && !g.refugio);
+    const presa = aves.sort((x, y) => Math.hypot(x.pos.x - a.pos.x, x.pos.z - a.pos.z) - Math.hypot(y.pos.x - a.pos.x, y.pos.z - a.pos.z))[0];
+    if (!T.aviso) { T.aviso = true; efecto(s, 'alboroto', a.pos.x, a.pos.z); if (rng(s) < 0.5) log(s, `🐔 ${a.nombre} se metió al gallinero a perseguir gallinas: alboroto general.`, 'info'); }
+    if (presa) mover(a, presa.pos, d * 1.2);
+    for (const g of aves) {
+      const dx = g.pos.x - a.pos.x, dz = g.pos.z - a.pos.z, dist = Math.hypot(dx, dz);
+      if (dist > 3) continue;
+      g.estres = Math.min(100, (g.estres || 0) + 0.8 * d);   // las gallinas se asustan y huyen
+      g.dest = { x: Math.max(GALLINERO.x0 + 0.8, Math.min(GALLINERO.x1 - 0.8, g.pos.x + dx / (dist || 1) * 3)), z: Math.max(GALLINERO.z0 + 0.8, Math.min(GALLINERO.z1 - 0.8, g.pos.z + dz / (dist || 1) * 3)) };
+      g.espera = 0; g.comiendo = false;
+      if (g.tipo === 'gallo' && dist < 1.4 && rng(s) < 0.03 * d) {   // el gallo lo saca a picotazos
+        log(s, `🐓 ${g.nombre} le dio un picotazo a ${a.nombre} y lo sacó corriendo del gallinero.`, 'info');
+        const i = trepaderoCerca(a, false);
+        a.tarea = { tipo: 'huir', fase: 'camino', destino: { ...TREPADEROS[i].base }, trabajo: 1, sitio: i };
+        return;
+      }
+    }
+    if (!T.huevo && s.rec.nido >= 1 && rng(s) < 0.01 * d) { T.huevo = true; s.rec.nido -= 1; log(s, `${a.nombre} rompió un huevo del nido.`, 'info'); }
+    n.diversion = Math.min(100, n.diversion + 1.2 * d);
+    T.trabajo -= d; if (T.trabajo <= 0) a.tarea = null;
+    return;
+  }
+  if (T.tipo === 'perseguir') {
+    const c = s.agentes.find((x) => x.id === T.con && x.vivo);
+    if (!c || c.dentro) { a.tarea = null; return; }
+    if (c.trepado) {   // el gato ya está arriba: le ladra desde abajo
+      if (!T.ladro) { T.ladro = true; efecto(s, 'ladrido', a.pos.x, a.pos.z); }
+      mover(a, { x: c.pos.x + 0.9, z: c.pos.z + 0.5 }, d);
+    } else {
+      mover(a, c.pos, d * 1.1);
+      if (!T.pelea && Math.hypot(c.pos.x - a.pos.x, c.pos.z - a.pos.z) < 0.8) {
+        T.pelea = true;
+        if (rng(s) < 0.5) {   // lo alcanzó: se pelean (casi siempre jugando)
+          const centro = { x: (a.pos.x + c.pos.x) / 2, z: (a.pos.z + c.pos.z) / 2 };
+          a.tarea = { tipo: 'pelea', fase: 'trabajo', trabajo: 2.5, centro, con: c.id };
+          c.tarea = { tipo: 'pelea', fase: 'trabajo', trabajo: 2.5, centro, con: a.id };
+          const enSerio = rng(s) < 0.1;   // casi siempre es juego; de vez en cuando se pone seria
+          a.tarea.enSerio = c.tarea.enSerio = enSerio;
+          efecto(s, 'pelea', centro.x, centro.z);
+          a.n.diversion = Math.min(100, a.n.diversion + 15); c.n.diversion = Math.min(100, c.n.diversion + 8);
+          if (enSerio) {
+            a.n.salud = Math.max(1, a.n.salud - 2); c.n.salud = Math.max(1, c.n.salud - 2);
+            log(s, `💥 ${a.nombre} y ${c.nombre} se pelearon en serio: pelos y bufidos por todos lados.`, 'malo');
+            const h = humanos(s).find((x) => !x.dentro && Math.hypot(x.pos.x - centro.x, x.pos.z - centro.z) < 12);
+            if (h) { recuerdo(s, h, 'Tuvo que separar a Berlín y Axel', -2, 6); log(s, `${h.nombre} tuvo que separarlos.`, 'info'); }
+          } else if (rng(s) < 0.3) {
+            log(s, `${a.nombre} y ${c.nombre} se revolcaron jugando a pelear. 🐕🐈‍⬛`, 'info');
+            const h = humanos(s).find((x) => !x.dentro && Math.hypot(x.pos.x - centro.x, x.pos.z - centro.z) < 15);
+            if (h) recuerdo(s, h, 'Se rió viendo a Berlín y Axel', 2, 4);
+          }
+          return;
+        }
+      }
+    }
+    n.diversion = Math.min(100, n.diversion + 1.5 * d); n.energia = Math.max(0, n.energia - 0.15 * d);
+    T.trabajo -= d; if (T.trabajo <= 0) a.tarea = null;
+    return;
+  }
+  if (T.tipo === 'pelea') {
+    // dan vueltas peleando un momento; después el gato huye a trepar
+    const ang = s.t * 3 + (gato ? Math.PI : 0);
+    a.pos.x = T.centro.x + Math.cos(ang) * 0.45; a.pos.z = T.centro.z + Math.sin(ang) * 0.45;
+    T.trabajo -= d;
+    if (T.trabajo <= 0) {
+      if (gato) { const i = trepaderoCerca(a, true); a.tarea = { tipo: 'huir', fase: 'camino', destino: { ...TREPADEROS[i].base }, trabajo: 1, sitio: i }; }
+      else a.tarea = null;
+    }
+    return;
+  }
+  if (T.tipo === 'ladrar') {
+    if (!T.aviso) { T.aviso = true; efecto(s, 'ladrido', a.pos.x, a.pos.z); log(s, `🐕 ${a.nombre} le ladró a ${COMERCIANTE} hasta que lo calmaron: nadie se acerca a su gente sin permiso.`, 'info'); }
+    T.trabajo -= d; if (T.trabajo <= 0) a.tarea = null;
     return;
   }
   if (T.tipo === 'jugarJuntos') {
