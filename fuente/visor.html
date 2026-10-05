@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visor de personajes</title>
+<style>html,body{margin:0;height:100%;background:#20232a;color:#eee;font:13px system-ui}#b{position:fixed;left:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap;max-width:96vw}button{background:#333;color:#eee;border:1px solid #555;border-radius:6px;padding:4px 7px;cursor:pointer}</style></head>
+<body><div id="b"></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { montarUtileria, UTILERIA_DE } from '../js/utileria.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(devicePixelRatio); r.outputColorSpace = THREE.SRGBColorSpace; document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x9cc4e4);
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100); cam.position.set(0, 1.4, 5.2);
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(0, 0.95, 0);
+sc.add(new THREE.HemisphereLight(0xffffff, 0x556644, 1.6)); const d = new THREE.DirectionalLight(0xffffff, 2.5); d.position.set(3, 5, 4); sc.add(d);
+const piso = new THREE.Mesh(new THREE.CircleGeometry(4, 40), new THREE.MeshStandardMaterial({ color: 0x6f9a44 })); piso.rotation.x = -Math.PI / 2; sc.add(piso);
+const L = new GLTFLoader(), carga = (u) => new Promise((ok) => L.load(u, ok));
+const [a, m, an] = await Promise.all([carga('../modelo/andres.glb'), carga('../modelo/maria.glb'), carga('../modelo/animaciones.glb')]);
+const mixers = [];
+[[a, -0.7], [m, 0.7]].forEach(([g, x]) => { g.scene.position.x = x; sc.add(g.scene); const mx = new THREE.AnimationMixer(g.scene); mixers.push(mx); });
+const clips = an.animations; window.clips = clips.map((c) => c.name);
+let act = [];
+function poner(n) { act.forEach((x) => x.stop()); act = mixers.map((mx) => { const c = clips.find((c) => c.name === n); const x = mx.clipAction(c); x.reset().play(); return x; }); }
+clips.forEach((c) => { const b = document.createElement('button'); b.textContent = c.name; b.onclick = () => poner(c.name); document.getElementById('b').append(b); });
+poner('Walk_Loop');
+window.montar = (aj) => { (window.utis || []).forEach((u) => Object.values(u.piezas).forEach((p) => p.parent.remove(p))); window.utis = [a, m].map((g) => { g.scene.updateMatrixWorld(true); return montarUtileria(g.scene, aj); }); };
+window.montar();
+const utis = { forEach: (f) => window.utis.forEach(f) };
+window.uti = (t) => utis.forEach((u) => u.mostrar(t));
+const sel = document.createElement('select'); sel.innerHTML = '<option value="">(nada)</option>' + Object.keys(UTILERIA_DE).map((k) => `<option>${k}</option>`).join(''); sel.onchange = () => window.uti(sel.value); document.getElementById('b').append(sel);
+window.alturas = [a, m].map((g) => new THREE.Box3().setFromObject(g.scene).getSize(new THREE.Vector3()).y.toFixed(2));
+const clk = new THREE.Clock();
+r.setAnimationLoop(() => { const dt = clk.getDelta(); mixers.forEach((x) => x.update(dt)); ctl.update(); r.render(sc, cam); });
+</script></body></html>

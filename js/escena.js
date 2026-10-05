@@ -4,6 +4,7 @@
 // =====================================================================
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { montarUtileria } from './utileria.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -36,7 +37,8 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const CENTER = V((BLOQUE.x0 + BLOQUE.x1) / 2, 1.0, (BLOQUE.z0 + BLOQUE.z1) / 2);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.enablePan = false;
-  controls.minDistance = 16; controls.maxDistance = 380;   // se puede acercar hasta ver adentro de la casa controls.maxPolarAngle = Math.PI * 0.46;
+  controls.minDistance = 4; controls.maxDistance = 380; controls.zoomToCursor = true;   // acercarse hacia donde apunta el mouse, hasta ver a los personajes de cerca
+  controls.maxPolarAngle = Math.PI * 0.46;
   controls.target.set(CENTER.x, 3, CENTER.z);
   camera.position.set(78, 60, 120);
 
@@ -1176,7 +1178,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     const tail = new THREE.Group(); tail.position.set(-0.08, 0.15, 0); torso.add(tail);
     { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.42, 6), fur); m.position.y = 0.21; tail.add(m); }
     if ((PERSONAJES.find((p) => p.tipo === 'perro')?.fisico?.detalles || []).includes('collar')) { const c = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.03, 6, 16), LEAF(0xc0392b)); c.position.set(0.6, 0.22, 0); c.rotation.y = Math.PI / 2; torso.add(c); }
-    g.scale.setScalar(2.2);
+    g.scale.setScalar(1.5);   // perro de tamaño real junto a las personas
     return { g, torso, head, legs, tail, kind: 'perro' };
   }
   function makeCat() {
@@ -1196,7 +1198,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     }
     const tail = new THREE.Group(); tail.position.set(-0.12, 0.1, 0); torso.add(tail);
     { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.7, 5), fur); m.position.set(-0.3, 0.1, 0); m.rotation.z = Math.PI / 2 + 0.6; tail.add(m); }
-    g.scale.setScalar(1.8);
+    g.scale.setScalar(1.2);   // gato de tamaño real
     return { g, torso, head, legs, tail, kind: 'gato' };
   }
 
@@ -1205,8 +1207,8 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const TOMBS = { tomas: [-7.9, 16.0], lucia: [-7.9, 17.6], nube: [-6.6, 16.6], esmoquin: [-6.6, 18.1] };
 
   const LOOK = {
-    tomas: { top: 0x3d6fb6, bottom: 0x2b2d3a, skin: 0xe0b08a, hair: 0x3b2a1e, h: 1.5 },
-    lucia: { top: 0xd64b6b, bottom: 0xd64b6b, skin: 0xf1c3a0, hair: 0x5a2e1a, dress: true, longHair: true, h: 1.41 },
+    tomas: { top: 0x3d6fb6, bottom: 0x2b2d3a, skin: 0xe0b08a, hair: 0xd9b86a, longHair: true, h: 1.5 },
+    lucia: { top: 0xc8553d, bottom: 0x3f4a32, skin: 0xe9b994, hair: 0x15120f, h: 1.41 },
   };
   const vis = {};
   for (const p of PERSONAJES) {
@@ -1217,7 +1219,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   }
   for (const id in vis) {
     const v = vis[id];
-    Object.assign(v, { last: V(0, 0, 0), yaw: 0, moving: 0, ready: false });
+    Object.assign(v, { last: V(0, 0, 0), yaw: 0, moving: 0, ready: false, walkPh: 0 });   // (sin walkPh, quien arrancaba adentro quedaba con posición NaN)
     const [tx, tz] = TOMBS[id] || [-6.6 + Object.keys(TOMBS).length * 0.1, 19.4];
     const tomb = new THREE.Mesh(new RoundedBoxGeometry(0.8, 1.0, 0.25, 2, 0.12), tombMat); tomb.position.set(tx, 0.5, tz); tomb.visible = false; tomb.castShadow = true; root.add(tomb);
     v.tomb = tomb;
@@ -1332,7 +1334,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     }
   }
 
-  function poseAgente(a, v, s, t, dt) {
+  function poseAgenteBase(a, v, s, t, dt) {
     if (!a.vivo) {
       const dias = (s.t - a.murio) / MIN_DIA;
       v.tomb.visible = dias > 0.5;
@@ -1676,6 +1678,88 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const efectosVis = new Map();
   const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓', ladrido: '🐕💥' };
   let tReal = 0;
+  // ------------------------------------------------------------ cuerpos reales (Universal Base Characters de Quaternius, CC0) con animaciones
+  // el muñeco de cajas sigue calculando dónde está cada uno y qué hace (queda invisible);
+  // el cuerpo nuevo va montado encima y elige la animación según la tarea
+  const MODELOS = { tomas: ['modelo/andres.glb', 1.81], lucia: ['modelo/maria.glb', 1.767] }, ESCALA_PERSONA = 1.3;
+  const qDePie = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
+  const qAcostado = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(0, 0, 1), V(1, 0, 0), V(0, 1, 0)));   // boca arriba, cabeza hacia +x
+  {
+    const L = new GLTFLoader();
+    const cargar = (u) => new Promise((ok, mal) => L.load(u, ok, undefined, mal));
+    Promise.all([cargar('modelo/animaciones.glb'), ...Object.values(MODELOS).map(([u]) => cargar(u))]).then(([anim, ...gs]) => {
+      Object.keys(MODELOS).forEach((id, i) => {
+        const v = vis[id]; if (!v) return;
+        const m = gs[i].scene, k = v.h * ESCALA_PERSONA / MODELOS[id][1];   // más altos que el muñeco viejo: en proporción con los animales y la casa
+        m.scale.setScalar(k); m.quaternion.copy(qDePie);
+        m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+        v.g.children.forEach((c) => { c.visible = false; });
+        v.g.add(m);
+        m.updateMatrixWorld(true);
+        Object.assign(v, { modelo: m, k, mixer: new THREE.AnimationMixer(m), acciones: {}, clip: null, wPrev: null, uti: montarUtileria(m) });
+        for (const c of anim.animations) v.acciones[c.name] = v.mixer.clipAction(c);
+        animar(v, 'Idle_Loop');
+      });
+    }).catch((e) => console.warn('[granja] no se pudieron cargar los cuerpos nuevos; quedan los de siempre', e));
+  }
+  function animar(v, nombre, ts = 1) {
+    const a = v.acciones[nombre]; if (!a) return;
+    a.timeScale = ts;
+    if (v.clip === nombre) return;
+    const prev = v.clip && v.acciones[v.clip];
+    a.reset().setEffectiveWeight(1).fadeIn(0.3).play();
+    if (prev) prev.fadeOut(0.3);
+    v.clip = nombre;
+  }
+  const RODILLA = ['sembrar', 'cosechar', 'limpiar', 'cuidarJardin', 'recogerFlores', 'cosecharHierba', 'vendimia', 'regar', 'fumigar', 'arrancar', 'abonar', 'renovar', 'construir', 'reparar'];
+  const AGACHADO = ['ordenar', 'cepillar', 'curar', 'jugarGato', 'jugarPerro', 'esquilar', 'recogerHuevos'];
+  const CARGA = ['sacarAgua', 'alimentarGanado', 'segar', 'alimentar', 'recogerFruta', 'voltearCompost', 'secar'];
+  const SENTADO_FUERA = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir', 'tomarVino', 'fumar'];
+  const CHARLA = ['conversar', 'reconciliar', 'tomarVino', 'fumar', 'cenar'];
+  function poseAgente(a, v, s, t, dt) {
+    poseAgenteBase(a, v, s, t, dt);
+    if (!v.modelo) return;
+    const m = v.modelo, T = a.tarea, tipo = T && T.fase === 'trabajo' ? T.tipo : null;
+    // velocidad real en pantalla
+    const w = v.g.getWorldPosition(new THREE.Vector3());
+    const rap = v.wPrev && dt > 0 ? Math.hypot(w.x - v.wPrev.x, w.z - v.wPrev.z) / dt : 0; v.wPrev = w;
+    v.rap = (v.rap ?? 0) + (Math.min(rap, 12) - (v.rap ?? 0)) * Math.min(1, dt * 6);
+    m.quaternion.copy(qDePie); m.position.set(0, 0, 0);
+    if (!a.vivo || Math.abs(v.g.rotation.z) > 0.5) {
+      // acostado (cama, sofá o tumba): se endereza el grupo y se acuesta el cuerpo boca arriba
+      const yaw = v.g.rotation.y; v.g.rotation.set(0, yaw, 0); m.quaternion.copy(qAcostado);
+      m.position.y = a.vivo ? -0.05 : -0.2;
+      animar(v, 'Idle_Loop', a.vivo ? 0.25 : 0);
+    } else if (a.nadando) {
+      v.g.rotation.set(0, v.g.rotation.y, 0); m.position.y = -0.62 - v.g.position.y;
+      animar(v, (T && T.tipo === 'nadar' && v.rap > 0.3) ? 'Swim_Fwd_Loop' : 'Swim_Idle_Loop');
+    } else {
+      v.g.rotation.x = 0;
+      const dentro = a.dentro, piso = dentro && v.ip ? (v.ip.y > 2 ? 1 : 0) : 0, suelo = dentro ? PISO[piso] : 0;
+      let base = suelo, clip = 'Idle_Loop', ts = 1;
+      const quieto = dentro ? (!v.ruta || !v.ruta.length) && v.moving < 0.4 : v.moving < 0.4;
+      const pose = dentro ? (quieto ? sitioDe(a, s, t)[5] : 'camina') : null;
+      if (!quieto) { clip = 'Walk_Loop'; ts = THREE.MathUtils.clamp(v.rap / (1.25 * v.k), 0.6, 2.1); }   // siempre caminan (el paso sigue a la velocidad)
+      else if (dentro ? pose === 'sentado' : SENTADO_FUERA.includes(tipo)) {
+        clip = CHARLA.includes(tipo) ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop';
+        const asiento = dentro ? suelo + 0.5 : tipo === 'tallar' || tipo === 'esculpir' ? 0.5 : 0.8;
+        base = asiento - 0.46 * v.k;
+      }
+      else if (pose === 'entrenar' || tipo === 'entrenar') { clip = ['Punch_Jab', 'Jump_Loop', 'Punch_Cross'][Math.floor(t / 5 + a.id.length) % 3]; }
+      else if (dentro && (pose === 'trabajo' || pose === 'limpiar')) clip = pose === 'limpiar' ? 'PickUp_Table' : 'Interact';
+      else if (RODILLA.includes(tipo)) clip = 'Fixing_Kneeling';
+      else if (AGACHADO.includes(tipo)) clip = 'Crouch_Idle_Loop';
+      else if (CARGA.includes(tipo)) clip = 'PickUp_Table';
+      else if (tipo === 'pisarUva') clip = 'Dance_Loop';
+      else if (CHARLA.includes(tipo) || tipo === 'comerciar') clip = 'Idle_Talking_Loop';
+      m.position.y = base - v.g.position.y;
+      animar(v, clip, ts);
+    }
+    // utilería en la mano según la tarea (también adentro: sartén, libro, agujas, copa…)
+    v.uti.mostrar(a.vivo && !a.nadando && T && T.fase === 'trabajo' ? T.tipo : null);
+    v.mixer.update(dt);
+  }
+
   function efectos(s, dt) {
     tReal += dt;
     for (const e of s.efectos) {
@@ -1712,6 +1796,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   return {
     update,
     seleccionar(i) { seleccion = i; },
+    _vis: vis,   // (depuración)
     // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
     proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,

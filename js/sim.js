@@ -253,7 +253,7 @@ function consumirComida(s, a, valor) {
 // ---------------------------------------------------------------- ánimo
 function recuerdo(s, a, texto, valor, horas = 12) {
   if (!a || !a.vivo || a.tipo !== 'humano') return;
-  let v = valor < 0 ? valor * (0.6 + P5(a, 'neuroticismo') * 0.9) : valor;
+  let v = valor < 0 ? valor * (0.6 + P5(a, 'neuroticismo') * 0.9) * (tiene(a, 'tranquilo') ? 0.8 : 1) : valor;
   // costumbre: lo bueno que se repite alegra cada vez menos (se recupera tras unos días sin repetirse)
   if (valor > 0) {
     a.costumbre = a.costumbre || {};
@@ -285,7 +285,7 @@ function calcularAnimo(s, a) {
   a.animo = Math.max(0, Math.min(100, base + a.recuerdos.reduce((t, r) => t + r.valor, 0) + casa + sinAbrigo + deterioro + huellas + tension + belleza + hogar));
 }
 export const caraAnimo = (v) => (v >= 80 ? '😄' : v >= 62 ? '🙂' : v >= 45 ? '😐' : v >= 28 ? '😟' : '😢');
-const irritable = (a) => a.n.comida < 20 || a.n.energia < 20 || a.animo < 30;
+const irritable = (a) => a.n.comida < 20 || a.n.energia < 20 || a.animo < (tiene(a, 'malgenio') ? 42 : 30);
 
 // ---------------------------------------------------------------- deseos: metas personales según el carácter
 const nombreDe = (s, tipo) => s.agentes.find((x) => x.tipo === tipo)?.nombre || tipo;
@@ -385,7 +385,7 @@ function nuevoAgente(p) {
     vinculo: humano ? undefined : Object.fromEntries(PERSONAJES.filter((h) => h.tipo === 'humano').map((h) => [h.id, Math.round((h.habitos?.animales?.[p.id] ?? 0.5) * 100)])),
     tarea: null, accion: 'Descansando', murio: null, causa: null, nadando: false,
     edad: p.edad ?? (humano ? 30 : 3), enfermo: 0, animo_buff: 0, ultimoAbrazo: 0, abrazo: 0,
-    ...(humano ? { placer: placerNuevo(), deseoSex: 40, forma: (p.rasgos || []).includes('fuerte') ? 60 : 40 } : {}),
+    ...(humano ? { placer: placerNuevo(), deseoSex: 40, forma: (p.rasgos || []).includes('atletico') ? 72 : (p.rasgos || []).includes('fuerte') ? 55 : 40 } : {}),
   };
 }
 const ZONA = (tipo) => (tipo === 'vaca' || tipo === 'oveja' ? CORRAL : GALLINERO);
@@ -1011,7 +1011,7 @@ function elegirCultivo(s, a, invernadero = false, parcela = null) {
 }
 
 // ---------------------------------------------------------------- animales de granja (vaca, ovejas, gallinas, gallo)
-const VEL = { humano: 1.8, perro: 2.6, gato: 2.2, vaca: 0.55, oveja: 0.7, gallina: 0.9, gallo: 0.9, pollito: 0.75 };   // unidades por minuto de juego
+const VEL = { humano: 1.35, perro: 2.6, gato: 2.2, vaca: 0.55, oveja: 0.7, gallina: 0.9, gallo: 0.9, pollito: 0.75 };   // unidades por minuto de juego
 const HAMBRE_G = { vaca: 3.2, oveja: 2.6, gallina: 2.4, gallo: 2.4, pollito: 1.6 };
 function actualizarGranja(s, d) {
   const e = estacion(s), G = s.granja, R = s.rec, k = d / 60, h = hora(s);
@@ -1146,7 +1146,7 @@ function necesidades(s, a, d) {
   else n.energia = Math.max(0, n.energia - (T.energia + (trabajando ? 4 : 0)) * mod(a, 'cansancio') * (est === 'trabaja' && trabajando ? 1.25 : 1) * (frioSinAbrigo ? 1.25 : 1) * k);
   if (!durmiendo) {
     n.social = Math.max(0, n.social - (a.tipo === 'humano' ? 2 + P5(a, 'extraversion') * 3 : 1.5) * k);
-    n.diversion = Math.max(0, n.diversion - (a.tipo === 'humano' ? 3 : 2.5 * (mejora(s, 'juguetes') ? 0.6 : 1)) * (trabajando ? 1.4 : 1) * k);
+    n.diversion = Math.max(0, n.diversion - (a.tipo === 'humano' ? 3 * mod(a, 'aburrimiento') : 2.5 * (mejora(s, 'juguetes') ? 0.6 : 1)) * (trabajando ? 1.4 : 1) * k);
   }
   let dS = 0;
   if (n.comida <= 0) dS -= 4;
@@ -1371,7 +1371,7 @@ function elegirTarea(s, a) {
     if ((e !== 3 || casaTiene(s, 'jacuzzi')) && h >= 9 && h < 19) ocio.push([necesitaOcio * gusto('nadar') * (calor(s) ? 2.2 : 0.8) * exterior, 'nadar']);
   }
   if (otro && libreParaPareja(s, otro) && !irritable(a)) ocio.push([necesitaSocial * 1.2, 'conversar']);
-  if (h >= 13 && h < 15.5 && n.energia < 60) ocio.push([(60 - n.energia) * (calor(s) ? 1.6 : 1), 'siesta']);
+  if (h >= 13 && h < 15.5 && n.energia < 60) ocio.push([(60 - n.energia) * (calor(s) ? 1.6 : 1) * (tiene(a, 'hiperactivo') ? 0.3 : 1), 'siesta']);
   // arte: Andrés talla esculturas en su tiempo libre; María cuida sus flores por gusto
   if (tiene(a, 'manitas') && exterior && (s.esculturas || 0) < ESCULTURAS.length) ocio.push([necesitaOcio * 1.2, 'esculpir']);
   if (tiene(a, 'manoVerde') && exterior && e !== 3) { const j = [...(s.jardines || [])].sort((x, y) => x.cuidado - y.cuidado)[0]; if (j) ocio.push([necesitaOcio * 1.3, 'cuidarJardin', j.id]); }
@@ -1520,7 +1520,7 @@ function comportamiento(s, a, d) {
   const area = AREA[T.tipo], areaXp = area || XP_OCIO[T.tipo];
   const animoVel = a.animo < 30 ? 0.8 : a.animo > 70 ? 1.1 : 1;
   const vel = area ? mod(a, area) * (1 + 0.06 * nivel(a.xp[area])) * (estres(s, a) === 'trabaja' ? 1.2 : 1) * (a.enfermo > 0 ? 0.6 : 1) * animoVel * (a.animo_buff > s.t ? 1.15 : 1)
-    * (a.resacaHasta > s.t ? 0.7 : 1) * (a.colocadoHasta > s.t ? 0.8 : 1) * (herramienta(s, area) ? 1.12 : 1) * (0.92 + (a.forma ?? 40) / 600) : 1;
+    * (T.tipo === 'tejer' ? mod(a, 'tejer') : 1) * (a.resacaHasta > s.t ? 0.7 : 1) * (a.colocadoHasta > s.t ? 0.8 : 1) * (herramienta(s, area) ? 1.12 : 1) * (0.92 + (a.forma ?? 40) / 600) : 1;
   if (areaXp) {
     const antes = nivel(a.xp[areaXp]);
     a.xp[areaXp] = (a.xp[areaXp] || 0) + d * mod(a, 'aprende') * mod(a, 'aprende_' + areaXp) * (area ? 1 : 0.3);
@@ -1632,7 +1632,7 @@ function completar(s, a, T) {
       const choque = Math.abs(P5(a, 'extraversion') - P5(otro, 'extraversion')) * 0.12 + Math.abs(P5(a, 'responsabilidad') - P5(otro, 'responsabilidad')) * 0.1;
       const grunon = [a, otro].find((x) => tiene(x, 'grunon') && hora(s) < 9);
       const pDisc = 0.03 + choque + (1 - amab) * 0.08 + neuro * 0.06 + irr * (0.3 * (1 - amab) + 0.15 * neuro) + (escasez(s) ? 0.08 : 0) + (s.casa.limpieza < 35 ? 0.05 : 0) - s.pareja.afinidad / 1200
-        + (s.pareja.tension || 0) / 350 + (grunon ? 0.14 : 0) - (casaTiene(s, 'terraza') ? 0.03 : 0) + ([a, otro].some((x) => x.borrachoHasta > s.t) ? 0.12 : 0) + ([a, otro].some((x) => x.resacaHasta > s.t) ? 0.05 : 0) + ([a, otro].some((x) => (x.deseoSex || 0) > 85) ? 0.04 : 0);
+        + (s.pareja.tension || 0) / 350 + (grunon ? 0.14 : 0) + ([a, otro].some((x) => tiene(x, 'malgenio')) ? 0.07 : 0) - ([a, otro].some((x) => tiene(x, 'tranquilo')) ? 0.05 : 0) - (casaTiene(s, 'terraza') ? 0.03 : 0) + ([a, otro].some((x) => x.borrachoHasta > s.t) ? 0.12 : 0) + ([a, otro].some((x) => x.resacaHasta > s.t) ? 0.05 : 0) + ([a, otro].some((x) => (x.deseoSex || 0) > 85) ? 0.04 : 0);
       const mid = { x: (a.pos.x + otro.pos.x) / 2, z: (a.pos.z + otro.pos.z) / 2 };
       if (rng(s) < pDisc) {
         s.pareja.afinidad = Math.max(0, s.pareja.afinidad - 6); s.pareja.discusiones += 1;
@@ -2532,6 +2532,8 @@ function migrar(s) {
     { const n = placeresNuevos(); s.parras ??= n.parras; s.matas ??= n.matas; s.barricas ??= []; s.curado ??= [];
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
+    // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
+    if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
     if (!s.jugador) Object.assign(s, jugadorNuevo());
     for (const k of ['uvas', 'vino', 'hierba', 'medicina', 'libros']) s.rec[k] ??= { vino: 6, hierba: 3, medicina: 1 }[k] ?? 0;
     for (const a of s.agentes) if (a.tipo === 'humano') { a.placer ??= placerNuevo(); a.deseoSex ??= 40; a.forma ??= a.rasgos.includes('fuerte') ? 60 : 40; }

@@ -46,6 +46,11 @@ export const RASGOS = {
   chef: { nombre: 'Cocina de chef', desc: 'Cocina 30 % más rápido y sus cenas alegran el doble.', mod: { casa: 1.3, chef: 1 } },
   romantico: { nombre: 'Alma romántica', desc: 'Busca más abrazos, recoge flores para regalar y propicia noches románticas.', mod: { romantico: 1 } },
   alergia: { nombre: 'Alergia al polen', desc: 'En primavera estornuda afuera y se enferma con más facilidad.', mod: { alergia: 1 } },
+  atletico: { nombre: 'Atlético', desc: 'Arranca en muy buena forma, se cansa 10 % menos y entrena con gusto.', mod: { cansancio: 0.9, atletico: 1 } },
+  hiperactivo: { nombre: 'Hiperactivo', desc: 'No se queda quieto: se aburre 30 % más rápido y casi nunca hace siesta.', mod: { aburrimiento: 1.3, hiperactivo: 1 } },
+  tranquilo: { nombre: 'Tranquilo', desc: 'No se altera fácil: discute menos y las malas noticias le pesan menos.', mod: { tranquilo: 1 } },
+  costurera: { nombre: 'Costurera', desc: 'Cose y teje 50 % más rápido: los abrigos salen antes.', mod: { tejer: 1.5 } },
+  malgeniada: { nombre: 'Malgeniada', desc: 'Tiene mal genio: se irrita más fácil y discute más.', mod: { malgenio: 1 } },
   // mascotas
   jugueton: { nombre: 'Juguetón', desc: 'Trae la pelota para que jueguen con él.', mod: { jugueton: 1 } },
   guardian: { nombre: 'Guardián', desc: 'De noche espanta a los zorros que rondan el gallinero.', mod: { guardian: 1 } },
@@ -55,20 +60,22 @@ export const RASGOS = {
 
 export const PERSONAJES = [
   {
-    id: 'tomas', tipo: 'humano', nombre: 'Andrés', rasgos: ['fuerte', 'comilon', 'manitas', 'grunon'],
-    personalidad: { apertura: 0.35, responsabilidad: 0.8, extraversion: 0.4, amabilidad: 0.6, neuroticismo: 0.45 },
-    habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'entrenar', 'pasearPerro', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'granja', placeres: { vino: 0.5, hierba: 0.6 }, libido: 1.0 },
-    fisico: { andar: 'zancada', detalles: ['sombrero', 'barba'] },
-    motivacion: 'Proteger a su familia y que nunca falte el agua.',
-    voz: 'Grave y pausada; postura abierta, habla poco y actúa.',
+    // rubio de pelo largo, atlético; hiperactivo pero tranquilo de carácter; su compañero es Axel
+    id: 'tomas', tipo: 'humano', nombre: 'Andrés', rasgos: ['atletico', 'hiperactivo', 'tranquilo', 'manitas', 'fuerte'],
+    personalidad: { apertura: 0.65, responsabilidad: 0.6, extraversion: 0.6, amabilidad: 0.7, neuroticismo: 0.15 },
+    habitos: { cronotipo: 'madrugador', ocio: ['entrenar', 'esculpir', 'tallar', 'jugarGato', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'trabaja', rol: 'granja', placeres: { vino: 0.75, hierba: 0.85 }, libido: 1.0 },
+    fisico: { andar: 'zancada', pelo: 'largo', colorPelo: 'rubio', detalles: ['barba'] },
+    motivacion: 'Moverse, crear con las manos y disfrutar la vida tranquila de la granja.',
+    voz: 'Relajada y alegre; no se queda quieto ni un minuto.',
   },
   {
-    id: 'lucia', tipo: 'humano', nombre: 'María', rasgos: ['manoVerde', 'ahorradora', 'chef', 'romantico', 'alergia'],
-    personalidad: { apertura: 0.8, responsabilidad: 0.55, extraversion: 0.75, amabilidad: 0.75, neuroticismo: 0.55 },
-    habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'hornear', 'tejer', 'jugarGato', 'nadar', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto', placeres: { vino: 0.7, hierba: 0.35 }, libido: 1.15 },
-    fisico: { andar: 'cadera', detalles: ['pecas', 'diadema'] },
-    motivacion: 'Que el huerto prospere y siempre haya reservas.',
-    voz: 'Cálida y rápida; planifica en voz alta.',
+    // pelo corto negro, atlética y activa; malgeniada; costura y agricultura; su compañero es Berlín
+    id: 'lucia', tipo: 'humano', nombre: 'María', rasgos: ['manoVerde', 'costurera', 'atletico', 'malgeniada'],
+    personalidad: { apertura: 0.55, responsabilidad: 0.75, extraversion: 0.5, amabilidad: 0.35, neuroticismo: 0.65 },
+    habitos: { cronotipo: 'normal', ocio: ['tejer', 'pasearPerro', 'jugarPerro', 'entrenar', 'recogerFlores', 'nadar'], comida: 'lechuga', animales: { nube: 0.95, esmoquin: 0.45 }, estres: 'trabaja', rol: 'huerto', placeres: { vino: 0.45, hierba: 0.2 }, libido: 1.1 },
+    fisico: { andar: 'zancada', pelo: 'corto', colorPelo: 'negro', detalles: [] },
+    motivacion: 'Que el huerto dé lo mejor y tener todo bajo control.',
+    voz: 'Directa y rápida; se enoja fácil pero se le pasa trabajando.',
   },
   {
     id: 'nube', tipo: 'perro', nombre: 'Berlín', rasgos: ['leal', 'jugueton', 'guardian'],
