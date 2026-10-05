@@ -30,9 +30,14 @@ PERSONAJES = {
     },
     'maria': {
         'cuerpo': 'Superhero_Female_FullBody.gltf', 'piel': 'T_Superhero_Female_Light_BaseColor.png',
+        # silueta más femenina: el cuerpo base es de proporción "superhéroe"
+        # hueso → (cuánto se acerca la carne al hueso, cuánto se abre/cierra a lo ancho)
+        'figura': {'upperarm': (0.8, 0.94), 'lowerarm': (0.82, 1), 'hand': (0.92, 1), 'clavicle': (0.9, 0.9), 'neck': (0.82, 1),
+                   'spine_03': (0.93, 0.92), 'spine_02': (0.92, 0.95), 'spine_01': (0.86, 0.9), 'pelvis': (1.0, 1.08), 'thigh': (0.95, 1.04), 'calf': (0.93, 1)},
         # pelo negro hasta los hombros
         'pelos': ['Hair_Long.gltf', 'Eyebrows_Female.gltf'], 'colorPelo': 0x15120f, 'estirarPelo': 1.7,
-        'ropa': [('blusa', 0xd2694c, ['spine', 'clavicle', 'upperarm'], 'rough_linen', True), ('pantalon', 0x6b7a4c, ['pelvis', 'thigh', 'calf'], 'ribbed_corduroy', True), ('botas', 0x2a221c, ['foot', 'ball'], 'brown_leather', False)],
+        'ropa': [('polera', 0xd2694c, ['spine', 'clavicle', 'upperarm'], 'cotton_jersey', True), ('calzas', 0x3b4232, ['pelvis', 'thigh', 'calf'], 'cotton_jersey', True), ('botas', 0x2a221c, ['foot', 'ball'], 'brown_leather', False)],
+        'ajustada': True,   # ropa pegada al cuerpo, tipo licra
     },
 }
 
@@ -50,12 +55,13 @@ def material_plano(nombre, color, rugosidad=0.8):
     return m
 
 TELAS = os.path.join(BASE, 'telas')
-def material_tela(nombre, color, tela, tenir, repetir=7.0):
+def material_tela(nombre, color, tela, tenir, repetir=7.0):   # (las prendas de licra llevan la trama más fina)
     # textura de tela real (color + relieve), repetida sobre el cuerpo; se puede teñir con el color de la ficha
     m = bpy.data.materials.new(nombre); m.use_nodes = True
     N, Lk = m.node_tree.nodes, m.node_tree.links
     b = N.get('Principled BSDF'); b.inputs['Roughness'].default_value = 0.9 if 'leather' not in tela else 0.55
-    uv = N.new('ShaderNodeTexCoord'); mp = N.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (repetir, repetir, 1)
+    if nombre.endswith(('polera', 'calzas')): b.inputs['Roughness'].default_value = 0.42   # brillo suave de licra
+    uv = N.new('ShaderNodeTexCoord'); mp = N.new('ShaderNodeMapping'); r2 = repetir * (2 if nombre.endswith(('polera', 'calzas')) else 1); mp.inputs['Scale'].default_value = (r2, r2, 1)
     Lk.new(uv.outputs['UV'], mp.inputs['Vector'])
     dif = next(f for f in os.listdir(TELAS) if f.startswith(tela) and ('_diff_' in f or '_albedo_' in f))
     nor = next(f for f in os.listdir(TELAS) if f.startswith(tela) and '_nor_gl_' in f)
@@ -67,7 +73,7 @@ def material_tela(nombre, color, tela, tenir, repetir=7.0):
     else: Lk.new(tc.outputs['Color'], b.inputs['Base Color'])
     tn = N.new('ShaderNodeTexImage'); tn.image = bpy.data.images.load(os.path.join(TELAS, nor)); tn.image.colorspace_settings.name = 'Non-Color'
     Lk.new(mp.outputs['Vector'], tn.inputs['Vector'])
-    nm = N.new('ShaderNodeNormalMap'); nm.inputs['Strength'].default_value = 1.6
+    nm = N.new('ShaderNodeNormalMap'); nm.inputs['Strength'].default_value = 0.5 if nombre.endswith(('polera', 'calzas')) else 1.6
     Lk.new(tn.outputs['Color'], nm.inputs['Color']); Lk.new(nm.outputs['Normal'], b.inputs['Normal'])
     for im in (tc.image, tn.image):
         if im.size[0] > 512: im.scale(512, 512)
@@ -90,6 +96,24 @@ def preparar(clave, P):
                 elif es_color: pass
                 else:
                     for l in list(n.outputs['Color'].links): m.node_tree.links.remove(l)   # sin mapas normales/rugosidad: pesan mucho para la web
+    # figura: se acerca la carne a cada hueso (menos músculo) y se ajusta el ancho (hombros, cintura, caderas)
+    if P.get('figura'):
+        F = P['figura']; nomb = {g.index: g.name for g in cuerpo.vertex_groups}
+        mw, inv = cuerpo.matrix_world, cuerpo.matrix_world.inverted()
+        seg = {}
+        for b in arm.data.bones: seg[b.name] = (arm.matrix_world @ b.head_local, arm.matrix_world @ b.tail_local)
+        def cerca(pt, a, b):
+            ab = b - a; t = max(0.0, min(1.0, (pt - a).dot(ab) / max(ab.length_squared, 1e-9))); return a + ab * t
+        for v in cuerpo.data.vertices:
+            w = mw @ v.co; delta = Vector((0, 0, 0)); tot = 0.0
+            for g in v.groups:
+                n = nomb.get(g.group, ''); zona = next((k for k in F if n.startswith(k)), None)
+                if not zona or n not in seg or g.weight <= 0: continue
+                hacia, ancho = F[zona]; c = cerca(w, *seg[n])
+                objetivo = c + (w - c) * hacia
+                objetivo.x = objetivo.x * ancho if zona not in ('upperarm', 'lowerarm', 'hand') else objetivo.x + (c.x * ancho - c.x)
+                delta += (objetivo - w) * g.weight; tot += g.weight
+            if tot > 0: v.co = inv @ (w + delta / max(tot, 1.0))
     # ropa: cada cara toma la zona del hueso que más la mueve
     nombres = {g.index: g.name for g in cuerpo.vertex_groups}
     zonas = []
@@ -112,7 +136,7 @@ def preparar(clave, P):
         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index != idx], context='FACES')
         bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
         # la tela no calca los músculos: se suaviza la superficie (más en los zapatos, para borrar los dedos)
-        for _ in range(28 if nombre in ('zapatos', 'botas') else 14):
+        for _ in range(28 if nombre in ('zapatos', 'botas') else (1 if P.get('ajustada') else 14)):
             bmesh.ops.smooth_vert(bm, verts=bm.verts, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
         bm.normal_update()
         bm.to_mesh(prenda.data); bm.free()
@@ -128,6 +152,8 @@ def preparar(clave, P):
             gs = sorted(((g.weight, nom.get(g.group, '')) for g in v.groups), reverse=True)
             top = gs[0][1] if gs else ''; junta = 1 - (gs[0][0] if gs else 1)   # cerca de una articulación los pesos se reparten
             hol = 0.012 if zapato else 0.016
+            if P.get('ajustada') and not zapato:
+                nuevos.append(v.co + v.normal * 0.0045); continue   # licra: pegada a la piel
             if top.startswith(('spine_01', 'pelvis')): hol = 0.03            # cintura suelta
             elif top.startswith('spine'): hol = 0.024
             elif top.startswith('upperarm'): hol = 0.026                     # mangas

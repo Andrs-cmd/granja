@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { montarUtileria } from './utileria.js';
 import { armarPerro, armarGato } from './mascotas3d.js';
+import { montarFemenino } from './femenino.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -1766,7 +1767,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
         v.g.children.forEach((c) => { c.visible = false; });
         v.g.add(m);
         m.updateMatrixWorld(true);
-        Object.assign(v, { modelo: m, k, mixer: new THREE.AnimationMixer(m), acciones: {}, clip: null, wPrev: null, uti: montarUtileria(m) });
+        Object.assign(v, { modelo: m, k, mixer: new THREE.AnimationMixer(m), acciones: {}, clip: null, wPrev: null, uti: montarUtileria(m), femenino: id === 'lucia' ? montarFemenino(m) : null });
         for (const c of anim.animations) v.acciones[c.name] = v.mixer.clipAction(c);
         animar(v, 'Idle_Loop');
       });
@@ -1860,6 +1861,11 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     // utilería en la mano según la tarea (también adentro: sartén, libro, agujas, copa…)
     v.uti.mostrar(a.vivo && !a.nadando && T && T.fase === 'trabajo' ? T.tipo : null);
     v.mixer.update(dt);
+    if (v.femenino) {   // María: cadera que se mece, hombros que contrarrestan, brazos pegados al cuerpo
+      const w = v.acciones.Walk_Loop, anda = v.clip === 'Walk_Loop' && w ? Math.min(1, w.getEffectiveWeight()) : 0;
+      const fase = w ? (w.time / w.getClip().duration) * Math.PI * 2 : 0;
+      v.femenino.aplicar(fase, anda, ['Walk_Loop', 'Idle_Loop', 'Idle_Talking_Loop'].includes(v.clip));
+    }
   }
 
   function efectos(s, dt) {

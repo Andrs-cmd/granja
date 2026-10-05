@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { montarUtileria, UTILERIA_DE } from '../js/utileria.js';
+import { montarFemenino } from '../js/femenino.js';
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(devicePixelRatio); r.outputColorSpace = THREE.SRGBColorSpace; document.body.append(r.domElement);
 const sc = new THREE.Scene(); sc.background = new THREE.Color(0x9cc4e4);
 const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100); cam.position.set(0, 1.4, 5.2);
@@ -29,6 +30,9 @@ const utis = { forEach: (f) => window.utis.forEach(f) };
 window.uti = (t) => utis.forEach((u) => u.mostrar(t));
 const sel = document.createElement('select'); sel.innerHTML = '<option value="">(nada)</option>' + Object.keys(UTILERIA_DE).map((k) => `<option>${k}</option>`).join(''); sel.onchange = () => window.uti(sel.value); document.getElementById('b').append(sel);
 window.alturas = [a, m].map((g) => new THREE.Box3().setFromObject(g.scene).getSize(new THREE.Vector3()).y.toFixed(2));
+const fem = montarFemenino(m.scene); window.fem = fem;
 const clk = new THREE.Clock();
-r.setAnimationLoop(() => { const dt = clk.getDelta(); mixers.forEach((x) => x.update(dt)); ctl.update(); r.render(sc, cam); });
+r.setAnimationLoop(() => { const dt = clk.getDelta(); mixers.forEach((x) => x.update(dt));
+  const ac = act[1]; if (ac) { const fase = (ac.time / ac.getClip().duration) * Math.PI * 2; fem.aplicar(fase, /walk/i.test(ac.getClip().name) ? 1 : 0); }
+  ctl.update(); r.render(sc, cam); });
 </script></body></html>
