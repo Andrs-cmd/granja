@@ -25,6 +25,8 @@
 //   animales   afinidad con cada mascota (0 a 1)
 //   estres     cuando escasean las reservas: 'trabaja' (más rápido, se cansa más) · 'raciona' (aguanta más sin comer)
 //   rol        área que prefiere cuando hay varias tareas: 'agua' · 'huerto' · 'cuidado' · 'casa' · 'granja'
+//   placeres   gusto por el vino y la hierba (0 a 1): más alto = más ganas (y más riesgo de dependencia)
+//   libido     ritmo con que crece el deseo sexual (1 = normal)
 //
 // FÍSICO: andar 'zancada' o 'cadera'; detalles 'sombrero' 'barba' 'pecas' 'diadema' 'collar' 'pañuelo'
 // =====================================================================
@@ -55,7 +57,7 @@ export const PERSONAJES = [
   {
     id: 'tomas', tipo: 'humano', nombre: 'Andrés', rasgos: ['fuerte', 'comilon', 'manitas', 'grunon'],
     personalidad: { apertura: 0.35, responsabilidad: 0.8, extraversion: 0.4, amabilidad: 0.6, neuroticismo: 0.45 },
-    habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'pasearPerro', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'granja' },
+    habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'pasearPerro', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'granja', placeres: { vino: 0.5, hierba: 0.6 }, libido: 1.0 },
     fisico: { andar: 'zancada', detalles: ['sombrero', 'barba'] },
     motivacion: 'Proteger a su familia y que nunca falte el agua.',
     voz: 'Grave y pausada; postura abierta, habla poco y actúa.',
@@ -63,7 +65,7 @@ export const PERSONAJES = [
   {
     id: 'lucia', tipo: 'humano', nombre: 'María', rasgos: ['manoVerde', 'ahorradora', 'chef', 'romantico', 'alergia'],
     personalidad: { apertura: 0.8, responsabilidad: 0.55, extraversion: 0.75, amabilidad: 0.75, neuroticismo: 0.55 },
-    habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'tejer', 'jugarGato', 'nadar', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto' },
+    habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'tejer', 'jugarGato', 'nadar', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto', placeres: { vino: 0.7, hierba: 0.35 }, libido: 1.15 },
     fisico: { andar: 'cadera', detalles: ['pecas', 'diadema'] },
     motivacion: 'Que el huerto prospere y siempre haya reservas.',
     voz: 'Cálida y rápida; planifica en voz alta.',

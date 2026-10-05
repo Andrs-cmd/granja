@@ -35,7 +35,7 @@
   .gen { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #e7c46a; }
   .fecha { font: 600 13px ui-monospace, Consolas, monospace; margin-top: 3px; }
   .grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; }
-  .grid span { color: rgba(241,238,232,.7); } .grid b { text-align: right; font-weight: 600; } .grid b.warn { color: #ff8a80; }
+  .grid span { color: rgba(241,238,232,.7); } .grid b { text-align: right; font-weight: 600; } .grid b.warn, .extra .warn { color: #ff8a80; }
   .animales { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; }
   .animales span.muerto { opacity: .4; text-decoration: line-through; }
   .diario { list-style: none; display: grid; gap: 5px; font-size: 11.5px; color: rgba(241,238,232,.85); }
@@ -163,6 +163,12 @@ function pintarDatos() {
       if (a.deseo) extra += `<div class="deseo">✨ ${a.deseo.texto}</div>`;
       const ofi = Object.entries(a.xp || {}).map(([k, v]) => [k, Sim.nivel(v)]).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1]).slice(0, 4);
       if (ofi.length) extra += `<div class="ofi" title="Oficios (nivel)">${ofi.map(([k, n]) => `${OFI[k] || ''}${n}`).join('  ')}</div>`;
+      const PL = a.placer || {}, est = [];
+      if (a.resacaHasta > s.t) est.push('🥴 resaca'); else if (a.borrachoHasta > s.t) est.push('🍷 entonado');
+      if (a.colocadoHasta > s.t) est.push('🌿 relajado');
+      for (const [k, ic] of [['vino', '🍷'], ['hierba', '🌿']]) { const d = PL[k]?.dep || 0; if (PL[k]?.pausa > Sim.dia(s)) est.push(`${ic} lo está dejando`); else if (d > 0.3) est.push(`<span class="warn">${ic} dependencia ${Math.round(d * 100)} %</span>`); }
+      if ((a.deseoSex || 0) > 70) est.push('💗 con ganas');
+      if (est.length) extra += `<div title="Vino: ${PL.vino?.usos || 0} veces · Hierba: ${PL.hierba?.usos || 0} veces">${est.join(' · ')}</div>`;
     } else if (a.vivo && a.vinculo) {
       const fav = Object.entries(a.vinculo).sort((x, y) => y[1] - x[1])[0];
       const h = s.agentes.find((x) => x.id === fav?.[0]);
@@ -216,6 +222,9 @@ function pintarDatos() {
       ${R.conservas >= 1 ? `<span>🫙 Conservas</span><b>${Math.floor(R.conservas)}</b>` : ''}
       ${R.queso >= 0.5 ? `<span>🧀 Queso</span><b>${Math.floor(R.queso)}</b>` : ''}
       ${R.secos >= 1 ? `<span>☀️ Secos</span><b>${Math.floor(R.secos)}</b>` : ''}
+      <span>🍷 Vino</span><b title="${(s.barricas || []).map((b) => `${b.botellas} botellas listas el día ${b.listo + 1}`).join('&#10;') || 'nada fermentando'}">${Math.floor(R.vino || 0)} bot.${(s.barricas || []).length ? ` · 🛢️${s.barricas.reduce((t, b) => t + b.botellas, 0)}` : ''}</b>
+      <span>🌿 Hierba</span><b>${Math.floor(R.hierba || 0)}${(s.curado || []).length ? ` · secando ${s.curado.reduce((t, c) => t + c.cant, 0)}` : ''}</b>
+      ${(R.uvas || 0) >= 1 ? `<span>🍇 Uvas</span><b>${Math.floor(R.uvas)}</b>` : ''}
       <span>🌱 Semillas</span><b>${sem}</b></div></div>
     <div class="card"><h4>Granja</h4><div class="grid">
       <span>🌾 Pasto</span><b>${Math.round(s.granja.pasto)} %</b>
@@ -236,6 +245,22 @@ function pintarDatos() {
       })()}</div>
       <div class="animales" style="margin-top:6px">${animales}</div>
       <div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Huerto: ${huerto}</div></div>
+    ${(() => {
+      const C = s.comercio; if (!C) return '';
+      const uvas = (s.parras || []).reduce((t, q) => t + q.uvas, 0), matas = s.matas || [];
+      const mt = matas.some((m) => m.estado === 'lista') ? 'listas para cortar' : matas.some((m) => m.estado === 'creciendo') ? `creciendo ${Math.round(matas.reduce((t, m) => t + m.crec, 0) / matas.length * 100)} %` : 'en descanso';
+      const G = C.ganancias || {}, gan = Object.entries(G).sort((x, y) => y[1] - x[1]);
+      const U = C.ultimo;
+      return `<div class="card"><h4>Viñedo y comercio</h4><div class="grid">
+        <span>🍇 Viñedo</span><b>${uvas >= 1 ? `${Math.round(uvas)} racimos` : 'sin uva'}</b>
+        <span>🌿 Matas</span><b>${mt}</b>
+        <span>🛒 ${Sim.COMERCIANTE}</span><b>${C.visita ? (C.visita.hecho ? 'ya negociaron hoy' : 'está aquí hoy') : `llega en ~${Math.max(0, C.proxima - Sim.dia(s))} d`}</b>
+        <span>🪙 Ahorros</span><b>${Math.round(C.monedas)} monedas</b>
+        ${gan.length ? `<span>📈 Ganancias</span><b title="${gan.map(([k, v]) => `${k}: ${Math.round(v)}`).join('&#10;')}">🍷${Math.round(G.vino || 0)} 🌿${Math.round(G.hierba || 0)} · total ${Math.round(gan.reduce((t, g) => t + g[1], 0))}</b>` : ''}
+        ${(C.lujos || []).length ? `<span>🛋️ Lujos</span><b title="${C.lujos.join(', ')}">${C.lujos.length}</b>` : ''}
+        ${(C.herramientas || []).length ? `<span>🧰 Herramientas</span><b>${C.herramientas.length} / 4</b>` : ''}</div>
+        ${U ? `<div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Último trueque (${U.quien}): ${U.vende.length ? 'entregó ' + U.vende.join(', ') : 'nada vendido'}${U.compra.length ? ' · trajo ' + U.compra.join(', ') : ''}</div>` : ''}</div>`;
+    })()}
     <div class="card"><h4>Hogar</h4><div class="grid">
       ${hum === 2 ? `<span>💞 Relación</span><b class="${s.pareja.afinidad < 35 ? 'warn' : ''}">${Math.round(s.pareja.afinidad)} / 100</b>` : ''}
       ${hum === 2 && s.pareja.tension > 5 ? `<span>😤 Tensión</span><b class="${s.pareja.tension > 40 ? 'warn' : ''}">${Math.round(s.pareja.tension)}</b>` : ''}

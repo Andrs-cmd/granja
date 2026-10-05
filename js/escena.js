@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -493,7 +493,7 @@ export function crearEscena(host, { onParcela } = {}) {
     porColor.forEach((gs, i) => { if (gs.length) root.add(new THREE.Mesh(mergeGeometries(gs), colores[i])); });
   }
   // (los bordes los cubre el anillo exterior: pocos árboles y muchos arbustos)
-  for (const [x, z, s] of [[-7.6, 7.2, 0.9], [30, 25, 1.0], [24, 31, 0.9], [-12, 36, 1.0], [35, 4, 0.9], [-2, -27, 0.9], [12, -27, 1.0], [-7.0, -1.5, 1.0], [12.9, 2.5, 0.9], [-1.0, -8.6, 0.9], [4.5, -9.0, 1.0], [22.6, 22.0, 1.0], [-8.4, 18.5, 0.9], [11.0, 26.0, 0.9], [-3.0, 26.0, 1.0], [23.0, 9.0, 0.8]]) {
+  for (const [x, z, s] of [[-7.6, 7.2, 0.9], [17, 33, 1.0], [38, 20, 0.9], [-12, 36, 1.0], [35, 4, 0.9], [-2, -27, 0.9], [12, -27, 1.0], [-7.0, -1.5, 1.0], [12.9, 2.5, 0.9], [-1.0, -8.6, 0.9], [4.5, -9.0, 1.0], [22.6, 22.0, 1.0], [-8.4, 18.5, 0.9], [11.0, 26.0, 0.9], [-3.0, 26.0, 1.0], [23.0, 9.0, 0.8]]) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); root.add(g);
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.35, 1), LEAFS[Math.floor(rand() * LEAFS.length)]); m.position.set((rand() - 0.5) * 1.1, 0.45 + rand() * 0.35, (rand() - 0.5) * 1.1); m.scale.y = 0.85; m.castShadow = true; g.add(m); }
   }
@@ -575,6 +575,93 @@ export function crearEscena(host, { onParcela } = {}) {
     const andamio = new THREE.Group(); g.add(andamio);
     for (const [px, pz] of [[-1.9, -1.9], [1.9, -1.9], [-1.9, 1.9], [1.9, 1.9]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.0, 0.1), andamioMat); m.position.set(px * (id === 'invernadero' ? 3.6 : 1), 1.5, px === 0 ? 0 : pz); andamio.add(m); }
     obrasVis[id] = { g, cuerpo, andamio };
+  }
+
+  // ------------------------------------------------------------ viñedo: espalderas con racimos que pintan según maduran
+  const palo = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 });
+  const hojaParra = LEAF(0x5f8f34), hojaOtono = LEAF(0xb8742c);
+  const uvaMat = new THREE.MeshStandardMaterial({ color: 0x4b2350, roughness: 0.35 });
+  const parrasVis = PARRAS.map((q) => {
+    const g = new THREE.Group(); g.position.set(q.x, 0, q.z); root.add(g);
+    for (const dx of [-1.4, 1.4]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.6, 0.1), palo); m.position.set(dx, 0.8, 0); m.castShadow = true; g.add(m); }
+    const alambre = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.025, 0.025), palo); alambre.position.y = 1.4; g.add(alambre);
+    const hojas = [];
+    for (let k = 0; k < 9; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32 + rand() * 0.12, 0), hojaParra); m.position.set(-1.3 + k * 0.33, 1.15 + rand() * 0.35, (rand() - 0.5) * 0.3); m.scale.set(1, 0.8, 0.6); m.castShadow = true; g.add(m); hojas.push(m); }
+    const racimos = [];
+    for (let k = 0; k < 8; k++) {
+      const r = new THREE.Group(); r.position.set(-1.15 + k * 0.33, 0.95, (k % 2 ? 0.2 : -0.2)); g.add(r);
+      for (let u = 0; u < 7; u++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 4), uvaMat); b.position.set((u % 3 - 1) * 0.06, -Math.floor(u / 3) * 0.08 - (u === 6 ? 0.08 : 0), 0); r.add(b); }
+      racimos.push(r);
+    }
+    return { hojas, racimos };
+  });
+  // huerta de hierbas: matas de marihuana (crecen, florecen y se cortan en otoño)
+  const hojaMata = LEAF(0x3f8a3a), cogollo = new THREE.MeshStandardMaterial({ color: 0x9fb84a, roughness: 0.8, flatShading: true });
+  const matasVis = MATAS.map((m) => {
+    const g = new THREE.Group(); g.position.set(m.x, 0, m.z); root.add(g);
+    const tierra = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.18, 12), new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 })); tierra.position.y = 0.06; tierra.receiveShadow = true; g.add(tierra);
+    const planta = new THREE.Group(); g.add(planta);
+    const tallo = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 1.6, 5), LEAF(0x4f7a2c)); tallo.position.y = 0.8; planta.add(tallo);
+    for (let k = 0; k < 6; k++) {   // pisos de hojas en abanico, más angostos hacia arriba
+      const y = 0.4 + k * 0.22, r = 0.55 - k * 0.07;
+      for (let h = 0; h < 5; h++) { const a = h * 1.26 + k * 0.6; const f = new THREE.Mesh(new THREE.ConeGeometry(0.07, r, 3), hojaMata); f.position.set(Math.cos(a) * r * 0.5, y, Math.sin(a) * r * 0.5); f.rotation.set(Math.sin(a) * 1.3, 0, -Math.cos(a) * 1.3); planta.add(f); }
+    }
+    const flores = new THREE.Group(); planta.add(flores);
+    for (let k = 0; k < 7; k++) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), cogollo); c.position.set((rand() - 0.5) * 0.5, 0.9 + rand() * 0.8, (rand() - 0.5) * 0.5); c.scale.y = 1.6; flores.add(c); }
+    return { planta, flores, fase: rand() * 6 };
+  });
+  // colgadero donde se secan los cogollos (al lado de la huerta de hierbas)
+  const colgadero = new THREE.Group(); colgadero.position.set(37.2, 0, 32.4); root.add(colgadero);
+  for (const dx of [-0.9, 0.9]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), palo); m.position.set(dx, 0.85, 0); colgadero.add(m); }
+  { const m = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.05), palo); m.position.y = 1.65; colgadero.add(m); }
+  const colgados = new THREE.Group(); colgadero.add(colgados);
+  for (let k = 0; k < 6; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.45, 5), LEAF(0x7d8c3a)); c.position.set(-0.75 + k * 0.3, 1.38, 0); c.rotation.x = Math.PI; colgados.add(c); }
+  // lagar (tina para pisar la uva) y barricas donde fermenta el vino
+  const roble = new THREE.MeshStandardMaterial({ color: 0x7a4e2c, roughness: 0.85 }), aro = new THREE.MeshStandardMaterial({ color: 0x3b3b3b, roughness: 0.5, metalness: 0.6 });
+  {
+    const tina = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.9, 0.7, 16, 1, true), roble); tina.material.side = THREE.DoubleSide; tina.position.set(LUGAR.lagar.x, 0.35, LUGAR.lagar.z); tina.castShadow = true; root.add(tina);
+    const mosto = new THREE.Mesh(new THREE.CircleGeometry(0.95, 16), new THREE.MeshStandardMaterial({ color: 0x5a1f3a, roughness: 0.3 })); mosto.rotation.x = -Math.PI / 2; mosto.position.set(LUGAR.lagar.x, 0.45, LUGAR.lagar.z); root.add(mosto);
+    var mostoVis = mosto;
+  }
+  const barricasVis = [];
+  for (let k = 0; k < 4; k++) {
+    const b = new THREE.Group(); b.position.set(LUGAR.lagar.x + 2.0 + (k % 2) * 1.05, 0.45 + Math.floor(k / 2) * 0.82, LUGAR.lagar.z - 0.3); b.rotation.x = Math.PI / 2; root.add(b);
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.9, 14), roble); c.castShadow = true; b.add(c);
+    for (const dy of [-0.3, 0.3]) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.025, 4, 16), aro); r.rotation.x = Math.PI / 2; r.position.y = dy; b.add(r); }
+    barricasVis.push(b);
+  }
+  // botellero junto al lagar: se llena con las botellas guardadas
+  const botellas = [];
+  { const vidrioV = new THREE.MeshStandardMaterial({ color: 0x2d4a2a, roughness: 0.2 });
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.4), palo); rack.position.set(LUGAR.lagar.x - 2.1, 0.55, LUGAR.lagar.z - 0.3); root.add(rack);
+    for (let k = 0; k < 12; k++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 6), vidrioV); b.rotation.x = Math.PI / 2; b.position.set(LUGAR.lagar.x - 2.7 + (k % 6) * 0.24, 0.3 + Math.floor(k / 6) * 0.4 + 0.15, LUGAR.lagar.z - 0.05); root.add(b); botellas.push(b); } }
+
+  // ------------------------------------------------------------ la carreta de Don Ramiro (solo los días de visita)
+  const carreta = new THREE.Group(); carreta.position.set(LUGAR.carreta.x, 0, LUGAR.carreta.z); carreta.rotation.y = -Math.PI / 2; carreta.visible = false; root.add(carreta);
+  {
+    const add = (geo, mat, x, y, z, g = carreta) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+    const madera = new THREE.MeshStandardMaterial({ color: 0x9a6a3e, roughness: 0.9 });
+    add(new THREE.BoxGeometry(2.4, 0.5, 1.5), madera, 0, 0.95, 0);
+    const lona = add(new THREE.CylinderGeometry(0.85, 0.85, 2.3, 14, 1, true, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 1, side: THREE.DoubleSide }), 0, 1.2, 0); lona.rotation.set(0, 0, Math.PI / 2); lona.rotation.y = Math.PI / 2; lona.rotation.z = Math.PI / 2;
+    for (const [x, z] of [[-0.8, 0.8], [0.8, 0.8], [-0.8, -0.8], [0.8, -0.8]]) { const r = add(new THREE.TorusGeometry(0.42, 0.06, 5, 14), new THREE.MeshStandardMaterial({ color: 0x4a3020 }), x, 0.45, z); }
+    for (let k = 0; k < 5; k++) add(new THREE.BoxGeometry(0.35, 0.3, 0.35), new THREE.MeshStandardMaterial({ color: [0xc9a46c, 0x8a5a3a, 0xd2342c, 0x6f8f5a, 0xf2c94c][k] }), -0.9 + k * 0.42, 1.36, 0.3 * (k % 2 ? 1 : -1));
+    add(new THREE.BoxGeometry(1.4, 0.06, 0.06), madera, 1.85, 0.75, 0.35); add(new THREE.BoxGeometry(1.4, 0.06, 0.06), madera, 1.85, 0.75, -0.35);
+    // la mula
+    const mula = new THREE.Group(); mula.position.set(2.9, 0, 0); carreta.add(mula);
+    const pelo = new THREE.MeshStandardMaterial({ color: 0x6a5444, roughness: 1 });
+    add(new THREE.BoxGeometry(1.3, 0.6, 0.55), pelo, 0, 1.05, 0, mula);
+    add(new THREE.BoxGeometry(0.35, 0.7, 0.3), pelo, 0.7, 1.45, 0, mula).rotation.z = -0.5;
+    add(new THREE.BoxGeometry(0.5, 0.28, 0.26), pelo, 0.95, 1.78, 0, mula);
+    for (const sz of [-0.08, 0.08]) add(new THREE.ConeGeometry(0.05, 0.3, 4), pelo, 0.82, 2.0, sz, mula);
+    for (const [x, z] of [[-0.5, -0.18], [-0.5, 0.18], [0.5, -0.18], [0.5, 0.18]]) add(new THREE.BoxGeometry(0.12, 0.8, 0.12), pelo, x, 0.4, z, mula);
+    // Don Ramiro, con sombrero y poncho, al lado de su carreta
+    const dr = new THREE.Group(); dr.position.set(-0.4, 0, 1.25); carreta.add(dr);
+    add(new THREE.CylinderGeometry(0.14, 0.16, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x3a3a46 }), 0, 0.4, 0, dr);
+    add(new THREE.ConeGeometry(0.42, 0.75, 8), new THREE.MeshStandardMaterial({ color: 0xa8432e, roughness: 1 }), 0, 1.15, 0, dr);
+    add(new THREE.SphereGeometry(0.17, 10, 8), new THREE.MeshStandardMaterial({ color: 0xc9946c }), 0, 1.62, 0, dr);
+    add(new THREE.CylinderGeometry(0.36, 0.36, 0.04, 14), new THREE.MeshStandardMaterial({ color: 0x5a4632 }), 0, 1.76, 0, dr);
+    add(new THREE.CylinderGeometry(0.15, 0.18, 0.2, 10), new THREE.MeshStandardMaterial({ color: 0x5a4632 }), 0, 1.86, 0, dr);
+    var ramiro = dr;
   }
 
   // pila de compost (crece con el estiércol)
@@ -957,7 +1044,7 @@ export function crearEscena(host, { onParcela } = {}) {
       if (tp === 'leer') return i === 0 ? SITIO.sofa0 : SITIO.sillonAlto;
       if (tp === 'tejer') return SITIO.sillon;
       if (tp === 'siesta') return { ...SITIO['sofa' + i], 5: 'siesta' };
-      if (tp === 'conversar' || tp === 'reconciliar') return SITIO['sofa' + i];
+      if (tp === 'conversar' || tp === 'reconciliar' || tp === 'tomarVino' || tp === 'fumar') return SITIO['sofa' + i];
       if (tp === 'limpiarCasa') return { ...SITIO[LIMPIAR[Math.floor(t / 6 + i * 2) % LIMPIAR.length]], 5: 'limpiar' };
       return SITIO['sala' + i];
     }
@@ -1033,6 +1120,7 @@ export function crearEscena(host, { onParcela } = {}) {
         if (sentado && tp === 'leer') z = 1.0;
         if (sentado && tp === 'tejer') z = 1.0 + Math.sin(t * 8 + j * Math.PI) * 0.12;
         if (sentado && (tp === 'conversar' || tp === 'reconciliar') && j) z = 0.5 + Math.max(0, Math.sin(t * 1.3 + a.id.length)) * 0.7;
+        if (sentado && (tp === 'tomarVino' || tp === 'fumar') && j) z = 0.8 + Math.max(0, Math.sin(t * 0.9 + a.id.length)) * 1.0;   // lleva la copa (o el porro) a la boca
         arm.rotation.set(0, 0, z);
       });
       v.libro.visible = quieto && tp === 'leer';
@@ -1099,7 +1187,10 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (tp === 'cuidarJardin') f = s.jardines?.[T.jardin];
       else if (tp === 'secar') { const o = OBRAS.find((x) => x[0] === 'secadero'); f = { x: o[3], z: o[4] }; }
       else if (tp === 'alimentar' || ((tp === 'comer' || tp === 'beber') && v.kind !== 'humano')) f = LUGAR.comedero;
-      else if (['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
+      else if (tp === 'vendimia' || tp === 'pisarUva') f = tp === 'pisarUva' ? LUGAR.lagar : s.parras?.reduce((m, q) => (q.uvas > (m?.uvas ?? -1) ? q : m), null);
+      else if (tp === 'cosecharHierba') f = s.matas?.find((m) => m.estado === 'lista') || s.matas?.[0];
+      else if (tp === 'comerciar') f = LUGAR.carreta;
+      else if (['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'tomarVino', 'fumar'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
       else if (tp === 'contemplar') v.yaw = angLerp(v.yaw, -Math.PI / 4, Math.min(1, dt * 4));
       else if (v.kind !== 'humano' && tp === 'jugar') { const hh = s.agentes.find((x) => x.id === T.con); if (hh) f = hh.pos; }
       if (f) v.yaw = angLerp(v.yaw, yawTo(f.x - a.pos.x, f.z - a.pos.z), Math.min(1, dt * 6));
@@ -1121,10 +1212,10 @@ export function crearEscena(host, { onParcela } = {}) {
     }
     if (v.kind === 'humano') {
       const tipo = trabajando ? T.tipo : null;
-      const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir'].includes(tipo) ? 1 : 0;
+      const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir', 'tomarVino', 'fumar'].includes(tipo) ? 1 : 0;
       const asiento = tipo === 'tallar' || tipo === 'esculpir' ? 0.5 : 0.85;
       const agachado = tipo === 'jugarGato' || tipo === 'ordenar' || tipo === 'jugarPerro' || tipo === 'curar' || tipo === 'cepillar';
-      const bend = ['cepillar', 'construir', 'cuidarJardin', 'secar', 'recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
+      const bend = ['cepillar', 'construir', 'cuidarJardin', 'secar', 'recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro', 'vendimia', 'cosecharHierba', 'pisarUva'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
       const zancada = v.ficha.fisico?.andar !== 'cadera';
@@ -1149,6 +1240,7 @@ export function crearEscena(host, { onParcela } = {}) {
         if (bend) z += tipo === 'regar' ? 0.9 : tipo === 'sacarAgua' ? 1.6 + work * 0.6 * (j ? 1 : -1) : agachado ? 0.7 + Math.max(0, Math.sin(t * 5)) * 0.6 * j : 0.9 + work * 0.35 * (j ? 1 : -1);
         if (tipo === 'leer') z = 1.0;
         if (tipo === 'tallar' || tipo === 'esculpir') z = 0.9 + (j ? Math.sin(t * 7) * 0.25 : 0);
+        if ((tipo === 'tomarVino' || tipo === 'fumar') && j) z = 0.8 + Math.max(0, Math.sin(t * 0.9 + a.id.length)) * 1.0;
         if (tipo === 'contemplar') { z = -0.35; x = (j ? 1 : -1) * 0.15; }   // manos atrás
         if ((tipo === 'conversar' || tipo === 'reconciliar') && j) z = 0.5 + habla * 0.7;              // gesticula al hablar
         if (abrazando) { z = 1.35; x = (j ? -1 : 1) * 0.45; }
@@ -1316,6 +1408,21 @@ export function crearEscena(host, { onParcela } = {}) {
       v.cuerpo.scale.set(1, Math.max(0.05, o.progreso), 1);
     }
     esculturasVis.forEach((g, i) => { g.visible = i < (s.esculturas || 0); });
+    {
+      const est = Math.floor(s.t / MIN_DIA / 28) % 4;
+      (s.parras || []).forEach((q, i) => { const v = parrasVis[i]; if (!v) return;
+        v.racimos.forEach((r, k) => { r.visible = k < Math.round(q.uvas / 2); });
+        v.hojas.forEach((h, k) => { h.visible = est !== 3 || k % 3 === 0; h.material = est === 2 && k % 2 ? hojaOtono : hojaParra; h.rotation.z = Math.sin(t * 1.1 + k) * 0.05 * (1 + lluviaK); }); });
+      (s.matas || []).forEach((m, i) => { const v = matasVis[i]; if (!v) return;
+        v.planta.visible = m.estado !== 'vacia'; v.planta.scale.setScalar(0.3 + Math.min(1, m.crec) * 1.25);
+        v.flores.visible = m.estado === 'lista'; v.planta.rotation.z = Math.sin(t * 1.2 + v.fase) * 0.04 * (1 + lluviaK); });
+      colgados.visible = (s.curado || []).length > 0;
+      barricasVis.forEach((b, i) => { b.visible = i < Math.min(4, (s.barricas || []).length * 2); });
+      botellas.forEach((b, i) => { b.visible = i < Math.min(12, Math.ceil((s.rec.vino || 0) / 5)); });
+      mostoVis.visible = (s.rec.uvas || 0) >= 3;
+      carreta.visible = !!s.comercio?.visita;
+      if (carreta.visible) ramiro.rotation.y = Math.sin(t * 0.5) * 0.4;
+    }
     abejas.pts.visible = day > 0.3 && !s.clima.lluvia && ((s.t / MIN_DIA / 28) | 0) % 4 !== 3;
     if (abejas.pts.visible) for (let i = 0; i < abejas.N; i++) { const a = t * (0.6 + (i % 5) * 0.13) + i * 1.7; abejas.pos.set([30 + Math.cos(a) * (4 + (i % 4) * 2) + Math.sin(a * 3.1) * 0.6, 0.9 + Math.sin(a * 2.3 + i) * 0.35, 3 + Math.sin(a * 0.9) * (3 + (i % 3)) + Math.cos(a * 2.7) * 0.5], i * 3); }
     abejas.pts.geometry.attributes.position.needsUpdate = true;
