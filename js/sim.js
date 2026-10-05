@@ -227,7 +227,7 @@ function memoria(s, a, texto, valor) {
 function calcularAnimo(s, a) {
   const n = a.n;
   const base = (n.comida * 0.9 + n.agua * 0.9 + n.energia * 0.7 + n.salud * 0.5 + n.social + n.diversion) / 5 * 0.82;
-  a.recuerdos = a.recuerdos.filter((r) => r.hasta > s.t);
+  if (a.recuerdos.some((r) => r.hasta <= s.t)) a.recuerdos = a.recuerdos.filter((r) => r.hasta > s.t);
   const casa = s.casa.limpieza < 30 ? -6 : s.casa.limpieza > 75 ? 3 : 0;
   const sinAbrigo = frio(s) && s.rec.abrigos < humanos(s).length ? -5 : 0;
   const deterioro = s.casa.estado < 25 ? -8 : s.casa.estado < 50 ? -4 : 0;
@@ -343,6 +343,20 @@ const ZONA = (tipo) => (tipo === 'vaca' || tipo === 'oveja' ? CORRAL : GALLINERO
 export const esAve = (tipo) => tipo === 'gallina' || tipo === 'gallo' || tipo === 'pollito';
 const CRECER_DIAS = { vaca: 112, oveja: 56, pollito: 28 };
 const CUPO = { corral: 18, gallinero: 24 };
+// árboles de sombra dentro de los potreros: con calor el ganado se reparte entre el establo y estos
+export const SOMBRAS = { corral: [{ x: -26, z: 12 }, { x: -25.5, z: -18.5 }], aves: [{ x: 26.5, z: -16.5 }] };
+// el rebaño se mueve como rebaño: una zona de pastoreo que va recorriendo todo el potrero durante el día,
+// y cada animal pasta suelto alrededor de ella, en su propio lugar (algunos se van a explorar lejos)
+function focoRebano(s, aves) {
+  const F = (s.granja.foco ||= {}), k = aves ? 'aves' : 'corral', Z = aves ? GALLINERO : CORRAL;
+  if (!F[k] || s.t >= F[k].hasta) F[k] = { ...puntoEn(s, Z, aves ? 3 : 4.5), hasta: s.t + 90 + rng(s) * 120, id: (F[k]?.id || 0) + 1 };
+  return F[k];
+}
+function metaAnimal(s, g, aves) {
+  const f = focoRebano(s, aves), Z = aves ? GALLINERO : CORRAL;
+  if (g.focoId !== f.id) { g.focoId = f.id; const a = rng(s) * Math.PI * 2, r = (0.35 + Math.sqrt(rng(s)) * 0.65) * (aves ? 6.5 : 12); g.ofs = { x: Math.cos(a) * r, z: Math.sin(a) * r }; }
+  return { x: Math.max(Z.x0 + 1, Math.min(Z.x1 - 1, f.x + g.ofs.x)), z: Math.max(Z.z0 + 1, Math.min(Z.z1 - 1, f.z + g.ofs.z)) };
+}
 const AREA_PASTO = 2.6;   // el potrero es más grande: cada animal gasta menos porcentaje del pasto
 function puntoEn(s, R, margen = 1.2) { return { x: R.x0 + margen + rng(s) * (R.x1 - R.x0 - 2 * margen), z: R.z0 + margen + rng(s) * (R.z1 - R.z0 - 2 * margen) }; }
 // ---------------------------------------------------------------- genética del ganado
@@ -445,18 +459,117 @@ function climaAhora(s) {
 
 // ---------------------------------------------------------------- avance del tiempo (continuo)
 export function avanzar(s, minutos) {
+  if (!(minutos > 0) || !Number.isFinite(minutos)) return;
   while (minutos > 1e-9 && !s.fin) {
     const d = Math.min(1, minutos);
-    tick(s, d);
+    try {
+      tick(s, d);
+      if (s.fallosSeguidos) s.fallosSeguidos = 0;
+    } catch (e) {
+      // un error en un minuto no puede congelar la granja: se anota, se repara y el tiempo sigue
+      s.errores = (s.errores || 0) + 1; s.fallosSeguidos = (s.fallosSeguidos || 0) + 1;
+      s.ultimoError = { t: s.t, msg: String(e?.message || e).slice(0, 200), pila: String(e?.stack || '').split('\n').slice(0, 4).join(' | ').slice(0, 400) };
+      if (typeof console !== 'undefined' && s.fallosSeguidos === 1) console.warn('[granja] error en la simulación, se repara y sigue:', e);
+      for (const a of s.agentes || []) { try { soltarTarea(s, a); } catch { a.tarea = null; } }
+      sanear(s, true);
+      if (s.fallosSeguidos > 20) s.t += d;   // si sigue fallando, al menos el reloj avanza
+    }
     minutos -= d;
   }
+}
+
+// ---------------------------------------------------------------- motor robusto: vigilante y saneamiento
+const fin = (v, def) => (Number.isFinite(v) ? v : def);
+const acotar = (v, lo, hi, def = lo) => Math.max(lo, Math.min(hi, fin(v, def)));
+const radioTerreno = (p) => Math.hypot(p.x - (BLOQUE.x0 + BLOQUE.x1) / 2, p.z - (BLOQUE.z0 + BLOQUE.z1) / 2);
+// cuánto puede durar como máximo cada tarea antes de considerarla atascada (minutos de juego)
+const MAX_TAREA = { dormir: 16 * 60, dormirCon: 16 * 60, pasearPerro: 4 * 60, nadar: 3 * 60, refugio: 14 * 60 };
+function vigilar(s) {
+  // tareas que no avanzan: se sueltan para que el agente elija otra
+  for (const a of s.agentes) {
+    if (!a.vivo || !a.tarea) continue;
+    const T = a.tarea;
+    T.inicio ??= s.t;
+    const max = MAX_TAREA[T.tipo] ?? Math.max(5 * 60, (DURACION[T.tipo] ?? 60) * 6);
+    const camino = T.fase === 'camino' && (!T.destino || !Number.isFinite(T.destino.x) || !Number.isFinite(T.destino.z));
+    // atascado caminando: no se ha movido en una hora con fase de camino
+    const p = a._vig, quieto = T.fase === 'camino' && p && s.t - T.inicio >= 60 && Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < 0.05 && s.t - p.t >= 60;
+    if (camino || quieto || s.t - T.inicio > max) {
+      s.stats.rescates = (s.stats.rescates || 0) + 1;
+      if (quieto && !a.dentro) a.pos = { ...LUGAR.puerta };
+      try { soltarTarea(s, a); } catch { a.tarea = null; }
+      if (a.tipo !== 'humano') a.dentro = false;
+    }
+    if (!p || Math.hypot(a.pos.x - p.x, a.pos.z - p.z) >= 0.05) a._vig = { x: a.pos.x, z: a.pos.z, t: s.t };
+  }
+  // ganado que no llega a su destino
+  for (const g of s.ganado) {
+    if (!g.vivo) continue;
+    const p = g._vig;
+    if (g.dest && !g.refugio && p && Math.hypot(g.pos.x - p.x, g.pos.z - p.z) < 0.05 && s.t - p.t >= 90) { g.dest = null; g.espera = 0; s.stats.rescates = (s.stats.rescates || 0) + 1; }
+    if (!p || Math.hypot(g.pos.x - p.x, g.pos.z - p.z) >= 0.05) g._vig = { x: g.pos.x, z: g.pos.z, t: s.t };
+  }
+  // reservas de parcelas huérfanas (alguien reservó y ya no está en esa tarea)
+  for (const q of s.parcelas) if (q.reservada && !s.agentes.some((a) => a.vivo && a.id === q.reservada && a.tarea?.parcela === q.id)) q.reservada = null;
+}
+// arregla números rotos (NaN, infinitos, fuera de rango) y poda lo que crece sin límite
+export function sanear(s, tras = false) {
+  let arreglos = 0;
+  const num = (o, k, lo, hi, def) => { if (!o) return; const v = o[k]; const w = acotar(v, lo, hi, def); if (w !== v) { o[k] = w; arreglos++; } };
+  const pos = (o, def) => { if (!o.pos || !Number.isFinite(o.pos.x) || !Number.isFinite(o.pos.z) || radioTerreno(o.pos) > 49) { o.pos = { ...def }; arreglos++; } };
+  if (!Number.isFinite(s.t)) { s.t = s.t0 || 0; arreglos++; }
+  for (const a of s.agentes) {
+    for (const k of ['comida', 'agua', 'energia', 'salud', 'social', 'diversion']) num(a.n, k, 0, 100, 60);
+    num(a, 'animo', 0, 100, 60); num(a, 'edad', 0, 200, 30); num(a, 'enfermo', 0, 60, 0);
+    pos(a, a.tipo === 'perro' ? LUGAR.caseta : LUGAR.puerta);
+    if (a.tipo === 'humano') {
+      a.placer ??= placerNuevo();
+      for (const k of ['vino', 'hierba']) { const P = a.placer[k] ??= placerNuevo()[k]; num(P, 'tol', 0, 2, 0); num(P, 'dep', 0, 1, 0); num(P, 'ult', -1e9, s.t, -1e9); }
+      num(a, 'deseoSex', 0, 100, 40);
+      for (const k of Object.keys(a.xp || {})) num(a.xp, k, 0, 1e7, 0);
+      // poda: los recuerdos vencidos y la costumbre de hace mucho no sirven
+      a.recuerdos = (a.recuerdos || []).filter((r) => r && r.hasta > s.t && Number.isFinite(r.valor)).slice(-40);
+      if (a.costumbre) for (const [k, c] of Object.entries(a.costumbre)) if (!c || s.t - c.t > 25 * MIN_DIA) delete a.costumbre[k];
+    }
+    if (a.vinculo) for (const k of Object.keys(a.vinculo)) num(a.vinculo, k, 0, 100, 50);
+    if (a.tarea && typeof a.tarea !== 'object') { a.tarea = null; arreglos++; }
+  }
+  for (const [k, v] of Object.entries(s.rec)) {
+    if (k === 'semillas') { for (const c of Object.keys(v)) num(v, c, 0, 999, 2); continue; }
+    if (typeof v === 'number') num(s.rec, k, 0, 1e6, 0);
+  }
+  num(s.rec, 'cruda', 0, TANQUE_MAX, 50);
+  num(s.granja, 'pasto', 0, 100, 50);
+  num(s.casa, 'limpieza', 0, 100, 60); num(s.casa, 'estado', 0, 100, 80);
+  num(s.pareja, 'afinidad', 0, 100, 50); num(s.pareja, 'tension', 0, 100, 0);
+  num(s, 'belleza', 0, 100, 10);
+  for (const q of s.parcelas) {
+    for (const k of ['N', 'P', 'K']) num(q, k, 0, 100, 50);
+    num(q, 'ph', 4, 9, 6.5); num(q, 'salud', 0, 100, 100); num(q, 'plaga', 0, 1, 0); num(q, 'agua', 0, 100, 60); num(q, 'crec', 0, 999, 0);
+    if (q.cultivo && !CULTIVOS[q.cultivo]) { Object.assign(q, { cultivo: null, crec: 0, estado: 'vacia' }); arreglos++; }
+  }
+  for (const g of s.ganado) {
+    for (const k of ['hambre', 'sed', 'salud', 'estres']) num(g, k, 0, 100, 60);
+    num(g, 'crec', 0, 1, 1); num(g, 'edad', 0, 100, 1); num(g, 'consang', 0, 1, 0);
+    pos(g, puntoEn(s, ZONA(g.tipo), 2));
+    if (g.dest && (!Number.isFinite(g.dest.x) || !Number.isFinite(g.dest.z))) { g.dest = null; arreglos++; }
+  }
+  // los animales muertos hace mucho ya no se guardan (el árbol familiar sigue por los ids)
+  const antes = s.ganado.length;
+  s.ganado = s.ganado.filter((g) => g.vivo || s.t - (g.murio ?? s.t) < 120 * MIN_DIA);
+  for (const g of s.ganado) if (!g.vivo) g.murio ??= s.t;
+  arreglos += 0 * (antes - s.ganado.length);
+  if (s.efectos?.length > 24) s.efectos = s.efectos.slice(-24);
+  if (s.diario?.length > 250) s.diario.length = 250;
+  if (arreglos) { s.stats.reparaciones = (s.stats.reparaciones || 0) + arreglos; if (tras) s.ultimoError && (s.ultimoError.arreglos = arreglos); }
+  return arreglos;
 }
 
 function tick(s, d) {
   const diaAntes = dia(s);
   s.t += d;
   if (dia(s) !== diaAntes) nuevoDia(s);
-  s.efectos = s.efectos.filter((e) => s.t - e.t < 8);
+  if (s.efectos.length && s.t - s.efectos[0].t >= 8) s.efectos = s.efectos.filter((e) => s.t - e.t < 8);   // (sin crear arreglos cada minuto)
   climaAhora(s);
   granizada(s);
 
@@ -479,7 +592,7 @@ function tick(s, d) {
     s.rec.bebederoGanado = Math.min(60, s.rec.bebederoGanado + 0.05 * d);
     for (const p of s.parcelas) p.agua = 100;
   }
-  const esc = escasez(s);
+  const esc = Math.floor(s.t / 10) !== Math.floor((s.t - d) / 10) ? escasez(s) : s.escasez;   // se revisa cada 10 minutos
   if (esc !== s.escasez) {
     s.escasez = esc;
     if (esc) {
@@ -494,9 +607,11 @@ function tick(s, d) {
   actualizarGranja(s, d);
   for (const a of s.agentes) if (a.vivo) { necesidades(s, a, d); comportamiento(s, a, d); }
   encuentros(s);
+  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) vigilar(s);
 }
 
 function nuevoDia(s) {
+  sanear(s);
   if (s.sequia > 0 && --s.sequia === 0) log(s, 'Terminó la sequía.', 'clima');
   decidirClima(s);
   // lo guardado se echa a perder; mientras más se acumula, más se pudre (no cabe todo en la despensa)
@@ -865,9 +980,11 @@ function actualizarGranja(s, d) {
     const debeRefugio = noche || lloviendo(s) || ((s.clima.temp ?? 15) > 30 && h > 11 && h < 17);   // con calor fuerte buscan sombra
     if (debeRefugio && !g.refugio) {
       g.refugio = true; g.comiendo = false;
-      const base = aves ? LUGAR.gallinero : LUGAR.establo;
-      const grupo = s.ganado.filter((x) => x.vivo && esAve(x.tipo) === aves), k = Math.max(0, grupo.indexOf(g));
-      const ang = k * 2.4, r = (aves ? 0.6 : 1.0) + (aves ? 0.32 : 0.62) * Math.sqrt(k);   // espiral: nadie se monta encima de otro
+      const calorRef = !noche && !lloviendo(s);
+      const sitios = calorRef ? [aves ? LUGAR.gallinero : LUGAR.establo, ...SOMBRAS[aves ? 'aves' : 'corral']] : [aves ? LUGAR.gallinero : LUGAR.establo];
+      const grupo = s.ganado.filter((x) => x.vivo && esAve(x.tipo) === aves), idx = Math.max(0, grupo.indexOf(g));
+      const base = sitios[idx % sitios.length], k = Math.floor(idx / sitios.length);
+      const ang = k * 2.4, r = (aves ? 0.6 : 1.0) + (aves ? 0.38 : 0.8) * Math.sqrt(k);   // espiral: nadie se monta encima de otro
       g.dest = { x: base.x + Math.cos(ang) * r, z: base.z + Math.sin(ang) * r };
     } else if (!debeRefugio && g.refugio && !g.empolla) { g.refugio = false; g.dest = null; }
     if (g.empolla && !g.refugio) { g.refugio = true; g.dest = { x: LUGAR.gallinero.x + (rng(s) - 0.5) * 1.6, z: LUGAR.gallinero.z }; }   // la clueca no sale del nido
@@ -877,21 +994,26 @@ function actualizarGranja(s, d) {
     if (g.quieta > s.t) { g.comiendo = false; continue; }            // la están ordeñando o esquilando
     // comer y beber
     g.comiendo = false;
-    if ((!g.refugio || (g.sed < 30 && !lloviendo(s))) && g.sed < 55 && R.bebederoGanado >= 1 && !aves) {
+    // con histéresis: el que empieza a beber o a comer sigue hasta saciarse (si no, quedan amarrados al bebedero)
+    if (g.bebiendo && (g.sed >= 95 || R.bebederoGanado < 1)) g.bebiendo = false;
+    if (g.sed < 50) g.bebiendo = true;
+    if (g.pastando && g.hambre >= 95) g.pastando = false;
+    if (g.hambre < 60) g.pastando = true;
+    if ((!g.refugio || (g.sed < 30 && !lloviendo(s))) && g.bebiendo && R.bebederoGanado >= 1 && !aves) {
       if (g.refugio) { g.refugio = false; g.dest = null; }   // con sed sale a beber aunque esté a la sombra
       const b = LUGAR.bebederoGanado;
       if (Math.hypot(g.pos.x - b.x, g.pos.z - b.z) > 1.4) { if (!g.dest || g.dest.para !== 'beber') g.dest = { x: b.x - 0.9, z: b.z + (rng(s) - 0.5) * 1.6, para: 'beber' }; }
       else { g.sed = Math.min(100, g.sed + 70 * k); R.bebederoGanado = Math.max(0, R.bebederoGanado - (g.tipo === 'vaca' ? 0.12 : 0.05) * (g.crec < 1 ? 0.5 : 1) * 70 * k); g.dest = null; g.comiendo = true; }
-    } else if (aves && g.sed < 55) {
+    } else if (aves && g.sed < 55) {   // (las aves beben en su nido-bebedero: no caminan)
       g.sed = Math.min(100, g.sed + 40 * k);   // beben del bebedero del gallinero (se llena con la lluvia y al alimentarlas)
-    } else if (g.hambre < 70) {
+    } else if (g.pastando) {
       if (aves) {
-        if (e !== 3) { g.hambre = Math.min(100, g.hambre + 18 * k); g.comiendo = !g.refugio; if (!g.refugio && rng(s) < 0.08 * d) g.dest = { x: Math.max(Z.x0 + 0.8, Math.min(Z.x1 - 0.8, g.pos.x + (rng(s) - 0.5) * 2.5)), z: Math.max(Z.z0 + 0.8, Math.min(Z.z1 - 0.8, g.pos.z + (rng(s) - 0.5) * 2.5)) }; }   // picotean bichos caminando
+        if (e !== 3) { g.hambre = Math.min(100, g.hambre + 18 * k); g.comiendo = !g.refugio; if (!g.refugio && rng(s) < 0.08 * d) { const m = metaAnimal(s, g, true), dx = m.x - g.pos.x, dz = m.z - g.pos.z, dd = Math.hypot(dx, dz) || 1, paso = Math.min(dd, 2.5); g.dest = { x: Math.max(Z.x0 + 0.8, Math.min(Z.x1 - 0.8, g.pos.x + dx / dd * paso + (rng(s) - 0.5) * 1.5)), z: Math.max(Z.z0 + 0.8, Math.min(Z.z1 - 0.8, g.pos.z + dz / dd * paso + (rng(s) - 0.5) * 1.5)) }; } }   // picotean bichos caminando
         else if (R.grano > 0.02) { g.hambre = Math.min(100, g.hambre + 30 * k); R.grano = Math.max(0, R.grano - 0.004 * 30 * k); g.comiendo = true; }
       } else if (!g.refugio && G.pasto > 6 && (e !== 3 || R.pesebre < 0.5)) {   // en invierno el pasto no crece, pero lo que queda se come
         g.hambre = Math.min(100, g.hambre + 26 * k); G.pasto = Math.max(0, G.pasto - (g.tipo === 'vaca' ? 0.06 : 0.03) * (g.crec < 1 ? 0.5 : 1) * 26 * k / AREA_PASTO); g.comiendo = true;
         // pasta caminando despacio, mordisco a mordisco
-        if (!g.pastoreo || Math.hypot(g.pastoreo.x - g.pos.x, g.pastoreo.z - g.pos.z) < 0.15) { const a = rng(s) * Math.PI * 2; g.pastoreo = { x: Math.max(Z.x0 + 1, Math.min(Z.x1 - 1, g.pos.x + Math.cos(a) * 1.5)), z: Math.max(Z.z0 + 1, Math.min(Z.z1 - 1, g.pos.z + Math.sin(a) * 1.5)) }; }
+        if (!g.pastoreo || Math.hypot(g.pastoreo.x - g.pos.x, g.pastoreo.z - g.pos.z) < 0.15) { const m = metaAnimal(s, g, false), lejos = Math.hypot(m.x - g.pos.x, m.z - g.pos.z) > 2.5; const a = lejos ? Math.atan2(m.z - g.pos.z, m.x - g.pos.x) + (rng(s) - 0.5) * 1.2 : rng(s) * Math.PI * 2; g.pastoreo = { x: Math.max(Z.x0 + 1, Math.min(Z.x1 - 1, g.pos.x + Math.cos(a) * 1.5)), z: Math.max(Z.z0 + 1, Math.min(Z.z1 - 1, g.pos.z + Math.sin(a) * 1.5)) }; }
         const dx = g.pastoreo.x - g.pos.x, dz = g.pastoreo.z - g.pos.z, dd = Math.hypot(dx, dz), v = VEL[g.tipo] * 0.22 * d;
         if (dd > v) { g.pos.x += dx / dd * v; g.pos.z += dz / dd * v; }
       } else if (R.pesebre > 0.05) {
@@ -905,12 +1027,9 @@ function actualizarGranja(s, d) {
       g.espera -= d;
       if (g.espera <= 0) {
         // casi siempre se mueven cerca de su manada; a veces exploran el potrero
-        const manada = s.ganado.filter((x) => x.vivo && x !== g && esAve(x.tipo) === aves && !x.refugio);
-        if (manada.length && rng(s) < 0.65) {
-          const cx = manada.reduce((t, x) => t + x.pos.x, 0) / manada.length, cz = manada.reduce((t, x) => t + x.pos.z, 0) / manada.length;
-          g.dest = { x: Math.max(Z.x0 + 1, Math.min(Z.x1 - 1, cx + (rng(s) - 0.5) * 7)), z: Math.max(Z.z0 + 1, Math.min(Z.z1 - 1, cz + (rng(s) - 0.5) * 7)) };
-        } else g.dest = puntoEn(s, Z);
-        g.espera = 4 + rng(s) * 16;
+        if (rng(s) < 0.7) { const m = metaAnimal(s, g, aves); g.dest = { x: Math.max(Z.x0 + 1, Math.min(Z.x1 - 1, m.x + (rng(s) - 0.5) * 3)), z: Math.max(Z.z0 + 1, Math.min(Z.z1 - 1, m.z + (rng(s) - 0.5) * 3)) }; }
+        else g.dest = puntoEn(s, Z);
+        g.espera = 3 + rng(s) * 12;
       }
     }
     if (g.dest) {
@@ -950,7 +1069,7 @@ function actualizarGranja(s, d) {
   }
 }
 function morirAnimal(s, g, causa) {
-  g.vivo = false; g.causa = causa;
+  g.vivo = false; g.causa = causa; g.murio = s.t;
   log(s, `${g.nombre} (${g.tipo}) murió ${causa}.`, 'muerte');
   humanos(s).forEach((a) => { recuerdo(s, a, `Murió ${g.nombre}`, -8, 72); if (causa === 'atacada por un zorro') memoria(s, a, `El zorro se llevó a ${g.nombre}`, -1); });
 }
@@ -1022,7 +1141,7 @@ const COMIDAS = [['desayuno', 6.5, 9, 20], ['almuerzo', 12, 13.5, 30], ['cena', 
 const OCIOS = ['esculpir', 'cuidarJardin', 'descansar', 'leer', 'tallar', 'contemplar', 'siesta', 'tejer', 'nadar', 'recogerFlores', 'jugarPerro', 'tomarVino', 'fumar'];
 const vaca = (s) => s.ganado.filter((g) => g.vivo && g.tipo === 'vaca' && g.sexo === 'h' && g.crec >= 1).sort((a, b) => b.ubre - a.ubre)[0];
 function crearTarea(s, a, tipo, extra = {}) {
-  const t = { tipo, fase: 'camino', trabajo: DURACION[tipo] ?? 30, ...extra };
+  const t = { tipo, fase: 'camino', trabajo: DURACION[tipo] ?? 30, inicio: s.t, ...extra };
   const izq = a.id === s.agentes[0].id;
   const adentroOcio = ((tipo === 'leer' || tipo === 'tejer') && (lloviendo(s) || esNoche(s) || hora(s) >= 19.5 || (frio(s) && rng(s) < 0.6)))
     || (tipo === 'siesta' && (calor(s) || lloviendo(s) || frio(s) || rng(s) < 0.5)) || (tipo === 'leer' && rng(s) < 0.35);
@@ -2015,10 +2134,30 @@ function comportamientoAnimal(s, a, d) {
 
 // ---------------------------------------------------------------- guardar / cargar
 const CLAVE = 'granja3d-partida', CLAVE_HIST = 'granja3d-historial';
-export function guardar(s) { try { s.guardadoReal = Date.now(); localStorage.setItem(CLAVE, JSON.stringify(s)); return true; } catch { return false; } }
-export function cargar() {
+export function guardar(s) {
   try {
-    const s = JSON.parse(localStorage.getItem(CLAVE));
+    s.guardadoReal = Date.now();
+    const txt = JSON.stringify(s);
+    if (!txt || txt.length < 100) return false;
+    // la partida anterior queda como respaldo antes de sobrescribirla
+    const prev = localStorage.getItem(CLAVE);
+    if (prev && validar(prev)) localStorage.setItem(CLAVE + '-respaldo', prev);
+    localStorage.setItem(CLAVE, txt);
+    return true;
+  } catch { return false; }
+}
+function validar(txt) {
+  try { const s = typeof txt === 'string' ? JSON.parse(txt) : txt; return !!(s && Array.isArray(s.agentes) && s.agentes.length && Array.isArray(s.parcelas) && s.rec && Number.isFinite(s.t)) && s; } catch { return false; }
+}
+export function cargar() {
+  // si la partida está dañada, se usa el respaldo
+  let s = null;
+  try { s = validar(localStorage.getItem(CLAVE)); } catch { s = null; }
+  if (!s) { try { s = validar(localStorage.getItem(CLAVE + '-respaldo')); if (s) s.recuperada = true; } catch { s = null; } }
+  return migrar(s);
+}
+function migrar(s) {
+  try {
     if (!(s && s.version === VERSION && s.config === CONFIG)) return null;
     // los nombres salen siempre de las fichas: cambiarlos no reinicia la partida
     for (const a of s.agentes) {
@@ -2040,6 +2179,10 @@ export function cargar() {
     for (const k of ['uvas', 'vino', 'hierba', 'medicina', 'libros']) s.rec[k] ??= { vino: 6, hierba: 3, medicina: 1 }[k] ?? 0;
     for (const a of s.agentes) if (a.tipo === 'humano') { a.placer ??= placerNuevo(); a.deseoSex ??= 40; }
     for (const g of s.ganado) { g.enfermo ??= 0; g.adn ??= adnFundador(s); g.consang ??= 0; g.estres ??= 10; g.generacion ??= 0; g.padre ??= null; }
+    s.stats ??= {}; s.efectos ??= []; s.diario ??= [];
+    for (const a of s.agentes) if (a.tarea && a.tarea.fase === 'camino' && !a.tarea.destino) a.tarea = null;
+    sanear(s);
+    if (s.recuperada) { log(s, 'La partida guardada estaba dañada: se recuperó la copia de respaldo.', 'aviso'); delete s.recuperada; }
     return s;
   } catch { return null; }
 }

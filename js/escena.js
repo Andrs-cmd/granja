@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -497,6 +497,8 @@ export function crearEscena(host, { onParcela } = {}) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); root.add(g);
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.35, 1), LEAFS[Math.floor(rand() * LEAFS.length)]); m.position.set((rand() - 0.5) * 1.1, 0.45 + rand() * 0.35, (rand() - 0.5) * 1.1); m.scale.y = 0.85; m.castShadow = true; g.add(m); }
   }
+  // árboles de sombra dentro de los potreros (el ganado se refugia ahí con calor)
+  for (const q of [...SOMBRAS.corral, ...SOMBRAS.aves]) makeTree(q.x, q.z, 1.25);
   // huerto de frutales: la fruta aparece en la copa según lo que haya madurado
   const frutales = FRUTALES.map((f) => {
     const t = new THREE.Group(); t.position.set(f.x, 0, f.z); root.add(t);
@@ -891,6 +893,11 @@ export function crearEscena(host, { onParcela } = {}) {
     return v;
   }
   function poseGanado(s, t, dt) {
+    // los que ya no están (vendidos o de otra generación) se retiran de la escena
+    if (Object.keys(granjaVis).length > s.ganado.length) {
+      const ids = new Set(s.ganado.map((g) => g.id));
+      for (const id of Object.keys(granjaVis)) if (!ids.has(id)) { root.remove(granjaVis[id].g); delete granjaVis[id]; }
+    }
     for (const a of s.ganado) {
       let v = granjaVis[a.id];
       if (v && v.tipoVis !== a.tipo) { root.remove(v.g); const vp = v.vp; v = granjaVis[a.id] = crearVisGanado(a); v.vp = vp; }   // el pollito ya es gallina o gallo

@@ -108,12 +108,17 @@ let vel = VEL_DEFECTO;
 try { const v = localStorage.getItem('granja3d-vel2'); if (v != null) vel = Math.max(0, Math.min(VELOCIDADES.length - 1, +v)); } catch { /* sin almacenamiento */ }
 
 let estado = Sim.cargar();
-if (estado && estado.guardadoReal && !estado.fin) {
-  // la granja siguió viviendo con la página cerrada, al mismo ritmo
-  const ausente = Math.min(((Date.now() - estado.guardadoReal) / 1000) * VELOCIDADES[vel][0], MAX_AUSENCIA);
-  if (ausente > 0) Sim.avanzar(estado, ausente);
-}
+// la granja sigue viviendo con la página cerrada (o la pestaña oculta), al mismo ritmo;
+// ese tiempo se simula por partes en los cuadros siguientes para no congelar la pantalla
+let pendiente = 0;
+const ponerAlDia = (min) => { if (min > 0 && Number.isFinite(min)) pendiente = Math.min(MAX_AUSENCIA, pendiente + min); };
+if (estado && estado.guardadoReal && !estado.fin) ponerAlDia(((Date.now() - estado.guardadoReal) / 1000) * VELOCIDADES[vel][0]);
 if (!estado) estado = nueva(1 + Math.max(0, ...Sim.historial().map((h) => h.generacion)));
+let ocultoDesde = null;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) ocultoDesde = Date.now();
+  else if (ocultoDesde) { ponerAlDia(((Date.now() - ocultoDesde) / 1000) * VELOCIDADES[vel][0]); ocultoDesde = null; }
+});
 
 let parcelaSel = null;   // ficha de la parcela que se toque
 const escena = crearEscena(document.getElementById('stage'), { onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); } });
@@ -211,7 +216,7 @@ function pintarDatos() {
   }
   der.innerHTML = `
     <div class="card"><div class="gen">Generación ${s.generacion} · ${años ? `${años} año${años > 1 ? 's' : ''} y ` : ''}${vividos % Sim.DIAS_ANIO} días</div>
-      <div class="fecha">${Sim.fechaTxt(s)}</div><div style="margin-top:3px">🌡️ ${s.clima.temp ?? '–'} °C · 💧 ${s.clima.hum ?? '–'} %${s.clima.granizando ? ' · 🧊 granizo' : ''}${s.clima.ola > 0 ? ' · 🔥 ola de calor' : ''}${s.clima.frente > 0 ? ' · 🌬️ frente frío' : ''}</div>${clima ? `<div style="margin-top:3px">${clima}</div>` : ''}</div>
+      <div class="fecha">${Sim.fechaTxt(s)}</div><div style="margin-top:3px">🌡️ ${s.clima.temp ?? '–'} °C · 💧 ${s.clima.hum ?? '–'} %${s.clima.granizando ? ' · 🧊 granizo' : ''}${s.clima.ola > 0 ? ' · 🔥 ola de calor' : ''}${s.clima.frente > 0 ? ' · 🌬️ frente frío' : ''}</div>${clima ? `<div style="margin-top:3px">${clima}</div>` : ''}<div style="margin-top:3px;font-size:11px;opacity:.6" title="${s.ultimoError ? 'Último error: ' + s.ultimoError.msg : 'Sin errores'}">🛡️ Motor: ${s.stats.rescates || 0} rescates · ${s.stats.reparaciones || 0} reparaciones · ${s.errores || 0} errores</div></div>
     ${ficha}
     <div class="card"><h4>Despensa</h4><div class="grid">
       <span>🥔 Raciones</span><b class="${dias < 4 ? 'warn' : ''}">${Math.floor(R.raciones)} · ≈${dias} d</b>
@@ -273,7 +278,7 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(pintarDatos, 500);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } }, 500);
 
 // ---------------------------------------------------------------- control de velocidad y botón de datos
 const speeds = document.getElementById('speeds');
@@ -316,17 +321,27 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) guard
 setInterval(guardar, 30000);
 
 // bucle
-let last = performance.now(), t = 0, finEn = null;
+let last = performance.now(), t = 0, finEn = null, fallosEscena = 0;
 function loop(now) {
+  requestAnimationFrame(loop);   // primero: pase lo que pase en este cuadro, el siguiente llega
   const dt = Math.min((now - last) / 1000, 0.1); last = now; t += dt;
-  if (!estado.fin) Sim.avanzar(estado, dt * VELOCIDADES[vel][0]);
-  else {
-    if (finEn == null) { Sim.registrarGeneracion(estado); finEn = t + 20; guardar(); }
-    if (t > finEn) { estado = nueva(estado.generacion + 1); finEn = null; guardar(); crearTarjetas(); aviso(`Generación ${estado.generacion}`); }
-  }
-  escena.update(estado, t, dt);
+  try {
+    if (!estado.fin) {
+      // ponerse al día: como máximo ~12 ms de simulación extra por cuadro
+      if (pendiente > 0) {
+        const t0 = performance.now();
+        while (pendiente > 0 && !estado.fin && performance.now() - t0 < 12) { const m = Math.min(pendiente, 30); Sim.avanzar(estado, m); pendiente -= m; }
+        caption.textContent = pendiente > 1 ? `Poniéndose al día… ${Math.ceil(pendiente / Sim.MIN_DIA)} d` : ''; caption.classList.toggle('on', pendiente > 60);
+      }
+      Sim.avanzar(estado, dt * VELOCIDADES[vel][0]);
+    } else {
+      pendiente = 0;
+      if (finEn == null) { Sim.registrarGeneracion(estado); finEn = t + 20; guardar(); }
+      if (t > finEn) { estado = nueva(estado.generacion + 1); finEn = null; guardar(); crearTarjetas(); aviso(`Generación ${estado.generacion}`); }
+    }
+  } catch (e) { console.warn('[granja] error en el bucle:', e); }
+  try { escena.update(estado, t, dt); fallosEscena = 0; } catch (e) { if (fallosEscena++ === 0) console.warn('[granja] error al dibujar:', e); }
   if (escena.cargada) { const l = document.getElementById('loader'); if (l) { l.style.opacity = 0; setTimeout(() => l.remove(), 600); } }
-  requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 </script>
