@@ -55,9 +55,24 @@
 
   @media (max-width: 1000px) { .card { padding: 8px 9px; } .pj .act { font-size: 11px; } .grid { font-size: 11.5px; } }
   @media (max-width: 700px) { .col { top: 10px; bottom: 64px; gap: 6px; } .col.izq { left: 8px; } .col.der { right: 8px; } .card { padding: 6px 8px; border-radius: 10px; } .card h4 { font-size: 9.5px; margin-bottom: 4px; } .pj b { font-size: 12px; } .pj .act { font-size: 10.5px; margin-bottom: 4px; } .grid, .animales, .diario { font-size: 10.5px; } .fecha { font-size: 11px; } .bars { gap: 4px; } }
-  @media (max-width: 480px) {
-    .col { top: auto; bottom: 64px; height: 38vh; width: calc(50% - 20px); }
-    .col.izq { left: 12px; } .col.der { right: 12px; }
+  /* celular: los datos van en un panel compacto abajo, con pestañas (y arrancan ocultos) */
+  .tabs { display: none; }
+  @media (max-width: 640px) {
+    .col { top: auto; bottom: 58px; height: 36vh; width: auto; left: 8px !important; right: 8px !important; gap: 5px; }
+    .col.izq { display: grid; grid-template-columns: 1fr 1fr; align-content: start; }
+    .card { padding: 6px 8px; border-radius: 9px; background: rgba(16,17,21,.8); }
+    .card h4 { font-size: 9px; margin-bottom: 3px; }
+    .pj b { font-size: 11.5px; } .pj .cara { font-size: 13px; } .pj .act { font-size: 10px; margin: 1px 0 4px; }
+    .pj .extra { font-size: 9.5px; margin-top: 4px; }
+    .bars { gap: 3px; } .bars i { font-size: 8px; }
+    .grid, .animales, .diario { font-size: 10.5px; } .fecha { font-size: 11px; } .gen { font-size: 9.5px; }
+    body.tab-granja .col.izq, body.tab-diario .col.izq, body.tab-pj .col.der { display: none; }
+    body.tab-granja .col.der .card[data-tab="diario"], body.tab-diario .col.der .card:not([data-tab="diario"]) { display: none; }
+    .tabs { display: flex; position: fixed; left: 8px; right: 8px; bottom: calc(58px + 36vh + 5px); gap: 4px; z-index: 3; transition: opacity .4s; }
+    .tabs.off { opacity: 0; pointer-events: none; }
+    .tabs button { flex: 1; background: rgba(16,17,21,.75); border: 1px solid rgba(255,255,255,.1); color: inherit; font: 600 11px/1 inherit; font-family: inherit; padding: 7px 4px; border-radius: 99px; cursor: pointer; opacity: .75; }
+    .tabs button.on { background: rgba(231,196,106,.95); color: #1b1a17; opacity: 1; }
+    .speeds { bottom: 12px; } .speeds button { font-size: 11px; padding: 6px 9px; }
   }
 </style>
 </head>
@@ -67,6 +82,7 @@
 <div class="vignette"></div>
 <aside class="col izq" id="izq"></aside>
 <aside class="col der" id="der"></aside>
+<div class="tabs" id="tabs"></div>
 <div class="speeds" id="speeds"></div>
 <div class="caption" id="caption"></div>
 
@@ -105,11 +121,11 @@ window.granja = { get estado() { return estado; } };
 
 // ---------------------------------------------------------------- columnas de datos
 const izq = document.getElementById('izq'), der = document.getElementById('der');
-let datos = true;
-const angosto = () => innerWidth <= 480;
+const angosto = () => innerWidth <= 640;
+let datos = !angosto();   // en el celular arrancan ocultos: el orbe ocupa la pantalla
 function encuadre() {
   if (!datos) return escena.encuadrar(0, 0, 0);
-  if (angosto()) return escena.encuadrar(0, 0, innerHeight * 0.38 + 74);   // en pantallas angostas los datos van abajo
+  if (angosto()) return escena.encuadrar(0, 0, innerHeight * 0.36 + 58 + 36);   // en el celular los datos van en un panel abajo
   const ancho = izq.getBoundingClientRect().width || 232;
   escena.encuadrar(ancho + 44, ancho + 44, 0);
 }
@@ -193,7 +209,7 @@ function pintarDatos() {
       <span>🧹 Limpieza</span><b class="${s.casa.limpieza < 30 ? 'warn' : ''}">${Math.round(s.casa.limpieza)} %</b>
       <span>🔨 Estado</span><b class="${(s.casa.estado ?? 100) < 40 ? 'warn' : ''}">${Math.round(s.casa.estado ?? 100)} %</b>
       ${(s.desbloqueos || []).length ? `<span>🔓 Mejoras</span><b title="${s.desbloqueos.map((k) => Object.values(Sim.DESBLOQUEOS).flat().find((d) => d[1] === k)?.[2]).join(', ')}">${s.desbloqueos.length}</b>` : ''}</div></div>
-    <div class="card"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
+    <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
 setInterval(pintarDatos, 500);
@@ -206,8 +222,14 @@ VELOCIDADES.forEach(([, txt], i) => {
   b.onclick = () => { vel = i; pintar(); try { localStorage.setItem('granja3d-vel2', i); } catch { /* sin almacenamiento */ } };
   speeds.append(b);
 });
+// pestañas del panel de datos en el celular
+const tabs = document.getElementById('tabs');
+const TABS = [['pj', '👥 Personajes'], ['granja', '🌾 Granja'], ['diario', '📖 Diario']];
+const elegirTab = (k) => { TABS.forEach(([t]) => document.body.classList.toggle('tab-' + t, t === k)); [...tabs.children].forEach((b, i) => b.classList.toggle('on', TABS[i][0] === k)); };
+TABS.forEach(([k, txt]) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = () => elegirTab(k); tabs.append(b); });
+elegirTab('pj');
 const bDatos = document.createElement('button');
-function aplicarDatos() { bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
+function aplicarDatos() { tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
 pintar(); aplicarDatos();

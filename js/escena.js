@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -36,17 +36,17 @@ export function crearEscena(host, { onParcela } = {}) {
   const CENTER = V((BLOQUE.x0 + BLOQUE.x1) / 2, 1.0, (BLOQUE.z0 + BLOQUE.z1) / 2);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.enablePan = false;
-  controls.minDistance = 40; controls.maxDistance = 260; controls.maxPolarAngle = Math.PI * 0.46;
+  controls.minDistance = 60; controls.maxDistance = 380; controls.maxPolarAngle = Math.PI * 0.46;
   controls.target.set(CENTER.x, 3, CENTER.z);
-  camera.position.set(52, 40, 80);
+  camera.position.set(78, 60, 120);
 
   const root = new THREE.Group(); scene.add(root);
 
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 3);
-  key.castShadow = true; key.shadow.mapSize.set(1536, 1536);
-  Object.assign(key.shadow.camera, { left: -36, right: 36, top: 36, bottom: -36, near: 1, far: 150 });
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -54, right: 54, top: 54, bottom: -54, near: 1, far: 200 });
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
   scene.add(key, key.target); key.target.position.copy(CENTER);
   const KEYS = [
@@ -115,12 +115,12 @@ export function crearEscena(host, { onParcela } = {}) {
   }
 
   // ------------------------------------------------------------ orbe de vidrio, cielo interior y pedestal
-  const ORB_C = V(CENTER.x, 6.5, CENTER.z), ORB_R = 34, PED_TOP = -5.6;
+  const ORB_C = V(CENTER.x, 9, CENTER.z), ORB_R = 52, PED_TOP = -5.6;
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false,
     uniforms: { uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() } },
     vertexShader: `varying float vY; void main(){ vec4 w = modelMatrix * vec4(position,1.); vY = w.y; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `uniform vec3 uTop, uHor; varying float vY; void main(){ gl_FragColor = vec4(mix(uHor, uTop, smoothstep(-2., 36., vY)), .97); }`,
+    fragmentShader: `uniform vec3 uTop, uHor; varying float vY; void main(){ if (vY < -5.4) discard; gl_FragColor = vec4(mix(uHor, uTop, smoothstep(-2., 54., vY)), .97); }`,
   });
   { const m = new THREE.Mesh(new THREE.SphereGeometry(ORB_R - 0.05, 64, 40), skyMat); m.position.copy(ORB_C); m.renderOrder = -1; root.add(m); }
   {
@@ -128,7 +128,7 @@ export function crearEscena(host, { onParcela } = {}) {
       transparent: true, depthWrite: false, toneMapped: false,
       vertexShader: `varying vec3 vW; varying vec3 vN; void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: `varying vec3 vW; varying vec3 vN;
-        void main(){ vec3 v = normalize(cameraPosition - vW); float fres = pow(1. - max(dot(vN, v), 0.), 3.);
+        void main(){ if (vW.y < -5.4) discard; vec3 v = normalize(cameraPosition - vW); float fres = pow(1. - max(dot(vN, v), 0.), 3.);
           vec3 r = reflect(-v, vN); float h1 = smoothstep(.93, .975, dot(r, normalize(vec3(-.55,.75,.35)))); float h2 = smoothstep(.985, .995, dot(r, normalize(vec3(.7,.25,.45)))) * .7;
           gl_FragColor = vec4(mix(vec3(.82,.93,1.), vec3(1.), h1 + h2), .015 + fres * .5 + h1 * .35 + h2 * .3); }`,
     });
@@ -141,7 +141,7 @@ export function crearEscena(host, { onParcela } = {}) {
   }
 
   // sol, luna y estrellas
-  const ORBIT_C = V(2, 17, 2), ORBIT_R = 15, ORBIT_H = 13;
+  const ORBIT_C = V(2, 25, 6), ORBIT_R = 24, ORBIT_H = 19;
   const sun = new THREE.Group();
   {
     sun.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 2), new THREE.MeshBasicMaterial({ color: 0xffcf3f })));
@@ -162,16 +162,16 @@ export function crearEscena(host, { onParcela } = {}) {
   const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.35, transparent: true, opacity: 0, depthWrite: false });
   {
     const p = new Float32Array(320 * 3);
-    for (let i = 0; i < 320; i++) { const v = V(rand() - 0.5, rand() * 0.8 + 0.2, rand() - 0.5).normalize().multiplyScalar(20 + rand() * 11); p.set([ORB_C.x + v.x, ORB_C.y + 5 + v.y, ORB_C.z + v.z], i * 3); }
+    for (let i = 0; i < 320; i++) { const v = V(rand() - 0.5, rand() * 0.8 + 0.2, rand() - 0.5).normalize().multiplyScalar(32 + rand() * 16); p.set([ORB_C.x + v.x, ORB_C.y + 7 + v.y, ORB_C.z + v.z], i * 3); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3)); root.add(new THREE.Points(g, starMat));
   }
 
   // lluvia
-  const RAIN = 1600;
+  const RAIN = 3200;
   const rainGeo = new THREE.BufferGeometry();
   const rainPos = new Float32Array(RAIN * 6), rainV = new Float32Array(RAIN);
   for (let i = 0; i < RAIN; i++) {
-    const x = CENTER.x + (rand() - 0.5) * (BW - 1), z = CENTER.z + (rand() - 0.5) * (BD - 1), y = rand() * 30;
+    const x = CENTER.x + (rand() - 0.5) * (BW - 1), z = CENTER.z + (rand() - 0.5) * (BD - 1), y = rand() * 42;
     rainPos.set([x, y, z, x, y - 0.6, z], i * 6); rainV[i] = 18 + rand() * 8;
   }
   rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
@@ -224,16 +224,16 @@ export function crearEscena(host, { onParcela } = {}) {
   {
     const geos = [];
     const pathX = (z) => -2.6 + Math.sin(z * 0.22) * 0.5;
-    for (let z = 7.6; z < 15.0; z += 0.95) { const g = new THREE.CylinderGeometry(0.42 + rand() * 0.08, 0.46, 0.08, 7); g.rotateY(rand() * 3); g.translate(pathX(z), 0.03, z); geos.push(g); }
+    for (let z = 7.6; z < 28.4; z += 0.95) { if (z > 15.2 && z < 21.2) continue; const g = new THREE.CylinderGeometry(0.42 + rand() * 0.08, 0.46, 0.08, 7); g.rotateY(rand() * 3); g.translate(pathX(z), 0.03, z); geos.push(g); }
     const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ color: 0xbdb7aa, roughness: 0.95, flatShading: true })); m.receiveShadow = true; root.add(m);
   }
 
   // huerto: 6 parcelas con cerca baja
   const parcelas = [];
   const soilDry = new THREE.Color(0x9a7650), soilWet = new THREE.Color(0x4a3220);
-  {
+  for (const [fz0, fz1] of [[15.2, 21.0], [28.2, 34.0]]) {
     const fence = new THREE.MeshStandardMaterial({ color: 0x9a7350, roughness: 0.9, flatShading: true });
-    const fx0 = -3.8, fx1 = 9.8, fz0 = 15.2, fz1 = 21.0;
+    const fx0 = -3.8, fx1 = 9.8;
     for (let x = fx0; x <= fx1 + 0.01; x += 1.36) for (const z of [fz0, fz1]) if (!(z === fz0 && x > -3.5 && x < -1.5)) box(0.1, 0.7, 0.1, fence, x, 0.35, z);
     for (let z = fz0; z <= fz1 + 0.01; z += 1.45) for (const x of [fx0, fx1]) box(0.1, 0.7, 0.1, fence, x, 0.35, z);
     box(fx1 - fx0, 0.07, 0.06, fence, (fx0 + fx1) / 2, 0.55, fz1);
@@ -352,11 +352,29 @@ export function crearEscena(host, { onParcela } = {}) {
     }
     trees.push({ crown, phase: rand() * 6.28 });
   }
-  makeTree(-6.8, -12.0, 1.2); makeTree(8.5, -12.6, 1.3); makeTree(-16.5, 22.5, 1.05); makeTree(22.6, 4.8, 1.0); makeTree(6.0, 25.5, 0.9); makeTree(1.0, -13.5, 1.1);
-  for (const [x, z, s] of [[-7.6, 7.2, 0.9], [-7.0, -1.5, 1.0], [12.9, 2.5, 0.9], [-1.0, -8.6, 0.9], [4.5, -9.0, 1.0], [22.6, 22.0, 1.0], [-8.4, 18.5, 0.9], [11.0, 26.0, 0.9], [-3.0, 26.0, 1.0], [23.0, 9.0, 0.8]]) {
+  makeTree(-6.8, -12.0, 1.2); makeTree(8.5, -12.6, 1.3); makeTree(-17.5, 26.5, 1.05); makeTree(22.6, 4.8, 1.0); makeTree(6.0, 25.5, 0.9); makeTree(1.0, -13.5, 1.1);
+  // bordes del terreno ampliado
+  for (const [x, z, sc] of [[-31, 32, 1.2], [-24, 37, 1.0], [16, 37.5, 1.1], [27, 36.5, 1.25], [36, 30, 1.0], [36, 14, 1.15], [35.5, -6, 1.0], [34, -24, 1.2], [21, -25.5, 1.05],
+    [-13, -26, 1.1], [-20, 33, 0.95], [-30.5, 27, 0.9]]) makeTree(x, z, sc);
+  for (const [x, z, s] of [[-7.6, 7.2, 0.9], [30, 25, 1.0], [24, 31, 0.9], [-12, 36, 1.0], [35, 4, 0.9], [-2, -27, 0.9], [12, -27, 1.0], [-7.0, -1.5, 1.0], [12.9, 2.5, 0.9], [-1.0, -8.6, 0.9], [4.5, -9.0, 1.0], [22.6, 22.0, 1.0], [-8.4, 18.5, 0.9], [11.0, 26.0, 0.9], [-3.0, 26.0, 1.0], [23.0, 9.0, 0.8]]) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); root.add(g);
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.35, 1), LEAFS[Math.floor(rand() * LEAFS.length)]); m.position.set((rand() - 0.5) * 1.1, 0.45 + rand() * 0.35, (rand() - 0.5) * 1.1); m.scale.y = 0.85; m.castShadow = true; g.add(m); }
   }
+  // huerto de frutales: la fruta aparece en la copa según lo que haya madurado
+  const frutales = FRUTALES.map((f) => {
+    const t = new THREE.Group(); t.position.set(f.x, 0, f.z); root.add(t);
+    const tr = new THREE.CylinderGeometry(0.12, 0.2, 1.9, 6); tr.translate(0, 0.95, 0); const tm = new THREE.Mesh(tr, bark); tm.castShadow = true; t.add(tm);
+    const copa = new THREE.Group(); copa.position.y = 2.3; t.add(copa);
+    const hoja = LEAF(f.tipo === 'naranjo' ? 0x3f7a35 : 0x5d9a3c);
+    for (let i = 0; i < 9; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.3, 0), hoja); const a = rand() * 6.28, r = rand() * 0.9; m.position.set(Math.cos(a) * r, (rand() - 0.3) * 0.8, Math.sin(a) * r); m.castShadow = true; copa.add(m); }
+    const fm = new THREE.MeshStandardMaterial({ color: f.tipo === 'naranjo' ? 0xf28c1e : 0xd2342c, roughness: 0.5 });
+    const frutas = [];
+    for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), fm); const a = i * 2.4, r = 0.85 + (i % 3) * 0.2; m.position.set(Math.cos(a) * r, -0.3 + (i % 4) * 0.3, Math.sin(a) * r); copa.add(m); frutas.push(m); }
+    // cerco bajo alrededor del tronco
+    const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 5, 14), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 })); anillo.rotation.x = Math.PI / 2; anillo.position.y = 0.06; t.add(anillo);
+    return { copa, frutas, fase: rand() * 6 };
+  });
+
   // tronco para tallar madera (con virutas) y mirador de piedras
   {
     const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.5, 10), new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.9, flatShading: true }));
@@ -371,7 +389,7 @@ export function crearEscena(host, { onParcela } = {}) {
   // postes de luz
   const lamps = [];
   const haloMat = new THREE.SpriteMaterial({ map: glowTexture('rgba(255,214,150,.85)', 'rgba(255,170,80,.25)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
-  for (const [x, z, rot] of [[-5.4, 13.8, 0.4], [11.4, 11.2, Math.PI - 0.4], [13.0, 18.6, Math.PI / 2]]) {
+  for (const [x, z, rot] of [[-5.4, 13.8, 0.4], [11.4, 11.2, Math.PI - 0.4], [13.0, 18.6, Math.PI / 2], [-5.4, 26.6, 0.4]]) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; root.add(g);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 4.6, 10), darkMat); pole.position.y = 2.3; pole.castShadow = true; g.add(pole);
     box(1.1, 0.08, 0.08, darkMat, 0.5, 4.6, 0, g);
@@ -407,7 +425,7 @@ export function crearEscena(host, { onParcela } = {}) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(CORRAL.x1 - CORRAL.x0 - 0.4, CORRAL.z1 - CORRAL.z0 - 0.4), pastoMat);
     m.rotation.x = -Math.PI / 2; m.position.set((CORRAL.x0 + CORRAL.x1) / 2, 0.02, (CORRAL.z0 + CORRAL.z1) / 2); m.receiveShadow = true; root.add(m);
     const geos = [];
-    for (let i = 0; i < 140; i++) { const g = new THREE.ConeGeometry(0.1, 0.35 + rand() * 0.3, 4); g.translate(CORRAL.x0 + 0.5 + rand() * (CORRAL.x1 - CORRAL.x0 - 1), 0.2, CORRAL.z0 + 0.5 + rand() * (CORRAL.z1 - CORRAL.z0 - 1)); geos.push(g); }
+    for (let i = 0; i < 520; i++) { const g = new THREE.ConeGeometry(0.1, 0.35 + rand() * 0.3, 4); g.translate(CORRAL.x0 + 0.5 + rand() * (CORRAL.x1 - CORRAL.x0 - 1), 0.2, CORRAL.z0 + 0.5 + rand() * (CORRAL.z1 - CORRAL.z0 - 1)); geos.push(g); }
     var matas = new THREE.Mesh(mergeGeometries(geos), pastoMat); root.add(matas);
   }
   const rojoGranero = new THREE.MeshStandardMaterial({ color: 0xa63b2c, roughness: 0.8, flatShading: true });
@@ -747,6 +765,7 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (tp === 'jugarPerro') f = s.agentes.find((x) => x.tipo === 'perro')?.pos;
       else if (tp === 'curar') f = s.ganado.find((g) => g.id === T.animal)?.pos;
       else if (tp === 'reparar') f = LUGAR.taller;
+      else if (tp === 'recogerFruta') f = s.frutales?.[T.arbol];
       else if (tp === 'alimentar' || ((tp === 'comer' || tp === 'beber') && v.kind !== 'humano')) f = LUGAR.comedero;
       else if (['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
       else if (tp === 'contemplar') v.yaw = angLerp(v.yaw, -Math.PI / 4, Math.min(1, dt * 4));
@@ -773,7 +792,7 @@ export function crearEscena(host, { onParcela } = {}) {
       const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tipo) ? 1 : 0;
       const asiento = tipo === 'tallar' ? 0.5 : 0.85;
       const agachado = tipo === 'jugarGato' || tipo === 'ordenar' || tipo === 'jugarPerro' || tipo === 'curar';
-      const bend = ['regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
+      const bend = ['recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
       const zancada = v.ficha.fisico?.andar !== 'cadera';
@@ -887,7 +906,7 @@ export function crearEscena(host, { onParcela } = {}) {
       const pa = rainGeo.attributes.position;
       for (let i = 0; i < RAIN; i++) {
         let y = pa.getY(i * 2) - rainV[i] * dt;
-        if (y < 0.1) y = 28 + Math.random() * 3;
+        if (y < 0.1) y = 40 + Math.random() * 3;
         pa.setY(i * 2, y); pa.setY(i * 2 + 1, y - 0.6);
       }
       pa.needsUpdate = true;
@@ -933,6 +952,7 @@ export function crearEscena(host, { onParcela } = {}) {
     comida.visible = s.rec.comedero > 0.05; comida.scale.set(1.2, 0.3 + Math.min(1, s.rec.comedero / 2) * 0.5, 1.2);
     aguaBowl.visible = s.rec.bebedero > 0.2;
     for (const tr of trees) { tr.crown.rotation.z = Math.sin(t * 0.9 + tr.phase) * 0.02 * (1 + lluviaK); }
+    (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); v.copa.rotation.z = Math.sin(t * 0.9 + v.fase) * 0.02 * (1 + lluviaK); });
 
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     efectos(s, dt);

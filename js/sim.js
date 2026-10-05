@@ -24,10 +24,10 @@ export const CULTIVOS = {
 };
 
 // ---------------------------------------------------------------- mapa (coordenadas de la escena)
-export const BLOQUE = { x0: -20, x1: 24, z0: -16, z1: 28 };
+export const BLOQUE = { x0: -34, x1: 38, z0: -28, z1: 40 };   // terreno ampliado (antes 44 × 44)
 export const CASA = { x0: -6.4, x1: 12.4, z0: -6.6, z1: 6.6 };              // casa + terraza (no se atraviesa)
-export const CORRAL = { x0: -19, x1: -9.8, z0: -14, z1: 14, puerta: { x: -9.8, z: 8.5 } };
-export const GALLINERO = { x0: 14.2, x1: 22.5, z0: -14, z1: -3.2, puerta: { x: 14.2, z: -5.0 } };
+export const CORRAL = { x0: -31.5, x1: -9.8, z0: -25, z1: 22, puerta: { x: -9.8, z: 8.5 } };   // potrero grande
+export const GALLINERO = { x0: 14.2, x1: 30, z0: -20, z1: -3.2, puerta: { x: 14.2, z: -5.0 } };
 export const PISCINA = { x0: 14, x1: 21, z0: 11.5, z1: 17 };
 export const LUGAR = {
   puerta: { x: -2.4, z: 7.0 },
@@ -46,11 +46,20 @@ export const LUGAR = {
   grano: { x: 15.8, z: -6.0 },
   piscina: { x: 13.2, z: 14.2 },
 };
-export const PASEO = [{ x: -8.4, z: 8.6 }, { x: -8.4, z: 26.2 }, { x: 22.8, z: 26.2 }, { x: 22.8, z: 19.5 }, { x: 12.8, z: 19.0 }, { x: 12.8, z: 8.6 }, { x: 1.0, z: 8.6 }];
+export const PASEO = [{ x: -8.4, z: 8.6 }, { x: -8.4, z: 37.0 }, { x: 34.0, z: 37.0 }, { x: 34.0, z: 19.5 }, { x: 12.8, z: 19.0 }, { x: 12.8, z: 8.6 }, { x: 1.0, z: 8.6 }];
 export const PARCELAS = [
   { x: -1.3, z: 16.7 }, { x: 3.0, z: 16.7 }, { x: 7.3, z: 16.7 },
   { x: -1.3, z: 19.5 }, { x: 3.0, z: 19.5 }, { x: 7.3, z: 19.5 },
+  // segundo huerto (terreno ampliado)
+  { x: -1.3, z: 29.7 }, { x: 3.0, z: 29.7 }, { x: 7.3, z: 29.7 },
+  { x: -1.3, z: 32.5 }, { x: 3.0, z: 32.5 }, { x: 7.3, z: 32.5 },
 ];
+// huerto de frutales detrás de la casa: manzanos (verano y otoño) y naranjos (otoño e invierno)
+export const FRUTALES = [
+  { x: -5, z: -19, tipo: 'manzano' }, { x: 1, z: -19, tipo: 'naranjo' }, { x: 7, z: -19, tipo: 'manzano' },
+  { x: -5, z: -24.5, tipo: 'naranjo' }, { x: 1, z: -24.5, tipo: 'manzano' }, { x: 7, z: -24.5, tipo: 'naranjo' },
+];
+export const FRUTA = { manzano: { nombre: 'manzanas', estaciones: [1, 2] }, naranjo: { nombre: 'naranjas', estaciones: [2, 3] } };
 export const HABILIDADES = { huerto: 'Huerto', agua: 'Agua', cuidado: 'Cuidado', casa: 'Cocina y casa', granja: 'Granja', carpinteria: 'Carpintería' };
 // mejoras que se desbloquean cuando alguien llega a ese nivel en el oficio
 export const DESBLOQUEOS = {
@@ -65,7 +74,7 @@ const XP_OCIO = { tallar: 'carpinteria', jugarGato: 'cuidado', jugarPerro: 'cuid
 const AREA = {
   sembrar: 'huerto', regar: 'huerto', cosechar: 'huerto', limpiar: 'huerto', sacarAgua: 'agua', filtrar: 'agua', alimentar: 'cuidado',
   cocinar: 'casa', limpiarCasa: 'casa', tejer: 'casa', ordenar: 'granja', recogerHuevos: 'granja', esquilar: 'granja', segar: 'granja', alimentarGanado: 'granja',
-  reparar: 'carpinteria', curar: 'cuidado',
+  reparar: 'carpinteria', curar: 'cuidado', recogerFruta: 'huerto',
 };
 
 // ---------------------------------------------------------------- azar reproducible
@@ -268,7 +277,8 @@ function nuevoAgente(p) {
 const ZONA = (tipo) => (tipo === 'vaca' || tipo === 'oveja' ? CORRAL : GALLINERO);
 export const esAve = (tipo) => tipo === 'gallina' || tipo === 'gallo' || tipo === 'pollito';
 const CRECER_DIAS = { vaca: 112, oveja: 56, pollito: 28 };
-const CUPO = { corral: 9, gallinero: 14 };
+const CUPO = { corral: 18, gallinero: 24 };
+const AREA_PASTO = 2.6;   // el potrero es más grande: cada animal gasta menos porcentaje del pasto
 function puntoEn(s, R, margen = 1.2) { return { x: R.x0 + margen + rng(s) * (R.x1 - R.x0 - 2 * margen), z: R.z0 + margen + rng(s) * (R.z1 - R.z0 - 2 * margen) }; }
 function nuevoAnimalGranja(s, g) {
   return { id: g.id, tipo: g.tipo, sexo: g.sexo || (g.tipo === 'gallo' ? 'm' : 'h'), crec: 1, madre: null, ultimoParto: -1, empolla: 0,
@@ -287,6 +297,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     desbloqueos: [], zorro: null,
     pareja: { afinidad: 70, tension: 0, pendiente: null, discusiones: 0, charlas: 0, intimidad: 0, ultimaCena: -1, ultimaIntimidad: -1, recetaNueva: false },
     parcelas: PARCELAS.map((p, i) => ({ id: i, x: p.x, z: p.z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null })),
+    frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -373,7 +384,9 @@ function tick(s, d) {
 function nuevoDia(s) {
   if (s.sequia > 0 && --s.sequia === 0) log(s, 'Terminó la sequía.', 'clima');
   decidirClima(s);
-  s.rec.raciones *= mejora(s, 'conservas') ? 0.997 : 0.992;
+  // lo guardado se echa a perder; mientras más se acumula, más se pudre (no cabe todo en la despensa)
+  const R0 = s.rec.raciones;
+  s.rec.raciones *= (mejora(s, 'conservas') ? 0.997 : 0.992) - (R0 > 150 ? 0.006 : 0) - (R0 > 350 ? 0.012 : 0);
   s.rec.leche *= mejora(s, 'conservas') ? 0.8 : 0.7;        // la leche se corta rápido
   s.rec.huevos *= mejora(s, 'conservas') ? 0.98 : 0.95;
   // la casa se desgasta (más con las lluvias); hay que repararla
@@ -449,6 +462,12 @@ function eventos(s) {
     g.edad += 1 / DIAS_ANIO;
     const L = LONGEVIDAD[g.tipo], sobra = g.edad - L * 0.85;
     if (sobra > 0 && rng(s) < 0.002 + sobra * 0.004) morirAnimal(s, g, 'de vejez');
+  }
+  // los frutales maduran en su temporada; si nadie recoge, la fruta se cae
+  for (const f of s.frutales || []) {
+    if (FRUTA[f.tipo].estaciones.includes(estacion(s))) f.fruta = Math.min(14, f.fruta + 1.3 + rng(s) * 0.6);
+    else f.fruta *= 0.6;
+    if (f.fruta > 12) f.fruta -= 0.8;
   }
   s.pareja.afinidad = Math.max(0, s.pareja.afinidad - 2.2 - Math.max(0, s.pareja.afinidad - 70) * 0.08);   // la rutina desgasta: cuidar la relación cuesta más cuando ya está bien
   // enfermedades del ganado
@@ -638,7 +657,7 @@ function actualizarGranja(s, d) {
         if (e !== 3) { g.hambre = Math.min(100, g.hambre + 18 * k); g.comiendo = !g.refugio; }   // picotean bichos
         else if (R.grano > 0.02) { g.hambre = Math.min(100, g.hambre + 30 * k); R.grano = Math.max(0, R.grano - 0.004 * 30 * k); g.comiendo = true; }
       } else if (!g.refugio && G.pasto > 6 && (e !== 3 || R.pesebre < 0.5)) {   // en invierno el pasto no crece, pero lo que queda se come
-        g.hambre = Math.min(100, g.hambre + 26 * k); G.pasto = Math.max(0, G.pasto - (g.tipo === 'vaca' ? 0.06 : 0.03) * (g.crec < 1 ? 0.5 : 1) * 26 * k); g.comiendo = true;
+        g.hambre = Math.min(100, g.hambre + 26 * k); G.pasto = Math.max(0, G.pasto - (g.tipo === 'vaca' ? 0.06 : 0.03) * (g.crec < 1 ? 0.5 : 1) * 26 * k / AREA_PASTO); g.comiendo = true;
       } else if (R.pesebre > 0.05) {
         const p = LUGAR.pesebre;
         if (Math.hypot(g.pos.x - p.x, g.pos.z - p.z) > 1.4) g.dest = { x: p.x - 0.9, z: p.z + (rng(s) - 0.5) * 1.6 };
@@ -730,7 +749,7 @@ const DURACION = {
   comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
   descansar: 40, leer: 60, tallar: 50, contemplar: 35, jugarGato: 25, pasearPerro: 0, conversar: 25, cocinar: 45, cenar: 35, limpiarCasa: 40, siesta: 50,
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
-  reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20,
+  reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
 };
 const OCIOS = ['descansar', 'leer', 'tallar', 'contemplar', 'siesta', 'tejer', 'nadar', 'recogerFlores', 'jugarPerro'];
 const vaca = (s) => s.ganado.filter((g) => g.vivo && g.tipo === 'vaca' && g.sexo === 'h' && g.crec >= 1).sort((a, b) => b.ubre - a.ubre)[0];
@@ -754,6 +773,7 @@ function crearTarea(s, a, tipo, extra = {}) {
   else if (tipo === 'alimentarGanado') t.destino = { x: LUGAR.pesebre.x + 1.0, z: LUGAR.pesebre.z + 0.8 };
   else if (tipo === 'nadar') t.destino = { ...LUGAR.piscina };
   else if (tipo === 'reparar') t.destino = { x: LUGAR.taller.x + 0.6, z: LUGAR.taller.z + 1.0 };
+  else if (tipo === 'recogerFruta') { const f = s.frutales[t.arbol]; t.destino = { x: f.x + 1.3, z: f.z + 0.6 }; }
   else if (tipo === 'recogerFlores') t.destino = { x: LUGAR.mirador.x + 3 + (rng(s) - 0.5) * 3, z: LUGAR.mirador.z - 2 + (rng(s) - 0.5) * 2 };
   else if (tipo === 'curar') { const g = s.ganado.find((x) => x.id === t.animal); t.destino = g ? { x: g.pos.x + 1.0, z: g.pos.z + 0.4 } : { ...LUGAR.establo }; }
   else if (tipo === 'jugarPerro') { const p = s.agentes.find((x) => x.tipo === 'perro' && x.vivo); t.destino = p ? { x: p.pos.x + 1.2, z: p.pos.z + 0.4 } : { ...LUGAR.banca }; }
@@ -820,7 +840,7 @@ function elegirTarea(s, a) {
   const hambreGranja = s.ganado.some((g) => g.vivo && g.hambre < 30 && !esAve(g.tipo));
   if (animalesGranja && !yaHace('alimentarGanado') && ((R.pesebre < 3 && (e === 3 || s.granja.pasto < 25 || hambreGranja) && (R.heno >= 2 || (hambreGranja && R.raciones > reservaHumana))) || (R.bebederoGanado < 15 && R.cruda >= 20) || (e === 3 && R.grano < 0.5 && R.raciones >= 1)))
     opciones.push([hambreGranja ? 92 : 72, 'alimentarGanado']);
-  { const c = elegirCultivo(s, a); const p = c && s.parcelas.find((p) => p.estado === 'vacia' && libre(p)); if (p) opciones.push([70, 'sembrar', { parcela: p.id, cultivo: c }]); }
+  { const c = elegirCultivo(s, a); const p = c && s.parcelas.find((p) => p.estado === 'vacia' && libre(p)); if (p) opciones.push([comidaTotal(s) > 300 ? 28 : 70, 'sembrar', { parcela: p.id, cultivo: c }]); }
   if ((R.comedero < 0.5 || R.bebedero < 2) && (comidaTotal(s) >= 1 || R.cruda >= 3) && !yaHace('alimentar') && s.agentes.some((x) => x.tipo !== 'humano' && x.vivo)) opciones.push([65, 'alimentar']);
   { const p = s.parcelas.find((p) => p.estado === 'muerta' && libre(p)); if (p) opciones.push([60, 'limpiar', { parcela: p.id }]); }
   if (R.nido >= 2 && !yaHace('recogerHuevos')) opciones.push([55, 'recogerHuevos']);
@@ -829,6 +849,7 @@ function elegirTarea(s, a) {
   if (R.lana >= 4 && R.abrigos < humanos(s).length + (e >= 2 ? 0 : -1) && !yaHace('tejer')) opciones.push([e >= 2 ? 48 : 30, 'tejer']);
   if (R.potable < consumoAgua(s) * (3 + resp * 4) && R.cruda >= 30 && !yaHace('filtrar')) opciones.push([40, 'filtrar']);
   { const g = s.ganado.find((x) => x.vivo && x.enfermo > 0); if (g && !yaHace('curar')) opciones.push([g.salud < 50 ? 88 : 62, 'curar', { animal: g.id }]); }
+  { const f = (s.frutales || []).filter((x) => x.fruta >= 6).sort((x, y) => y.fruta - x.fruta)[0]; if (f && !yaHace('recogerFruta')) opciones.push([f.fruta >= 11 ? 68 : 54, 'recogerFruta', { arbol: f.id }]); }
   if (s.casa.estado < 55 + resp * 20 && !yaHace('reparar')) opciones.push([s.casa.estado < 35 ? 82 : 46 + (tiene(a, 'manitas') ? 14 : 0), 'reparar']);
   const henoMeta = 50 + 32 * enCorral(s);
   if (s.granja.pasto >= 50 && (e === 1 || e === 2) && R.heno < henoMeta && !yaHace('segar')) opciones.push([R.heno < henoMeta * 0.75 && e === 2 ? 66 : 40, 'segar']);
@@ -910,7 +931,7 @@ export const ACCION = {
   leer: 'Leyendo', tallar: 'Tallando madera', contemplar: 'Contemplando el paisaje', jugarGato: 'Jugando con el gato', pasearPerro: 'Paseando al perro',
   conversar: 'Conversando', cocinar: 'Cocinando la cena', cenar: 'Cenando juntos', limpiarCasa: 'Limpiando la casa', siesta: 'Tomando la siesta',
   ordenar: 'Ordeñando a la vaca', recogerHuevos: 'Recogiendo huevos', esquilar: 'Esquilando una oveja', segar: 'Segando pasto para heno', alimentarGanado: 'Alimentando la granja',
-  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', reconciliar: 'Haciendo las paces',
+  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', reconciliar: 'Haciendo las paces',
   recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
   seguir: 'Acompañando a la pareja', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
 };
@@ -920,7 +941,7 @@ const VA_A = {
   descansar: 'Va a la banca', leer: 'Va a leer', tallar: 'Va a tallar madera', contemplar: 'Va a mirar el paisaje', jugarGato: 'Va a jugar con el gato',
   pasearPerro: 'Paseando al perro', conversar: 'Va a conversar', cocinar: 'Va a cocinar', cenar: 'Va a cenar', limpiarCasa: 'Va a limpiar la casa', siesta: 'Va a la siesta',
   ordenar: 'Va a ordeñar', recogerHuevos: 'Va al gallinero', esquilar: 'Va a esquilar', segar: 'Va a segar', alimentarGanado: 'Va al pesebre', tejer: 'Va a tejer', nadar: 'Va a la piscina',
-  reparar: 'Va al taller a reparar', curar: 'Va a curar un animal', reconciliar: 'Va a hacer las paces', recogerFlores: 'Va a recoger flores', jugarPerro: 'Va a jugar con el perro',
+  reparar: 'Va al taller a reparar', curar: 'Va a curar un animal', recogerFruta: 'Va a los frutales', reconciliar: 'Va a hacer las paces', recogerFlores: 'Va a recoger flores', jugarPerro: 'Va a jugar con el perro',
 };
 
 const OCIO_LLENA = { leer: 0.7, tallar: 0.75, contemplar: 0.8, jugarGato: 1.1, descansar: 0.35, siesta: 0.3, tejer: 0.6, nadar: 1.1, recogerFlores: 0.8, jugarPerro: 1.2 };
@@ -1127,7 +1148,7 @@ function completar(s, a, T) {
     case 'ordenar': { const v = vaca(s); if (v) { const l = Math.round(v.ubre * (mejora(s, 'ordenoExperto') ? 12 : 10)) / 10; R.leche += l; s.stats.leche += l; v.ubre = 0; v.quieta = 0; log(s, `${a.nombre} ordeñó a ${v.nombre}: ${l.toFixed(1)} L de leche.`, 'bueno'); } break; }
     case 'recogerHuevos': { const n = Math.floor(R.nido); R.huevos += n; R.nido -= n; s.stats.huevos += n; if (n) log(s, `${a.nombre} recogió ${n} huevo${n > 1 ? 's' : ''} del gallinero.`, 'info'); break; }
     case 'esquilar': { const o = s.ganado.find((g) => g.id === T.oveja); if (o) { const l = Math.round(o.lana / 25) + (mejora(s, 'esquilaFina') ? 1 : 0); R.lana += l; s.stats.lana += l; o.lana = 0; o.quieta = 0; log(s, `${a.nombre} esquiló a ${o.nombre}: +${l} de lana.`, 'bueno'); } break; }
-    case 'segar': { const h = Math.min(16, s.granja.pasto / 4); R.heno += h; s.granja.pasto -= h * 1.3; log(s, `${a.nombre} segó pasto: +${Math.round(h)} de heno para el invierno.`, 'info'); break; }
+    case 'segar': { const h = Math.min(16, s.granja.pasto / 4); R.heno += h; s.granja.pasto -= h * 1.3 / AREA_PASTO; log(s, `${a.nombre} segó pasto: +${Math.round(h)} de heno para el invierno.`, 'info'); break; }
     case 'alimentarGanado':
       if (R.heno >= 1 && R.pesebre < 12) { const c = Math.min(12 - R.pesebre, R.heno); R.heno -= c; R.pesebre += c; }
       else if (R.heno < 1 && R.raciones > 30 + humanos(s).length * 28 && R.pesebre < 4) { R.raciones -= 4; R.pesebre += 8; log(s, `Se acabó el heno: ${a.nombre} les dio verduras de la despensa a los animales.`, 'aviso'); }
@@ -1146,6 +1167,16 @@ function completar(s, a, T) {
       const sube = 30 * mod(a, 'carpinteria') * (1 + 0.05 * nivel(a.xp.carpinteria));
       s.casa.estado = Math.min(100, (s.casa.estado ?? 100) + sube);
       log(s, `🔨 ${a.nombre} reparó la casa (${Math.round(s.casa.estado)} %).`, 'bueno'); recuerdo(s, a, 'Arregló la casa', 4, 12);
+      break;
+    }
+    case 'recogerFruta': {
+      const f = s.frutales[T.arbol];
+      if (f && f.fruta >= 1) {
+        const n = Math.floor(f.fruta), rac = Math.round(n * 0.55 * (1 + 0.03 * nivel(a.xp.huerto)));
+        f.fruta -= n; R.raciones += rac; s.stats.raciones += rac;
+        log(s, `${a.nombre} recogió ${n} ${FRUTA[f.tipo].nombre} (+${rac} raciones). ${f.tipo === 'manzano' ? '🍎' : '🍊'}`, 'bueno');
+        recuerdo(s, a, `Fruta fresca del ${f.tipo}`, 3, 8);
+      }
       break;
     }
     case 'curar': {
@@ -1344,6 +1375,8 @@ export function cargar() {
       a.memorias ??= []; a.xp.carpinteria ??= 0;
       if (a.tipo !== 'humano') a.vinculo ??= Object.fromEntries(PERSONAJES.filter((h) => h.tipo === 'humano').map((h) => [h.id, Math.round((h.habitos?.animales?.[a.id] ?? 0.5) * 100)]));
     }
+    for (let i = s.parcelas.length; i < PARCELAS.length; i++) s.parcelas.push({ id: i, x: PARCELAS[i].x, z: PARCELAS[i].z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null });
+    s.frutales ??= FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 }));
     s.casa.estado ??= 100; s.desbloqueos ??= []; s.pareja.tension ??= 0; s.pareja.pendiente ??= null;
     for (const g of s.ganado) g.enfermo ??= 0;
     return s;
