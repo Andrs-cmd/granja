@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { montarUtileria } from './utileria.js';
 import { armarPerro, armarGato } from './mascotas3d.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -1230,7 +1231,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   function sitioDe(a, s, t) {
     const T = a.tarea, tp = T?.tipo, i = a.id === 'tomas' ? 0 : 1;
     if (a.tipo === 'humano') {
-      if (tp === 'dormir') return SITIO['cama' + i];
+      if (tp === 'dormir' || tp === 'reposo') return SITIO['cama' + i];
       if (tp === 'cocinar' || tp === 'hacerConservas' || tp === 'hornear') return SITIO.estufa;
       if (tp === 'entrenar') return { ...SITIO['sala' + i], 5: 'entrenar' };
       if (tp === 'hacerQueso') return SITIO.fregadero;
@@ -1674,6 +1675,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     if (hornillas) hornillas.emissiveIntensity = cocinando ? 1.6 + Math.sin(t * 9) * 0.3 : 0;
     if (fuego) fuego.emissiveIntensity = (night > 0.4 || s.clima.lluvia || (s.t / MIN_DIA / 28 | 0) % 4 === 3) ? 1.8 + Math.sin(t * 7) * 0.4 + Math.sin(t * 13) * 0.2 : 0;
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
+    crisisVis(s, t, dt);
     efectos(s, dt);
     controls.update();
     renderer.render(scene, camera);
@@ -1683,8 +1685,69 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // ------------------------------------------------------------ efectos flotantes: corazones, charla, discusión, kikirikí
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const efectosVis = new Map();
-  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓', ladrido: '🐕💥', pelea: '💥😾', alboroto: '🐔💨' };
+  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓', ladrido: '🐕💥', pelea: '💥😾', alboroto: '🐔💨', llanto: '😢', borrachera: '🍷💫', quiebre: '💢😤' };
   let tReal = 0;
+  // ------------------------------------------------------------ crisis a la vista: fuego, lobos y ladrón
+  const fuegosVis = new Map();
+  const llamaMat = new THREE.MeshStandardMaterial({ color: 0xff8a1a, emissive: 0xff5a00, emissiveIntensity: 2.2, transparent: true, opacity: 0.85, depthWrite: false });
+  const llamaMat2 = new THREE.MeshStandardMaterial({ color: 0xffd34a, emissive: 0xffb000, emissiveIntensity: 2.5, transparent: true, opacity: 0.8, depthWrite: false });
+  const humoMat = new THREE.MeshStandardMaterial({ color: 0x55504a, transparent: true, opacity: 0.35, depthWrite: false, roughness: 1 });
+  function crearFuego(F) {
+    const g = new THREE.Group(); root.add(g);
+    const llamas = [];
+    for (let k = 0; k < 9; k++) { const m = new THREE.Mesh(new THREE.ConeGeometry(0.35 + Math.random() * 0.25, 1.2 + Math.random() * 0.8, 6), k % 2 ? llamaMat : llamaMat2); m.position.set((Math.random() - 0.5) * 1.6, 0.6, (Math.random() - 0.5) * 1.6); g.add(m); llamas.push(m); }
+    const humo = []; for (let k = 0; k < 10; k++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), humoMat); g.add(m); humo.push({ m, f: Math.random() }); }
+    const luz = new THREE.PointLight(0xff7a2a, 0, 14, 1.8); luz.position.y = 1.5; g.add(luz);
+    const y = F.lugar === 'arbol' ? 3.6 : 0;
+    g.position.set(F.x, y, F.z);
+    return { g, llamas, humo, luz };
+  }
+  let lobosVis = null, plantillaPerro = null;
+  const ladronVis = (() => {
+    const g = new THREE.Group(); g.visible = false; root.add(g);
+    const capa = new THREE.MeshStandardMaterial({ color: 0x1d1e22, roughness: 1 });
+    const c = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.1, 4, 10), capa); c.position.y = 0.9; c.castShadow = true; g.add(c);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.55, 10), capa); cap.position.y = 1.85; g.add(cap);
+    const saco = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshStandardMaterial({ color: 0x8a7350 })); saco.position.set(0.25, 1.2, -0.3); g.add(saco);
+    return g;
+  })();
+  function crisisVis(s, t, dt) {
+    // fuego
+    const vivos = new Set();
+    for (const F of s.fuegos || []) {
+      vivos.add(F.id);
+      let v = fuegosVis.get(F.id); if (!v) { v = crearFuego(F); fuegosVis.set(F.id, v); }
+      const k = Math.max(0.15, F.intensidad);
+      v.llamas.forEach((m, i) => { const fl = 0.75 + Math.sin(t * 9 + i * 1.7) * 0.18 + Math.sin(t * 15 + i) * 0.1; m.scale.set(k * fl, k * (1 + fl * 0.6), k * fl); m.position.y = 0.6 * k; });
+      v.humo.forEach((h) => { h.f = (h.f + dt * 0.25) % 1; h.m.position.set(Math.sin(h.f * 9 + h.m.id) * 0.6 * k, 1 + h.f * 5 * k, Math.cos(h.f * 7 + h.m.id) * 0.6 * k); h.m.scale.setScalar(0.6 + h.f * 1.6 * k); });
+      v.luz.intensity = 25 * k * (0.85 + Math.sin(t * 13) * 0.15);
+    }
+    for (const [id, v] of fuegosVis) if (!vivos.has(id)) { root.remove(v.g); fuegosVis.delete(id); }
+    // lobos: una manada gris (el modelo del perro, más oscuro)
+    const W = s.lobos;
+    if (W && plantillaPerro && !lobosVis) {
+      lobosVis = [];
+      for (let i = 0; i < 4; i++) {
+        const sc = SkeletonUtils.clone(plantillaPerro.scene);
+        sc.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); o.material.color.set(0x6b665c); } });
+        const ctrl = armarPerro({ scene: sc, animations: plantillaPerro.animations }, 0.85);
+        root.add(ctrl.raiz); lobosVis.push({ ctrl, prev: null });
+      }
+    }
+    if (lobosVis) lobosVis.forEach((L, i) => {
+      const vis = !!W && i < W.n && s.t >= W.llegan - 30;
+      L.ctrl.raiz.visible = vis; if (!vis) { L.prev = null; return; }
+      const ang = i * 2.1 + t * 0.3, x = W.x + Math.cos(ang) * (1 + i * 0.4), z = W.z + Math.sin(ang) * (1 + i * 0.4);
+      const prev = L.prev || { x, z }; const dx = x - prev.x, dz = z - prev.z;
+      L.ctrl.raiz.position.set(x, 0, z); if (Math.hypot(dx, dz) > 1e-4) L.ctrl.raiz.rotation.y = Math.atan2(-dz, dx);
+      L.ctrl.estado(Math.hypot(dx, dz) / Math.max(dt, 1e-3) > 0.5 ? 'corre' : 'quieto', 1.4); L.ctrl.update(dt); L.prev = { x, z };
+    });
+    // ladrón
+    const Lr = s.ladron;
+    ladronVis.visible = !!Lr && s.t >= Lr.llega;
+    if (ladronVis.visible) { ladronVis.position.set(Lr.x, Math.abs(Math.sin(t * 8)) * 0.05, Lr.z); ladronVis.rotation.y = Math.atan2(-(8 - Lr.z), 4 - Lr.x); }
+  }
+
   // ------------------------------------------------------------ cuerpos reales (Universal Base Characters de Quaternius, CC0) con animaciones
   // el muñeco de cajas sigue calculando dónde está cada uno y qué hace (queda invisible);
   // el cuerpo nuevo va montado encima y elige la animación según la tarea
@@ -1716,6 +1779,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     for (const [id, [u, armar, alto]] of Object.entries(MASC)) {
       cargar(u).then((g) => {
         const v = vis[id]; if (!v) return;
+        if (id === 'nube') plantillaPerro = { scene: SkeletonUtils.clone(g.scene), animations: g.animations };
         const ctrl = armar(g, alto);
         v.g.children.forEach((c) => { c.visible = false; });
         v.g.add(ctrl.raiz); v.mascota = ctrl;
@@ -1731,9 +1795,9 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     if (prev) prev.fadeOut(0.3);
     v.clip = nombre;
   }
-  const RODILLA = ['sembrar', 'cosechar', 'limpiar', 'cuidarJardin', 'recogerFlores', 'cosecharHierba', 'vendimia', 'regar', 'fumigar', 'arrancar', 'abonar', 'renovar', 'construir', 'reparar'];
+  const RODILLA = ['curarHerida', 'repararPozo', 'sembrar', 'cosechar', 'limpiar', 'cuidarJardin', 'recogerFlores', 'cosecharHierba', 'vendimia', 'regar', 'fumigar', 'arrancar', 'abonar', 'renovar', 'construir', 'reparar'];
   const AGACHADO = ['ordenar', 'cepillar', 'curar', 'jugarGato', 'jugarPerro', 'esquilar', 'recogerHuevos'];
-  const CARGA = ['sacarAgua', 'alimentarGanado', 'segar', 'alimentar', 'recogerFruta', 'voltearCompost', 'secar'];
+  const CARGA = ['apagarFuego', 'sacarAgua', 'alimentarGanado', 'segar', 'alimentar', 'recogerFruta', 'voltearCompost', 'secar'];
   const SENTADO_FUERA = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir', 'tomarVino', 'fumar'];
   const CHARLA = ['conversar', 'reconciliar', 'tomarVino', 'fumar', 'cenar'];
   function poseAgente(a, v, s, t, dt) {
@@ -1835,6 +1899,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     update,
     seleccionar(i) { seleccion = i; },
     _vis: vis,   // (depuración)
+    _fuegos: fuegosVis,
     // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
     proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,

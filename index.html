@@ -81,6 +81,21 @@
     body.con-dilema .caption { bottom: auto; top: 22px; }
   }
   @media (max-width: 640px) { .fichapj { bottom: auto; top: 12px; } .influ { bottom: auto; top: 8px; left: auto; right: 10px; transform: none; font-size: 11px; } }
+  /* alertas y prioridades (estilo RimWorld) */
+  .alertas { position: fixed; right: 12px; bottom: 70px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 46vw; pointer-events: none; }
+  .alertas div { font-size: 11.5px; padding: 4px 9px; border-radius: 8px; background: rgba(24,22,30,.86); border-left: 3px solid #e3b341; color: #f1eee8; }
+  .alertas div.rojo { border-left-color: #e0574f; background: rgba(60,18,18,.88); }
+  .btn-trabajo { position: fixed; left: 12px; bottom: 20px; z-index: 5; background: rgba(18,18,22,.7); color: #f1eee8; border: 1px solid rgba(255,255,255,.15); border-radius: 99px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .prioridades { position: fixed; inset: 0; z-index: 8; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+  .prioridades.off { display: none; }
+  .prioridades .caja { background: rgba(24,22,30,.97); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 14px 16px; width: min(560px, calc(100vw - 24px)); }
+  .prioridades h3 { margin: 0 0 4px; font-size: 14px; } .prioridades p { margin: 0 0 10px; font-size: 11.5px; opacity: .7; }
+  .prioridades table { width: 100%; border-collapse: collapse; font-size: 12px; } .prioridades th { font-weight: 600; font-size: 11px; opacity: .75; padding: 4px; }
+  .prioridades td { padding: 3px; text-align: center; } .prioridades td:first-child { text-align: left; font-weight: 600; }
+  .prioridades td button { width: 34px; height: 28px; border-radius: 7px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+  .prioridades td button.p1 { background: #2e7d4f; } .prioridades td button.p2 { background: #4b7a3a; } .prioridades td button.p4 { background: #5a4a2a; } .prioridades td button.p0 { background: rgba(255,255,255,.02); opacity: .5; }
+  .prioridades .cerrarP { margin-top: 10px; float: right; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); color: inherit; border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  @media (max-width: 640px) { .alertas { top: 40px; bottom: auto; right: 8px; max-width: 60vw; } .alertas div { font-size: 10.5px; padding: 3px 7px; } .btn-trabajo { bottom: 64px; } body.datos .alertas, body.datos .btn-trabajo { display: none; } }
   #loader { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: #1b1a17; color: #a3a09a; font: 600 12px ui-monospace, Consolas, monospace; letter-spacing: .12em; transition: opacity .6s; }
 
   @media (max-width: 1000px) { .card { padding: 8px 9px; } .pj .act { font-size: 11px; } .grid { font-size: 11.5px; } }
@@ -118,6 +133,9 @@
 <div class="dilema off" id="dilema"></div>
 <div class="fichapj off" id="fichapj"></div>
 <div class="influ" id="influ" title="Influencia: se recarga cada día"></div>
+<div class="alertas" id="alertas"></div>
+<button class="btn-trabajo" id="btnTrabajo">⚙ Trabajo</button>
+<div class="prioridades off" id="prioridades"><div class="caja"><h3>Prioridades de trabajo</h3><p>1 = lo hace primero · 4 = lo deja para el final · – = no lo hace (salvo emergencias). Toca una casilla para cambiarla.</p><table id="tablaP"></table><button class="cerrarP" id="cerrarP">Listo</button></div></div>
 
 <script type="importmap">
 { "imports": {
@@ -323,7 +341,28 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+
+// ---------------------------------------------------------------- alertas y prioridades de trabajo
+const elAlertas = document.getElementById('alertas'), elPrio = document.getElementById('prioridades'), tablaP = document.getElementById('tablaP');
+let htmlAlertas = '';
+function pintarAlertas() {
+  const h = Sim.alertas(estado).sort((x, y) => (x[0] === 'rojo' ? 0 : 1) - (y[0] === 'rojo' ? 0 : 1)).slice(0, 7).map(([n, t]) => `<div class="${n}">${esc(t)}</div>`).join('');
+  if (h !== htmlAlertas) { elAlertas.innerHTML = h; htmlAlertas = h; }
+}
+const CICLO = { 3: 2, 2: 1, 1: 0, 0: 4, 4: 3 };
+function pintarPrioridades() {
+  const H = estado.agentes.filter((a) => a.tipo === 'humano' && a.vivo), A = Sim.AREAS_TRABAJO;
+  tablaP.innerHTML = `<tr><th></th>${Object.values(A).map((n) => `<th>${n}</th>`).join('')}</tr>` + H.map((a) => `<tr><td>${esc(a.nombre)}</td>${Object.keys(A).map((k) => { const v = estado.prioridades?.[a.id]?.[k] ?? 3; return `<td><button class="p${v}" data-id="${a.id}" data-area="${k}">${v === 0 ? '–' : v}</button></td>`; }).join('')}</tr>`).join('');
+}
+document.getElementById('btnTrabajo').addEventListener('click', () => { pintarPrioridades(); elPrio.classList.remove('off'); });
+document.getElementById('cerrarP').addEventListener('click', () => elPrio.classList.add('off'));
+elPrio.addEventListener('click', (e) => { if (e.target === elPrio) elPrio.classList.add('off'); });
+tablaP.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-id]'); if (!b) return;
+  const v = estado.prioridades?.[b.dataset.id]?.[b.dataset.area] ?? 3;
+  Sim.setPrioridad(estado, b.dataset.id, b.dataset.area, CICLO[v]); guardar(); pintarPrioridades();
+});
 
 // ---------------------------------------------------------------- el jugador: dilemas, ficha e influencia
 const elDil = document.getElementById('dilema'), elFicha = document.getElementById('fichapj'), elInflu = document.getElementById('influ');

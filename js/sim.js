@@ -281,8 +281,9 @@ function calcularAnimo(s, a) {
   const deterioro = s.casa.estado < 25 ? -8 : s.casa.estado < 50 ? -4 : 0;
   const huellas = Math.max(-8, Math.min(2, (a.memorias || []).reduce((t, m) => t + m.valor, 0)));
   const tension = -(s.pareja.tension || 0) / 12, belleza = (s.belleza || 0) / 22;
+  const expectativas = -Math.min(12, 3 + etapaCasa(s) * 2 + (s.comercio?.lujos?.length || 0) + (s.comercio?.monedas || 0) / 400);   // como en RimWorld: la prosperidad sube la vara
   const hogar = (casaTiene(s, 'bano') ? 1 : 0) + (casaTiene(s, 'azotea') ? 1 : 0) + (casaTiene(s, 'techo') && frio(s) ? 1 : 0);   // vivir en un lugar bonito alegra
-  a.animo = Math.max(0, Math.min(100, base + a.recuerdos.reduce((t, r) => t + r.valor, 0) + casa + sinAbrigo + deterioro + huellas + tension + belleza + hogar));
+  a.animo = Math.max(0, Math.min(100, base + a.recuerdos.reduce((t, r) => t + r.valor, 0) + casa + sinAbrigo + deterioro + huellas + tension + belleza + hogar + expectativas));
 }
 export const caraAnimo = (v) => (v >= 80 ? '😄' : v >= 62 ? '🙂' : v >= 45 ? '😐' : v >= 28 ? '😟' : '😢');
 const irritable = (a) => a.n.comida < 20 || a.n.energia < 20 || a.animo < (tiene(a, 'malgenio') ? 42 : 30);
@@ -463,7 +464,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(),
+    ...placeresNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {},
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -667,7 +668,8 @@ function tick(s, d) {
   actualizarGranja(s, d);
   for (const a of s.agentes) if (a.vivo) { necesidades(s, a, d); comportamiento(s, a, d); }
   encuentros(s);
-  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); }
+  if (s.fuegos?.length || s.lobos || s.ladron || s.forastero) crisisTick(s, d);
+  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); heridasTick(s); quiebres(s); }
 }
 
 function nuevoDia(s) {
@@ -699,6 +701,7 @@ function nuevoDia(s) {
   placeresDelDia(s);
   comercioDelDia(s);
   dilemasDelDia(s);
+  narradorDelDia(s);
   for (const a of humanos(s)) a.forma = Math.max(10, (a.forma ?? 40) - 0.45);   // sin entrenar se pierde
   aplicarProyectos(s);
   eventos(s);
@@ -1043,7 +1046,7 @@ function actualizarGranja(s, d) {
     g.hambre = Math.max(0, g.hambre - HAMBRE_G[g.tipo] * k);
     g.sed = Math.max(0, g.sed - 3.5 * k);
     // refugio: de noche o con lluvia se meten al establo / gallinero
-    const debeRefugio = noche || lloviendo(s) || ((s.clima.temp ?? 15) > 30 && h > 11 && h < 17);   // con calor fuerte buscan sombra
+    const debeRefugio = noche || lloviendo(s) || (s.lobos && s.politica?.lobos === 'encerrar') || ((s.clima.temp ?? 15) > 30 && h > 11 && h < 17);   // con calor fuerte buscan sombra
     if (debeRefugio && !g.refugio) {
       g.refugio = true; g.comiendo = false;
       const calorRef = !noche && !lloviendo(s);
@@ -1137,7 +1140,7 @@ function actualizarGranja(s, d) {
 function morirAnimal(s, g, causa) {
   g.vivo = false; g.causa = causa; g.murio = s.t;
   log(s, `${g.nombre} (${g.tipo}) murió ${causa}.`, 'muerte');
-  humanos(s).forEach((a) => { recuerdo(s, a, `Murió ${g.nombre}`, -8, 72); if (causa === 'atacada por un zorro') memoria(s, a, `El zorro se llevó a ${g.nombre}`, -1); });
+  humanos(s).forEach((a) => { recuerdo(s, a, `Murió ${g.nombre}`, causa.includes('lobos') ? -14 : -8, 72); if (causa === 'atacada por un zorro') memoria(s, a, `El zorro se llevó a ${g.nombre}`, -1); });
 }
 
 // ---------------------------------------------------------------- necesidades y muerte
@@ -1151,7 +1154,7 @@ function necesidades(s, a, d) {
   n.comida = Math.max(0, n.comida - T.comida * mod(a, 'hambre') * (est === 'raciona' ? 0.9 : 1) * (a.colocadoHasta > s.t ? 1.9 : 1) * k);   // la hierba da antojos
   n.agua = Math.max(0, n.agua - T.agua * mod(a, 'sed') * (calor(s) ? 1.3 : 1) * k);
   const durmiendo = a.tarea && ['dormir', 'dormirCon'].includes(a.tarea.tipo) && a.tarea.fase === 'trabajo';
-  const trabajando = a.tarea && a.tarea.fase === 'trabajo' && AREA[a.tarea.tipo];
+  const trabajando = a.tarea && a.tarea.fase === 'trabajo' && (AREA[a.tarea.tipo] || a.tarea.tipo === 'guardia');
   const frioSinAbrigo = a.tipo === 'humano' && frio(s) && !a.dentro && s.rec.abrigos < humanos(s).length;
   if (durmiendo) n.energia = Math.min(100, n.energia + 15 * k);
   else n.energia = Math.max(0, n.energia - (T.energia + (trabajando ? 4 : 0)) * mod(a, 'cansancio') * (est === 'trabaja' && trabajando ? 1.25 : 1) * (frioSinAbrigo ? 1.25 : 1) * k);
@@ -1192,7 +1195,7 @@ function soltarTarea(s, a) {
   if (T.tipo === 'nadar' && a.nadando) { a.nadando = false; a.pos = { ...LUGAR.piscina }; }
   a.tarea = null;
 }
-const DENTRO = ['comer', 'beber', 'dormir', 'filtrar', 'cocinar', 'cenar', 'limpiarCasa', 'hacerConservas', 'hacerQueso', 'hornear'];
+const DENTRO = ['comer', 'beber', 'dormir', 'filtrar', 'cocinar', 'cenar', 'limpiarCasa', 'hacerConservas', 'hacerQueso', 'hornear', 'reposo'];
 const AFUERA_URGENTE = ['filtrar'];
 const DURACION = {
   comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
@@ -1201,13 +1204,14 @@ const DURACION = {
   reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
   cepillar: 20, fumigar: 20, arrancar: 25, abonar: 20, voltearCompost: 30,
   construir: 90, esculpir: 80, cuidarJardin: 45, hacerConservas: 60, hacerQueso: 50, secar: 40,
-  vendimia: 60, pisarUva: 50, cosecharHierba: 30, tomarVino: 45, fumar: 30, comerciar: 40, renovar: 90, entrenar: 40, hornear: 50,
+  vendimia: 60, pisarUva: 50, cosecharHierba: 30, tomarVino: 45, fumar: 30, comerciar: 40, renovar: 90, entrenar: 40, hornear: 50, beberPiscina: 4, apagarFuego: 8, guardia: 600, repararPozo: 90, reposo: 120, curarHerida: 30, deambular: 40,
 };
 const COMIDAS = [['desayuno', 6.5, 9, 20], ['almuerzo', 12, 13.5, 30], ['cena', 19, 20.5, 45]];   // [comida, desde, hasta, minutos de cocina]
 const OCIOS = ['esculpir', 'cuidarJardin', 'descansar', 'leer', 'tallar', 'contemplar', 'siesta', 'tejer', 'nadar', 'recogerFlores', 'jugarPerro', 'tomarVino', 'fumar', 'entrenar', 'hornear'];
 const vaca = (s) => s.ganado.filter((g) => g.vivo && g.tipo === 'vaca' && g.sexo === 'h' && g.crec >= 1).sort((a, b) => b.ubre - a.ubre)[0];
 function crearTarea(s, a, tipo, extra = {}) {
   const t = { tipo, fase: 'camino', trabajo: DURACION[tipo] ?? 30, inicio: s.t, ...extra };
+  if (tipo === 'deambular' && extra.destino) { const pasos = planRuta(a.dentro ? LUGAR.puerta : a.pos, extra.destino); t.destino = pasos.shift(); t.ruta = pasos; a.tarea = t; return t; }
   const izq = a.id === s.agentes[0].id;
   const adentroOcio = ((tipo === 'leer' || tipo === 'tejer' || tipo === 'entrenar') && (lloviendo(s) || esNoche(s) || hora(s) >= 19.5 || (frio(s) && rng(s) < 0.6)))
     || (tipo === 'siesta' && (calor(s) || lloviendo(s) || frio(s) || rng(s) < 0.5)) || (tipo === 'leer' && rng(s) < 0.35);
@@ -1239,6 +1243,12 @@ function crearTarea(s, a, tipo, extra = {}) {
   else if (tipo === 'vendimia') { const q = [...s.parras].sort((x, y) => y.uvas - x.uvas)[0]; t.destino = { x: q.x, z: q.z - 1.4 }; }
   else if (tipo === 'pisarUva') t.destino = { ...LUGAR.lagar };
   else if (tipo === 'renovar') t.destino = sitioProyecto(s);
+  else if (tipo === 'deambular' && t.destino) { /* destino ya dado */ }
+  else if (tipo === 'apagarFuego') { const F = (s.fuegos || []).find((x) => x.id === t.fuego) || s.fuegos?.[0]; t.destino = F ? { x: F.x + 1.4 + (rng(s) - 0.5), z: F.z + 1.4 } : { ...LUGAR.puerta }; }
+  else if (tipo === 'guardia') t.destino = { x: CORRAL.x0 + 3 + rng(s) * 4, z: -4 + rng(s) * 8 };
+  else if (tipo === 'beberPiscina') t.destino = { ...LUGAR.piscina };
+  else if (tipo === 'repararPozo') t.destino = { x: LUGAR.pozo.x + 1.2, z: LUGAR.pozo.z };
+  else if (tipo === 'curarHerida') { const p = s.agentes.find((x) => x.id === t.paciente); t.destino = p ? (p.dentro ? { ...LUGAR.puerta } : { x: p.pos.x + 0.8, z: p.pos.z + 0.4 }) : { ...LUGAR.puerta }; if (p?.dentro) t.dentro = true; }
   else if (tipo === 'entrenar') t.destino = { x: LUGAR_GYM.x + (izq ? -0.8 : 0.8), z: LUGAR_GYM.z + 0.6 };
   else if (tipo === 'cosecharHierba') { const m = s.matas.find((x) => x.estado === 'lista') || s.matas[0]; t.destino = { x: m.x - 1.2, z: m.z }; }
   else if (tipo === 'comerciar') t.destino = { x: LUGAR.carreta.x - 1.6, z: LUGAR.carreta.z + 0.4 };
@@ -1255,7 +1265,7 @@ function crearTarea(s, a, tipo, extra = {}) {
   return t;
 }
 function mover(a, destino, d) {
-  const dx = destino.x - a.pos.x, dz = destino.z - a.pos.z, dist = Math.hypot(dx, dz), v = VEL[a.tipo] * d;
+  const dx = destino.x - a.pos.x, dz = destino.z - a.pos.z, dist = Math.hypot(dx, dz), v = VEL[a.tipo] * d * (cojea(a) ? 0.55 : 1);   // cojea con la pierna herida
   if (dist <= v) { a.pos.x = destino.x; a.pos.z = destino.z; return true; }
   a.pos.x += (dx / dist) * v; a.pos.z += (dz / dist) * v;
   return false;
@@ -1279,13 +1289,21 @@ function invitar(s, a, tipo) {
   return true;
 }
 
+const yaHaceAlguien = (s, a, tipo) => s.agentes.some((x) => x !== a && x.tarea?.tipo === tipo);
 function elegirTarea(s, a) {
   const n = a.n, R = s.rec, est = estres(s, a), resp = P5(a, 'responsabilidad'), h = hora(s);
   const otro = pareja(s, a), llueve = lloviendo(s);
+  if (a.quiebre && n.agua > 25 && n.comida > 20) { const tq = tareaDeQuiebre(s, a); if (tq) return tq; }   // aun quebrado, toma agua y come
   if (n.agua < 40 && (R.potable >= 1 || R.cruda >= 1)) return crearTarea(s, a, 'beber');
+  if (n.agua < 25) return crearTarea(s, a, 'beberPiscina');   // sin agua guardada: de la piscina
   if (n.comida < (est === 'raciona' ? 25 : 40) && comidaTotal(s) >= 1) return crearTarea(s, a, 'comer');
   if (n.energia < 18) return crearTarea(s, a, 'dormir');
+  if (s.fuegos?.length && s.politica?.incendio !== 'dejar' && n.energia > 8 && n.agua > 25 && (R.cruda >= 55 || R.bebederoGanado >= 25)) return crearTarea(s, a, 'apagarFuego', { fuego: s.fuegos[0].id });
+  if (s.fuegos?.some((F) => F.lugar === 'casa' && F.intensidad > 0.3)) { if (a.dentro || (a.tarea?.dentro)) return crearTarea(s, a, 'deambular', { trabajo: 30, destino: { x: LUGAR.banca.x, z: LUGAR.banca.z + 1.5 } }); }   // la casa arde: afuera
+  if (s.lobos && s.politica?.lobos === 'guardia' && s.t >= s.lobos.llegan - 60 && n.energia > 10 && !yaHaceAlguien(s, a, 'guardia')) return crearTarea(s, a, 'guardia');
   if (horaDeDormir(s, a) && n.energia < 92) return crearTarea(s, a, 'dormir');
+  // herido grave: reposo (si no hay quien lo cure, se cura solo como pueda)
+  if (severidad(a) > 0.6 && !(a.heridas || []).some((h) => h.sev > 0.5 && !h.tratada && !otro)) return crearTarea(s, a, 'reposo', { trabajo: 90 });
 
   // todas las comidas se cocinan y se comen en la mesa: desayuno, almuerzo y cena
   for (const [comida, h0, h1, mins] of COMIDAS) {
@@ -1299,6 +1317,15 @@ function elegirTarea(s, a) {
 
   // trabajo por urgencia (con lluvia solo lo de adentro o lo muy urgente)
   const libre = (p) => !p.reservada;
+  const opcionesUrgentes = [];
+  // crisis: el fuego primero, la guardia contra los lobos, el pozo roto
+  if (s.fuegos?.length && s.politica?.incendio !== 'dejar' && (s.politica?.incendio !== 'uno' || !s.agentes.some((x) => x !== a && x.tarea?.tipo === 'apagarFuego')) && (R.cruda >= 55 || R.bebederoGanado >= 25)) opcionesUrgentes.push([99, 'apagarFuego', { fuego: s.fuegos[0].id }]);
+  if (s.lobos && s.politica?.lobos === 'guardia' && !yaHaceAlguien(s, a, 'guardia') && s.t >= s.lobos.llegan - 60) opcionesUrgentes.push([98, 'guardia']);
+  if (s.pozoRoto && (s.pozoRoto.autorizado || s.t - s.pozoRoto.desde > 10 * MIN_DIA) && !yaHaceAlguien(s, a, 'repararPozo')) opcionesUrgentes.push([R.cruda < 60 ? 93 : 70, 'repararPozo']);
+  { // curar a quien esté herido (también a las mascotas); sin compañía, se cura a sí mismo
+    const pac = s.agentes.filter((x) => x.vivo && porCurar(s, x) && (x !== a || !otro || !despierto(s, otro))).sort((x, y) => severidad(y) - severidad(x))[0];
+    if (pac && !s.agentes.some((x) => x !== a && x.tarea?.tipo === 'curarHerida' && x.tarea.paciente === pac.id)) opcionesUrgentes.push([severidad(pac) > 0.5 || (pac.heridas || []).some((h) => h.infeccion > 0.3) ? 97 : 70, 'curarHerida', { paciente: pac.id }]);
+  }
   const yaHace = (tipo) => otro && otro.tarea && otro.tarea.tipo === tipo;
   const umbralRiego = 30 + resp * 25, e = estacion(s);
   const opciones = [];
@@ -1353,6 +1380,8 @@ function elegirTarea(s, a) {
   const henoMeta = 50 + 32 * enCorral(s);
   if (s.granja.pasto >= 50 && (e === 1 || e === 2) && R.heno < henoMeta && !yaHace('segar')) opciones.push([R.heno < henoMeta * 0.75 && e === 2 ? 66 : 40, 'segar']);
   if (R.cruda < 150 + resp * 200 && !yaHace('sacarAgua') && e !== 0) opciones.push([35, 'sacarAgua']);
+  opciones.push(...opcionesUrgentes);
+  if (s.pozoRoto) for (let i = opciones.length - 1; i >= 0; i--) if (opciones[i][1] === 'sacarAgua') opciones.splice(i, 1);   // con el pozo roto no se saca agua
   const trabajoValido = opciones.filter((o) => (!llueve || ['filtrar', 'limpiarCasa', 'tejer', 'reparar'].includes(o[1]) || o[0] >= 92) && (!(a.diaLibre > s.t) || o[0] >= 90));
 
   // después de una discusión: el más amable (o el menos rencoroso) pide perdón
@@ -1414,6 +1443,13 @@ function elegirTarea(s, a) {
     if (rol && AREA[o[1]] === rol) o[0] += 25;
     else if (otroLibre && rolOtro && AREA[o[1]] === rolOtro && o[0] < 95) o[0] -= 30;
   });
+  const prio = s.prioridades?.[a.id];
+  if (prio) for (let i = trabajoValido.length - 1; i >= 0; i--) {
+    const o = trabajoValido[i], area = AREA[o[1]] || (['curarHerida'].includes(o[1]) ? 'cuidado' : ['apagarFuego', 'guardia'].includes(o[1]) ? null : null);
+    const v = area ? prio[area] ?? 3 : 3;
+    if (v === 0 && o[0] < 95) trabajoValido.splice(i, 1);
+    else o[0] += { 1: 30, 2: 15, 3: 0, 4: -20 }[v] ?? 0;
+  }
   trabajoValido.sort((x, y) => y[0] - x[0]);
   const trabajo = trabajoValido[0], gana = ocio[0];
   if (gana && gana[0] > 18 && (!trabajo || gana[0] > trabajo[0] * (0.55 + resp * 0.6))) {
@@ -1458,8 +1494,8 @@ export const ACCION = {
   conversar: 'Conversando', cocinar: 'Cocinando la cena', cenar: 'Cenando juntos', limpiarCasa: 'Limpiando la casa', siesta: 'Tomando la siesta',
   ordenar: 'Ordeñando a la vaca', recogerHuevos: 'Recogiendo huevos', esquilar: 'Esquilando una oveja', segar: 'Segando pasto para heno', alimentarGanado: 'Alimentando la granja',
   tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', cepillar: 'Cepillando y calmando un animal', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
-  recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', vendimia: 'Vendimiando', renovar: 'Construyendo un proyecto', entrenar: 'Entrenando', hornear: 'Horneando', pisarUva: 'Pisando uva en el lagar', cosecharHierba: 'Cosechando la hierba', tomarVino: 'Tomando vino', fumar: 'Fumando', comerciar: 'Haciendo trueque con el comerciante', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
-  seguir: 'Acompañando a la pareja', trepar: 'Trepado mirando todo', huir: 'Huyendo', molestarGallinas: 'Persiguiendo gallinas', perseguir: 'Persiguiendo al gato', pelea: 'Peleando', ladrar: 'Ladrando', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
+  recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', beberPiscina: 'Tomando agua de la piscina', apagarFuego: 'Apagando el fuego', guardia: 'Haciendo guardia', repararPozo: 'Reparando el pozo', defender: 'Defendiendo el ganado', reposo: 'Haciendo reposo', curarHerida: 'Curando una herida', deambular: 'Caminando sin rumbo', vendimia: 'Vendimiando', renovar: 'Construyendo un proyecto', entrenar: 'Entrenando', hornear: 'Horneando', pisarUva: 'Pisando uva en el lagar', cosecharHierba: 'Cosechando la hierba', tomarVino: 'Tomando vino', fumar: 'Fumando', comerciar: 'Haciendo trueque con el comerciante', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
+  seguir: 'Acompañando a la pareja', robarComida: 'Robando comida', beberPiscina: 'Tomando agua de la piscina', defender: 'Defendiendo el ganado', trepar: 'Trepado mirando todo', huir: 'Huyendo', molestarGallinas: 'Persiguiendo gallinas', perseguir: 'Persiguiendo al gato', pelea: 'Peleando', ladrar: 'Ladrando', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
 };
 const VA_A = {
   comer: 'Va a comer', beber: 'Va a beber', dormir: 'Va a dormir', filtrar: 'Va a filtrar agua', sacarAgua: 'Va al pozo',
@@ -1467,7 +1503,7 @@ const VA_A = {
   descansar: 'Va a la banca', leer: 'Va a leer', tallar: 'Va a tallar madera', contemplar: 'Va a mirar el paisaje', jugarGato: 'Va a jugar con el gato',
   pasearPerro: 'Paseando al perro', conversar: 'Va a conversar', cocinar: 'Va a cocinar', cenar: 'Va a cenar', limpiarCasa: 'Va a limpiar la casa', siesta: 'Va a la siesta',
   ordenar: 'Va a ordeñar', recogerHuevos: 'Va al gallinero', esquilar: 'Va a esquilar', segar: 'Va a segar', alimentarGanado: 'Va al pesebre', tejer: 'Va a tejer', nadar: 'Va a la piscina',
-  reparar: 'Va al taller a reparar', curar: 'Va a curar un animal', recogerFruta: 'Va a los frutales', construir: 'Va a la obra', cepillar: 'Va a calmar un animal', fumigar: 'Va a tratar una plaga', abonar: 'Va a abonar', voltearCompost: 'Va al compost', esculpir: 'Va al taller a esculpir', cuidarJardin: 'Va al jardín', secar: 'Va al secadero', reconciliar: 'Va a hacer las paces', recogerFlores: 'Va a recoger flores', jugarPerro: 'Va a jugar con el perro', vendimia: 'Va al viñedo', renovar: 'Va a la obra', entrenar: 'Va a entrenar', hornear: 'Va a hornear', pisarUva: 'Va al lagar', cosecharHierba: 'Va a la huerta de hierbas', tomarVino: 'Va a servir vino', fumar: 'Va a fumar', comerciar: 'Va a la carreta del comerciante',
+  reparar: 'Va al taller a reparar', curar: 'Va a curar un animal', recogerFruta: 'Va a los frutales', construir: 'Va a la obra', cepillar: 'Va a calmar un animal', fumigar: 'Va a tratar una plaga', abonar: 'Va a abonar', voltearCompost: 'Va al compost', esculpir: 'Va al taller a esculpir', cuidarJardin: 'Va al jardín', secar: 'Va al secadero', reconciliar: 'Va a hacer las paces', recogerFlores: 'Va a recoger flores', jugarPerro: 'Va a jugar con el perro', apagarFuego: 'Corre a apagar el fuego', guardia: 'Va a hacer guardia', repararPozo: 'Va a reparar el pozo', curarHerida: 'Va a curar a alguien', deambular: 'Se va caminando', vendimia: 'Va al viñedo', renovar: 'Va a la obra', entrenar: 'Va a entrenar', hornear: 'Va a hornear', pisarUva: 'Va al lagar', cosecharHierba: 'Va a la huerta de hierbas', tomarVino: 'Va a servir vino', fumar: 'Va a fumar', comerciar: 'Va a la carreta del comerciante',
 };
 
 const OCIO_LLENA = { entrenar: 0.8, hornear: 0.8, tomarVino: 0.9, fumar: 1.0, cuidarJardin: 0.7, esculpir: 0.6, leer: 0.7, tallar: 0.75, contemplar: 0.8, jugarGato: 1.1, descansar: 0.35, siesta: 0.3, tejer: 0.6, nadar: 1.1, recogerFlores: 0.8, jugarPerro: 1.2 };
@@ -1531,7 +1567,7 @@ function comportamiento(s, a, d) {
   const area = AREA[T.tipo], areaXp = area || XP_OCIO[T.tipo];
   const animoVel = a.animo < 30 ? 0.8 : a.animo > 70 ? 1.1 : 1;
   const vel = area ? mod(a, area) * (1 + 0.06 * nivel(a.xp[area])) * (estres(s, a) === 'trabaja' ? 1.2 : 1) * (a.enfermo > 0 ? 0.6 : 1) * animoVel * (a.animo_buff > s.t ? 1.15 : 1)
-    * (T.tipo === 'tejer' ? mod(a, 'tejer') : 1) * (a.resacaHasta > s.t ? 0.7 : 1) * (a.colocadoHasta > s.t ? 0.8 : 1) * (herramienta(s, area) ? 1.12 : 1) * (0.92 + (a.forma ?? 40) / 600) : 1;
+    * (T.tipo === 'tejer' ? mod(a, 'tejer') : 1) * (1 - Math.min(0.6, severidad(a) * 0.6)) * (a.resacaHasta > s.t ? 0.7 : 1) * (a.colocadoHasta > s.t ? 0.8 : 1) * (herramienta(s, area) ? 1.12 : 1) * (0.92 + (a.forma ?? 40) / 600) : 1;
   if (areaXp) {
     const antes = nivel(a.xp[areaXp]);
     a.xp[areaXp] = (a.xp[areaXp] || 0) + d * mod(a, 'aprende') * mod(a, 'aprende_' + areaXp) * (area ? 1 : 0.3);
@@ -1580,7 +1616,9 @@ function terminarPaseo(s, a) {
 
 function completar(s, a, T) {
   const R = s.rec, p = T.parcela != null ? s.parcelas[T.parcela] : null;
+  accidente(s, a, T.tipo);
   switch (T.tipo) {
+    case 'beberPiscina': a.n.agua = Math.min(100, a.n.agua + 35); if (rng(s) < 0.35 * mod(a, 'enfermar')) herir(s, a, 'intoxicacion', 0.2, 'cuerpo', 'por tomar agua de la piscina'); else if (rng(s) < 0.2) log(s, `${a.nombre} tuvo que tomar agua de la piscina: no queda otra.`, 'aviso'); break;
     case 'beber':
       if (R.potable >= 1) { R.potable -= 1; a.n.agua = Math.min(100, a.n.agua + 35); }
       else if (R.cruda >= 1) {
@@ -1589,6 +1627,7 @@ function completar(s, a, T) {
       }
       break;
     case 'comer': {
+      if (T.atracon) { for (let i = 0; i < 3; i++) consumirComida(s, a, 25); a.n.comida = Math.min(100, a.n.comida + 10); break; }
       const otro = pareja(s, a);
       if (comidaTotal(s) >= 1 && escasez(s) && otro && otro.n.comida < a.n.comida - 15 && P5(a, 'amabilidad') > 0.6 && rng(s) < 0.5) {
         if (consumirComida(s, otro, 23)) { a.n.comida = Math.min(100, a.n.comida + 15); recuerdo(s, otro, `${a.nombre} compartió su comida`, 10, 24); s.pareja.afinidad = Math.min(100, s.pareja.afinidad + 3); log(s, `${a.nombre} compartió su ración con ${otro.nombre}.`, 'bueno'); }
@@ -1848,7 +1887,31 @@ function completar(s, a, T) {
       log(s, `🌿 ${a.nombre} cosechó las matas y colgó los cogollos a secar (${cant} porciones, dos semanas).`, 'info');
       break;
     }
-    case 'tomarVino': case 'fumar': consumirPlacer(s, a, T); break;
+    case 'tomarVino': case 'fumar': consumirPlacer(s, a, T); if (a.borrachera) { a.borrachera = false; consumirPlacer(s, a, T); } break;
+    case 'curarHerida': {
+      const p = s.agentes.find((x) => x.id === T.paciente && x.vivo); if (!p) break;
+      const conMedicina = false;   // la medicina se usa solo si el jugador lo decide (dilema de tratamiento)
+      if (conMedicina) R.medicina -= 1;
+      const habil = 0.6 + nivel(a.xp.cuidado) * 0.06 + (conMedicina ? 0.3 : 0) - (p === a ? 0.2 : 0);
+      for (const h of p.heridas || []) { h.curadaT = s.t; if (h.tipo !== 'fiebre') h.tratada = true; h.infeccion = Math.max(0, h.infeccion - 0.25 * habil); }   // vendan y limpian; la fiebre necesita algo más
+      log(s, `🩹 ${a.nombre} ${p === a ? 'se curó a sí mismo' : `curó a ${p.nombre}`}${conMedicina ? ' con medicina' : ' con lo que había'}.`, 'bueno');
+      if (p !== a) { if (p.tipo === 'humano') { recuerdo(s, p, `${a.nombre} me cuidó`, 6, 24); s.pareja.afinidad = Math.min(100, s.pareja.afinidad + 2); } else vincular(s, p, a, 5); }
+      break;
+    }
+    case 'apagarFuego': {
+      const F = (s.fuegos || []).find((x) => x.id === T.fuego) || s.fuegos?.[0]; if (!F) break;
+      const fuente = R.cruda >= 55 ? 'cruda' : R.bebederoGanado >= 25 ? 'bebederoGanado' : null;
+      if (!fuente) { if (!s.avisoSinAgua) { s.avisoSinAgua = true; log(s, '🔥 No queda agua de sobra para apagar el fuego: hay que guardarla para beber.', 'aviso'); } break; }
+      R[fuente] = Math.max(0, R[fuente] - 15);
+      F.intensidad = Math.max(0, F.intensidad - 0.28 * (1 + nivel(a.xp.agua) * 0.05));
+      if (rng(s) < 0.05 * F.intensidad) herir(s, a, 'quemadura', 0.2 + 0.25 * F.intensidad, 'brazo', 'apagando el fuego');
+      if (F.intensidad > 0 && (R.cruda >= 55 || R.bebederoGanado >= 25)) { crearTarea(s, a, 'apagarFuego', { fuego: F.id }); return; }   // sigue con el próximo balde
+      break;
+    }
+    case 'guardia': if (s.lobos) { crearTarea(s, a, 'guardia'); return; } break;
+    case 'repararPozo': if (s.pozoRoto) { s.pozoRoto.avance += 0.25 * mod(a, 'carpinteria'); if (s.pozoRoto.avance >= 1) { s.pozoRoto = false; log(s, `🔧 ${a.nombre} reparó el pozo: ya se puede sacar agua.`, 'bueno'); recuerdo(s, a, 'Arreglé el pozo', 6, 24); } } break;
+    case 'reposo': if (T.quiebre) a.n.diversion = Math.min(100, a.n.diversion + 5); break;
+    case 'deambular': a.n.diversion = Math.min(100, a.n.diversion + 8); break;
     case 'entrenar': {
       const gym = casaTiene(s, 'gimnasio');
       a.forma = Math.min(100, (a.forma ?? 40) + 1.4 * (gym ? 1.4 : 1) * (1 - (a.forma ?? 40) / 140)); s.stats.entreno = (s.stats.entreno || 0) + 1;
@@ -2115,6 +2178,37 @@ function proponer(s, tipo, titulo, texto, opciones, defecto, datos = {}, horas =
 }
 const dilemaDe = (s, tipo) => (s.dilemas || []).find((d) => d.tipo === tipo);
 // el jugador responde
+export const AREAS_TRABAJO = { agua: 'Agua', huerto: 'Huerto', cuidado: 'Cuidado y curación', casa: 'Cocina y casa', granja: 'Granja', carpinteria: 'Construcción' };
+export function setPrioridad(s, id, area, v) { (s.prioridades ||= {})[id] ||= {}; s.prioridades[id][area] = v; }
+// alertas tipo RimWorld: lo que necesita atención ahora
+export function alertas(s) {
+  const L = [], R = s.rec, H = humanos(s);
+  const consumo = H.length * 1.4 + s.agentes.filter((a) => a.vivo && a.tipo !== 'humano').length * 0.5;
+  const diasComida = consumo ? comidaTotal(s) / consumo : 99;
+  if (diasComida < 3) L.push(['rojo', `Comida para ${Math.max(0, Math.floor(diasComida))} días`]); else if (diasComida < 7) L.push(['amarillo', `Comida para ${Math.floor(diasComida)} días`]);
+  if (R.potable + R.cruda < H.length * 10) L.push(['rojo', 'Casi sin agua']);
+  for (const F of s.fuegos || []) L.push(['rojo', `🔥 Incendio en ${F.nombre}`]);
+  if (s.lobos) L.push(['rojo', `🐺 ${s.lobos.n} lobos rondan el potrero`]);
+  if (s.ladron) L.push(['amarillo', '🕵️ Un extraño ronda la granja']);
+  if (s.pozoRoto) L.push(['amarillo', '🚱 El pozo está roto']);
+  for (const a of s.agentes.filter((x) => x.vivo)) {
+    const sev = severidad(a), inf = (a.heridas || []).some((h) => h.infeccion > 0.3), fiebre = (a.heridas || []).find((h) => h.tipo === 'fiebre');
+    if (inf) L.push(['rojo', `${a.nombre}: herida infectada`]);
+    else if (fiebre && fiebre.sev > 0.7 && !fiebre.tratada) L.push(['rojo', `${a.nombre}: fiebre crítica`]);
+    else if (sev > 0.5) L.push(['amarillo', `${a.nombre} está herido`]);
+    if (a.tipo === 'humano') {
+      if (a.quiebre) L.push(['rojo', `${a.nombre}: ${QUIEBRE[a.quiebre.tipo][0]}`]);
+      else if (a.animo < 25) L.push(['rojo', `${a.nombre} al borde del quiebre`]);
+      else if (a.animo < 35) L.push(['amarillo', `${a.nombre} está mal de ánimo`]);
+      if (a.n.comida < 15) L.push(['rojo', `${a.nombre} tiene hambre`]);
+    }
+  }
+  if (s.ganado.some((g) => g.vivo && !esAve(g.tipo) && (g.hambre < 20 || g.sed < 20))) L.push(['amarillo', 'Ganado con hambre o sed']);
+  if (frio(s) && R.abrigos < H.length) L.push(['amarillo', 'Falta abrigo para el invierno']);
+  if (R.medicina < 1) L.push(['amarillo', 'No hay medicina']);
+  if ((s.casa.estado ?? 100) < 35) L.push(['amarillo', 'La casa se está cayendo']);
+  return L;
+}
 export function decidir(s, id, k) {
   const d = (s.dilemas || []).find((x) => x.id === id);
   if (!d || !d.opciones.some((o) => o.k === k)) return false;
@@ -2153,6 +2247,7 @@ function resolver(s, d, k, jugador) {
   } else log(s, `${pre}: ${d.titulo.toLowerCase()} → ${op.txt.toLowerCase()}.`, 'decision');
   switch (d.tipo) {
     case 'crias': P.crias = k; break;
+    case 'incendio': case 'lobos': case 'ladron': case 'fiebre': case 'forastero': case 'pozo': case 'langostas': case 'tratamiento': resolverCrisis(s, d, k); break;
     case 'estilo': s.casa.estilo = k; s.casa.diaEstilo = dia(s); empezarMejora(s, 'fachada'); break;
     case 'reforma': if (k !== 'no' && s.comercio.monedas >= 300) { s.comercio.monedas -= 300; s.casa.obra = { id: 'reforma', progreso: 0, estilo: k }; s.casa.diaEstilo = dia(s); log(s, `🎨 Empieza la reforma a estilo ${ESTILOS[k].nombre.toLowerCase()} (300 monedas).`, 'logro'); } break;
     case 'inversion': if (k !== 'ahorrar') empezarMejora(s, k); break;
@@ -2318,7 +2413,7 @@ export function actuar(s, id, accion) {
   J.influencia -= A.costo;
   if (!aceptaConsejo(s, a)) { log(s, `🕯️ Intentaste ${A.txt.toLowerCase()} a ${a.nombre}, pero no te hizo caso.`, 'decision'); return { ok: true, acepto: false }; }
   switch (accion) {
-    case 'animar': recuerdo(s, a, 'Sintió compañía', 8, 12); break;
+    case 'animar': recuerdo(s, a, 'Sintió compañía', 8, 12); if (a.quiebre && a.quiebre.tipo !== 'huida') { a.quiebre.hasta = s.t; log(s, `${a.nombre} se calmó: sintió que alguien lo acompañaba.`, 'bueno'); } break;
     case 'descansar': soltarTarea(s, a); crearTarea(s, a, a.n.energia < 50 ? 'siesta' : 'descansar'); break;
     case 'hablar': soltarTarea(s, a); invitar(s, a, 'conversar'); break;
     case 'calmar': s.pareja.tension = Math.max(0, (s.pareja.tension || 0) - 12); for (const k of ['vino', 'hierba']) a.placer[k].ult = s.t; recuerdo(s, a, 'Respiró hondo', 4, 8); break;
@@ -2335,6 +2430,380 @@ export function actuar(s, id, accion) {
   }
   log(s, `🕯️ ${a.nombre}: ${A.txt.toLowerCase()}.`, 'decision');
   return { ok: true, acepto: true };
+}
+
+// ---------------------------------------------------------------- salud con heridas (estilo RimWorld)
+// cada herida: tipo, parte del cuerpo, severidad (0 a 1), si ya se curó/vendó, e infección que crece si no se trata
+const NOMBRE_HERIDA = { corte: 'un corte', quemadura: 'una quemadura', mordida: 'una mordida', golpe: 'un golpe', fractura: 'una fractura', fiebre: 'fiebre alta', intoxicacion: 'una intoxicación' };
+export function herir(s, a, tipo, sev, parte, causa) {
+  if (!a || !a.vivo) return;
+  a.heridas ||= [];
+  sev = Math.max(0.05, Math.min(1, sev));
+  a.heridas.push({ tipo, parte, sev, tratada: false, infeccion: 0, desde: s.t });
+  const grave = sev > 0.5;
+  log(s, `🩸 ${a.nombre} sufrió ${NOMBRE_HERIDA[tipo] || 'una herida'}${parte && parte !== 'cuerpo' ? ` en ${parte === 'pierna' ? 'la pierna' : parte === 'mano' ? 'la mano' : parte === 'brazo' ? 'el brazo' : 'la cabeza'}` : ''}${causa ? ` ${causa}` : ''}${grave ? ': es grave, necesita curación y reposo' : ''}.`, grave ? 'malo' : 'aviso');
+  if (grave && tipo !== 'fiebre') proponerTratamiento(s, a);   // grave: tú decides si se usa medicina o médico
+  if (a.tipo === 'humano') { recuerdo(s, a, 'Herido', -Math.round(4 + sev * 8), 24); const b = pareja(s, a); if (b) recuerdo(s, b, `Preocupación por ${a.nombre}`, -Math.round(2 + sev * 6), 24); }
+  else humanos(s).forEach((h) => recuerdo(s, h, `${a.nombre} está herido`, -3, 24));
+}
+function proponerTratamiento(s, a) {
+  const R = s.rec;
+  proponer(s, 'tratamiento', `${a.nombre} está grave`, `${(a.heridas || []).map((h) => NOMBRE_HERIDA[h.tipo]).join(', ')}${(a.heridas || []).some((h) => h.infeccion > 0.3) ? ' con infección' : ''}. ${R.medicina >= 1 ? `Hay ${Math.floor(R.medicina)} medicina.` : 'No hay medicina.'}`, [
+    { k: 'medicina', txt: 'Usar medicina', pista: R.medicina >= 1 ? 'detiene la infección' : 'no hay' },
+    { k: 'medico', txt: 'Traer al médico', pista: '120 monedas' },
+    { k: 'vendar', txt: 'Solo vendar y esperar', pista: 'gratis; la infección puede seguir' },
+  ], 'vendar', { quien: null, paciente: a.id }, 6, 1);
+}
+const severidad = (a) => (a.heridas || []).reduce((t, h) => t + h.sev, 0);
+const herido = (a, min = 0.3) => (a.heridas || []).some((h) => h.sev >= min && h.tipo !== 'fiebre' && h.tipo !== 'intoxicacion' && (!h.tratada || h.infeccion > 0.3));
+const porCurar = (s, a) => (a.heridas || []).some((h) => h.sev >= 0.2 && !['fiebre', 'intoxicacion'].includes(h.tipo) && (!h.tratada || h.infeccion > 0.3) && s.t - (h.curadaT ?? -1e9) > 6 * 60);
+const cojea = (a) => (a.heridas || []).some((h) => h.parte === 'pierna' && h.sev > 0.3);
+function heridasTick(s) {   // cada media hora
+  for (const a of s.agentes) {
+    if (!a.vivo || !a.heridas?.length) continue;
+    const reposo = a.tarea && ['dormir', 'reposo', 'siesta', 'descansar', 'dormirCon'].includes(a.tarea.tipo);
+    for (const h of a.heridas) {
+      // sin tratar, las heridas abiertas se infectan; tratadas, la infección cede
+      if (['corte', 'mordida', 'quemadura', 'fractura'].includes(h.tipo) && h.sev > 0.2 && (!h.tratada || (h.infeccion > 0.35 && !h.medicada))) h.infeccion = Math.min(1.2, h.infeccion + (h.tratada ? 0.006 : 0.012) * h.sev);
+      else h.infeccion = Math.max(0, h.infeccion - 0.01);
+      if (h.infeccion > 0.45 && !h.avisoInf) { h.avisoInf = true; log(s, `🦠 La herida de ${a.nombre} se infectó: hay que curarla ya.`, 'malo'); proponerTratamiento(s, a); }
+      // se curan con el tiempo: más rápido si están tratadas y si descansa
+      h.sev = Math.max(0, h.sev - (h.tratada ? 0.0045 : 0.0015) * (reposo ? 1.8 : 1) * (h.infeccion > 0.3 ? 0.2 : 1));
+      if (h.infeccion > 0.45) a.n.salud = Math.max(0, a.n.salud - 0.9 * h.infeccion);
+      if ((h.tipo === 'fiebre' || h.tipo === 'intoxicacion') && !h.tratada) a.n.salud = Math.max(0, a.n.salud - (h.sev > 0.85 ? 1.4 : 0.35) * h.sev);
+      if (h.tipo === 'fiebre' && !h.tratada && !h.casero) { h.sev = Math.min(1, h.sev + 0.006); if (h.sev > 0.85 && !h.avisoCritico) { h.avisoCritico = true; log(s, `🤒 La fiebre de ${a.nombre} es crítica: sin medicina o médico puede morir.`, 'malo'); proponerTratamiento(s, a); } }
+      if (h.tipo === 'intoxicacion') a.n.energia = Math.max(0, a.n.energia - 1);
+      if (h.sev > 0.6 && !h.tratada) a.n.salud = Math.max(0, a.n.salud - 0.25);
+    }
+    const antes = a.heridas.length;
+    for (const h of a.heridas.filter((x) => x.sev <= 0.02)) { log(s, `${a.nombre} se recuperó de ${NOMBRE_HERIDA[h.tipo] || 'la herida'}.`, 'bueno'); if (a.tipo === 'humano' && h.desdeGrave) memoria(s, a, `Sobrevivió a ${NOMBRE_HERIDA[h.tipo]}`, 0.5); }
+    a.heridas = a.heridas.filter((x) => x.sev > 0.02);
+    if (a.tipo === 'humano' && a.heridas.length) { const sv = severidad(a); if (sv > 0.15) recuerdo(s, a, 'Dolor', -Math.round(Math.min(14, sv * 10)), 1); }
+    for (const h of a.heridas) if (h.sev > 0.5) h.desdeGrave = true;
+    if (a.n.salud <= 0) morir(s, a, a.heridas.some((h) => h.infeccion > 0.45) ? 'de una infección' : 'por sus heridas');
+  }
+}
+// accidentes de trabajo: herramientas, caídas, animales, cocina (más probables con resaca, efecto o poca experiencia)
+const RIESGO = { construir: ['golpe', 'mano', 0.004], renovar: ['golpe', 'mano', 0.005], reparar: ['corte', 'mano', 0.004], segar: ['corte', 'pierna', 0.005], esculpir: ['corte', 'mano', 0.003], tallar: ['corte', 'mano', 0.003],
+  ordenar: ['golpe', 'pierna', 0.0025], esquilar: ['corte', 'mano', 0.003], cocinar: ['quemadura', 'mano', 0.002], hornear: ['quemadura', 'mano', 0.003], sacarAgua: ['golpe', 'brazo', 0.0015], vendimia: ['corte', 'mano', 0.002] };
+function accidente(s, a, tipo) {
+  const R0 = RIESGO[tipo]; if (!R0 || a.tipo !== 'humano') return;
+  const area = AREA[tipo] || XP_OCIO[tipo];
+  const p = R0[2] * (1 - Math.min(0.6, nivel(a.xp[area] || 0) * 0.06)) * (a.resacaHasta > s.t ? 2 : 1) * (a.colocadoHasta > s.t ? 1.6 : 1) * (a.borrachoHasta > s.t ? 3 : 1) * (a.n.energia < 25 ? 1.8 : 1);
+  if (rng(s) > p) return;
+  const caida = (tipo === 'renovar' || tipo === 'construir') && rng(s) < 0.25;
+  if (caida) herir(s, a, 'fractura', 0.6 + rng(s) * 0.3, 'pierna', tipo === 'renovar' ? 'al caerse del andamio' : 'al caerse de la obra');
+  else herir(s, a, R0[0], 0.15 + rng(s) * 0.45, R0[1], 'trabajando');
+}
+
+// ---------------------------------------------------------------- el narrador (estilo RimWorld, equilibrado)
+// reparte crisis por ciclos: calma → tensión → crisis. Mientras mejor va la granja, más aprieta; si va mal, da respiro.
+const narradorNuevo = (t) => ({ tension: 0, proxima: Math.floor(t / MIN_DIA) + 8, historial: [] });
+function riqueza(s) { return Math.min(2, 0.6 + (s.comercio?.monedas || 0) / 1500 + s.ganado.filter((g) => g.vivo).length / 60 + diasVividos(s) / (DIAS_ANIO * 3)); }
+const CRISIS = {
+  incendio: { peso: (s) => (estacion(s) === 1 ? 2 : 1) * (s.sequia > 0 ? 2 : 1), ok: (s) => true },
+  lobos: { peso: (s) => (estacion(s) === 3 ? 2.2 : 1), ok: (s) => s.ganado.some((g) => g.vivo) },
+  ladron: { peso: (s) => 0.6 + (s.comercio?.monedas || 0) / 400, ok: (s) => true },
+  fiebre: { peso: (s) => (estacion(s) === 3 ? 1.8 : 0.8), ok: (s) => humanos(s).length > 0 },
+  pozo: { peso: () => 0.45, ok: (s) => !s.pozoRoto },
+  forastero: { peso: () => 0.8, ok: (s) => !s.forastero },
+  intoxicacion: { peso: (s) => ((s.rec.conservas || 0) > 10 ? 1 : 0.5), ok: (s) => humanos(s).length > 0 },
+  langostas: { peso: (s) => (estacion(s) === 1 || estacion(s) === 2 ? 1.2 : 0), ok: (s) => s.parcelas.filter((p) => p.estado === 'creciendo').length >= 3 },
+};
+function narradorDelDia(s) {
+  const N = (s.narrador ||= narradorNuevo(s.t)), d = dia(s);
+  N.tension = Math.max(0, N.tension * 0.88 - 2);
+  const animoMedio = humanos(s).reduce((t, a) => t + a.animo, 0) / (humanos(s).length || 1);
+  if (d < N.proxima || N.tension > 40 || animoMedio < 30) return;   // da respiro si están mal
+  const ops = Object.entries(CRISIS).filter(([k, c]) => c.ok(s) && N.historial.slice(-2).indexOf(k) < 0).map(([k, c]) => [c.peso(s), k]);
+  let r = rng(s) * ops.reduce((t, o) => t + o[0], 0), k = ops[0]?.[1];
+  for (const [w, kk] of ops) { if ((r -= w) <= 0) { k = kk; break; } }
+  if (!k) return;
+  const fuerza = riqueza(s) * (0.8 + rng(s) * 0.4);
+  N.historial.push(k); if (N.historial.length > 20) N.historial.shift();
+  N.tension += 25 + fuerza * 15; N.proxima = d + 5 + Math.floor(rng(s) * 7);   // equilibrado: una crisis cada 5 a 11 días
+  s.stats.crisis = (s.stats.crisis || 0) + 1;
+  lanzarCrisis(s, k, fuerza);
+}
+function lanzarCrisis(s, k, f) {
+  const R = s.rec, H = humanos(s);
+  switch (k) {
+    case 'incendio': {
+      const lugares = [];
+      if (R.heno > 15) lugares.push({ lugar: 'heno', x: LUGAR.heno.x, z: LUGAR.heno.z, nombre: 'el heno del establo' });
+      lugares.push({ lugar: 'casa', x: -3.4, z: -4.6, nombre: 'la cocina de la casa' });
+      if (s.casa.obra) lugares.push({ lugar: 'obra', x: 9, z: 7.2, nombre: 'la obra' });
+      lugares.push({ lugar: 'arbol', x: SOMBRAS.corral[0].x, z: SOMBRAS.corral[0].z, nombre: 'un árbol del potrero (le cayó un rayo)' });
+      const L = lugares[Math.floor(rng(s) * lugares.length)];
+      s.fuegos = [...(s.fuegos || []), { ...L, intensidad: 0.25 + 0.1 * f, id: s.t }];
+      log(s, `🔥 ¡Incendio en ${L.nombre}! Hay que apagarlo con agua antes de que crezca.`, 'malo');
+      proponer(s, 'incendio', `¡Incendio en ${L.nombre}!`, `El fuego crece cada minuto. Apagarlo gasta agua del tanque y quien se acerca se puede quemar.`, [
+        { k: 'apagar', txt: 'Todos a apagarlo', pista: 'gasta agua; riesgo de quemaduras' },
+        { k: 'uno', txt: 'Que lo apague uno solo', pista: 'más lento, el otro sigue con lo suyo' },
+        { k: 'dejar', txt: 'Dejar que se consuma', pista: L.lugar === 'casa' ? 'la casa sufre mucho' : 'se pierde lo que se quema' },
+      ], 'dejar', {}, 2, 0);   // si no decides, nadie organiza nada y el fuego avanza
+      break;
+    }
+    case 'lobos': {
+      const n = Math.max(2, Math.min(4, Math.round(1.5 + f)));
+      const llegan = s.t + ((22 - hora(s) + 24) % 24) * 60;   // esta noche a las 22
+      s.lobos = { n, x: CORRAL.x0 - 6, z: CORRAL.z0 + 4, llegan, hasta: llegan + 8 * 60, heridos: 0, presa: null, huyendo: false };
+      log(s, `🐺 Se oyen aullidos: una manada de ${n} lobos ronda el potrero. Esta noche van a buscar al ganado.`, 'malo');
+      proponer(s, 'lobos', `${n} lobos rondan el potrero`, `Esta noche van a atacar. Berlín los va a enfrentar, pero solo no puede con todos.`, [
+        { k: 'guardia', txt: 'Hacer guardia toda la noche', pista: 'no duermen, se cansan; espantan a los lobos' },
+        { k: 'encerrar', txt: 'Encerrar el ganado', pista: 'los lobos casi no pueden entrar al establo' },
+        { k: 'berlin', txt: 'Confiar en Berlín', pista: 'puede salir herido, y perderse algún animal' },
+      ], 'berlin', {}, 8, 0);   // sin decisión, Berlín queda solo
+      break;
+    }
+    case 'ladron': {
+      const llega = s.t + (26 - hora(s)) * 60;   // la madrugada siguiente
+      s.ladron = { x: BLOQUE.x1 - 2, z: BLOQUE.z1 - 4, llega, hasta: llega + 3 * 60, modo: null };
+      log(s, `🕵️ Alguien estuvo mirando la granja desde el camino. Algo trama.`, 'aviso');
+      proponer(s, 'ladron', 'Un extraño ronda la granja', `Parece que esta noche va a intentar robar. Hay ${Math.round(s.comercio?.monedas || 0)} monedas, vino y conservas guardadas.`, [
+        { k: 'enfrentar', txt: 'Esperarlo y enfrentarlo', pista: 'lo espantan, pero alguien puede salir golpeado' },
+        { k: 'perro', txt: 'Dejar suelto a Berlín', pista: 'casi siempre lo espanta; Berlín se arriesga' },
+        { k: 'esconder', txt: 'Esconder lo valioso y trancar', pista: 'nadie se arriesga; algo se va a llevar' },
+      ], 'esconder', {}, 8, 0);   // sin decisión: se encierran y el ladrón roba
+      break;
+    }
+    case 'fiebre': {
+      const a = H[Math.floor(rng(s) * H.length)];
+      herir(s, a, 'fiebre', 0.55 + 0.2 * f, 'cuerpo', 'por una infección que agarró');
+      proponer(s, 'fiebre', `${a.nombre} tiene fiebre muy alta`, `Sin tratamiento empeora cada día. ${R.medicina >= 1 ? `Queda ${Math.floor(R.medicina)} medicina.` : 'No queda medicina.'}`, [
+        { k: 'medicina', txt: 'Usar la medicina', pista: R.medicina >= 1 ? 'baja la fiebre rápido' : 'no hay: se hará con remedios' },
+        { k: 'medico', txt: 'Traer al médico del pueblo', pista: '120 monedas; cura segura' },
+        { k: 'caseros', txt: 'Remedios caseros y reposo', pista: 'gratis, más lento y riesgoso' },
+        { k: 'nada', txt: 'Esperar a que pase', pista: 'puede empeorar… y matar' },
+      ], 'nada', { quien: null, enfermo: a.id }, 8, 0);
+      break;
+    }
+    case 'pozo': {
+      s.pozoRoto = { avance: 0 };
+      log(s, `🚱 Se rompió la bomba del pozo: no se puede sacar agua hasta repararlo. El tanque tiene ${Math.round(R.cruda)} L.`, 'malo');
+      s.pozoRoto.desde = s.t;
+      proponer(s, 'pozo', 'Se rompió el pozo', `No se puede sacar agua. El tanque tiene ${Math.round(R.cruda)} L y la lluvia no es segura.`, [
+        { k: 'reparar', txt: 'Repararlo ya', pista: '40 monedas en repuestos y un día de trabajo' },
+        { k: 'esperar', txt: 'Esperar y racionar', pista: 'el agua se acaba; los animales sufren' },
+      ], 'esperar', {}, 8, 0);
+      break;
+    }
+    case 'forastero': {
+      proponer(s, 'forastero', 'Un forastero pide refugio', 'Un viajero herido y con hambre llegó por el camino. Pide quedarse unos días.', [
+        { k: 'acoger', txt: 'Acogerlo unos días', pista: 'gasta comida; suele agradecer… casi siempre' },
+        { k: 'comida', txt: 'Darle comida y que siga', pista: 'algo de comida y la conciencia tranquila' },
+        { k: 'rechazar', txt: 'Que siga su camino', pista: 'nada se pierde… salvo un poco de corazón' },
+      ], 'rechazar', {}, 8, 0);
+      break;
+    }
+    case 'intoxicacion': {
+      const a = H[Math.floor(rng(s) * H.length)];
+      if ((R.conservas || 0) >= 2) R.conservas -= 2;
+      herir(s, a, 'intoxicacion', 0.2 + 0.12 * f, 'cuerpo', 'por comer conservas en mal estado');
+      break;
+    }
+    case 'langostas': {
+      let n = 0;
+      for (const q of s.parcelas) if (q.estado === 'creciendo' && rng(s) < 0.75) { q.plaga = Math.max(q.plaga || 0, 0.7 + 0.15 * f); q.plagaTipo = 'insecto'; q.langosta = true; n++; }
+      log(s, `🦗 Llegó una nube de langostas: atacan ${n} parcelas. Hay que tratarlas pronto o se pierde la cosecha.`, 'malo');
+      proponer(s, 'langostas', 'Nube de langostas', `Atacan ${n} parcelas y se multiplican rápido.`, [
+        { k: 'fumigar', txt: 'Dejar todo y fumigar', pista: 'salva la mayoría; se atrasa lo demás' },
+        { k: 'humo', txt: 'Quemar hojas para ahuyentarlas', pista: 'rápido; se pierde una parcela' },
+        { k: 'nada', txt: 'Que sigan con lo suyo', pista: 'se comen la cosecha' },
+      ], 'nada', {}, 6, 0);
+      break;
+    }
+  }
+}
+function resolverCrisis(s, d, k) {
+  const R = s.rec;
+  switch (d.tipo) {
+    case 'incendio': s.politica.incendio = k; break;
+    case 'pozo': if (k === 'reparar' && s.pozoRoto) { s.pozoRoto.autorizado = true; s.comercio.monedas = Math.max(0, (s.comercio.monedas || 0) - 40); log(s, '🔧 Compraron repuestos para el pozo (40 monedas).', 'info'); } break;
+    case 'langostas': {
+      const L = s.parcelas.filter((q) => q.langosta && q.estado === 'creciendo');
+      if (k === 'fumigar') L.forEach((q) => { q.prioridad = s.t + 2 * MIN_DIA; q.plaga = Math.max(0, q.plaga - 0.25); });
+      if (k === 'humo') { const peor = L.sort((x, y) => y.plaga - x.plaga)[0]; if (peor) { peor.estado = 'muerta'; peor.ultimo = peor.cultivo; } L.forEach((q) => { q.plaga = Math.max(0, q.plaga - 0.5); }); log(s, '🦗 Quemaron hojas y el humo ahuyentó a las langostas; se perdió una parcela.', 'info'); }
+      break;
+    }
+    case 'tratamiento': {
+      const a = s.agentes.find((x) => x.id === d.datos.paciente && x.vivo); if (!a) break;
+      if (k === 'medicina' && R.medicina >= 1) { R.medicina -= 1; for (const h of a.heridas || []) { h.tratada = true; h.medicada = true; h.infeccion = 0; if (h.tipo === 'fiebre') h.sev *= 0.6; } log(s, `💊 Trataron a ${a.nombre} con medicina.`, 'bueno'); }
+      else if (k === 'medico' && (s.comercio?.monedas || 0) >= 120) { s.comercio.monedas -= 120; for (const h of a.heridas || []) { h.tratada = true; h.medicada = true; h.infeccion = 0; h.sev *= 0.5; } log(s, `👨‍⚕️ El médico del pueblo atendió a ${a.nombre} (120 monedas).`, 'bueno'); }
+      else log(s, `${a.nombre} solo recibió vendas y paciencia.`, 'info');
+      break;
+    }
+    case 'lobos': s.politica.lobos = k; break;
+    case 'ladron': if (s.ladron) s.ladron.modo = k; break;
+    case 'fiebre': {
+      const a = s.agentes.find((x) => x.id === d.datos.enfermo && x.vivo); if (!a) break;
+      const h = (a.heridas || []).find((x) => x.tipo === 'fiebre'); if (!h) break;
+      if (k === 'medicina' && R.medicina >= 1) { R.medicina -= 1; h.tratada = true; h.sev *= 0.6; log(s, `💊 Le dieron medicina a ${a.nombre}: la fiebre empieza a bajar.`, 'bueno'); }
+      else if (k === 'medico' && (s.comercio?.monedas || 0) >= 120) { s.comercio.monedas -= 120; h.tratada = true; h.sev *= 0.4; log(s, `👨‍⚕️ Vino el médico del pueblo y atendió a ${a.nombre} (120 monedas).`, 'bueno'); }
+      else { h.casero = true; log(s, `🍵 ${a.nombre} se cuida con remedios caseros y reposo.`, 'info'); if (rng(s) < 0.6) h.tratada = true; }
+      break;
+    }
+    case 'forastero': {
+      if (k === 'acoger') { s.forastero = { hasta: s.t + (3 + Math.floor(rng(s) * 3)) * MIN_DIA, bueno: rng(s) < 0.78 }; log(s, '🧳 El forastero se quedará unos días en la granja.', 'info'); humanos(s).forEach((x) => recuerdo(s, x, 'Ayudamos a un forastero', 4, 48)); }
+      else if (k === 'comida') { for (let i = 0; i < 5; i++) consumirComida(s, humanos(s)[0] || s.agentes[0], 0); log(s, '🧳 Le dieron comida al forastero y siguió su camino agradecido.', 'info'); humanos(s).forEach((x) => recuerdo(s, x, 'Fuimos generosos', 3, 24)); }
+      else { log(s, '🧳 El forastero siguió su camino.', 'info'); humanos(s).forEach((x) => { if (P5(x, 'amabilidad') > 0.55) recuerdo(s, x, 'Le negamos ayuda a alguien', -4, 48); }); }
+      break;
+    }
+  }
+}
+// lo que pasa minuto a minuto durante las crisis
+function crisisTick(s, d) {
+  const R = s.rec;
+  // incendios: crecen, queman lo que tienen cerca; la lluvia ayuda
+  for (const F of s.fuegos || []) {
+    F.intensidad = Math.min(2, F.intensidad + d * (0.0025 * (s.sequia > 0 ? 1.6 : 1) * (calor(s) ? 1.3 : 1)) - (s.clima.lluvia ? 0.03 * d : 0));
+    if (s.politica?.incendio === 'dejar') F.intensidad -= 0.0012 * d * (F.consumido || 0);
+    F.consumido = (F.consumido || 0) + F.intensidad * d / 60;
+    if (F.lugar === 'heno') R.heno = Math.max(0, R.heno - 0.25 * F.intensidad * d);
+    if (!F.golpe && F.intensidad > 1) { F.golpe = true; humanos(s).forEach((x) => recuerdo(s, x, `El fuego arrasó ${F.nombre}`, -12, 96)); }
+    if (F.lugar === 'casa') { s.casa.estado = Math.max(0, s.casa.estado - 0.03 * F.intensidad * d); s.casa.limpieza = Math.max(0, s.casa.limpieza - 0.05 * F.intensidad * d); }
+    if (F.lugar === 'obra' && s.casa.obra) s.casa.obra.progreso = Math.max(0, s.casa.obra.progreso - 0.0008 * F.intensidad * d);
+    if (F.consumido > (F.lugar === 'casa' ? 10 : 6)) F.intensidad -= 0.01 * d;   // ya no queda qué quemar
+    for (const a of s.agentes) if (a.vivo && !a.dentro && Math.hypot(a.pos.x - F.x, a.pos.z - F.z) < 1.2 + F.intensidad && a.tarea?.tipo !== 'apagarFuego' && rng(s) < 0.002 * d * F.intensidad) herir(s, a, 'quemadura', 0.2 + 0.2 * F.intensidad, 'brazo', 'por acercarse al fuego');
+    if (F.lugar === 'casa' && F.intensidad > 0.3) for (const a of s.agentes) if (a.vivo && a.dentro) { if (rng(s) < 0.0015 * d * F.intensidad) herir(s, a, 'quemadura', 0.25, 'brazo', 'por el humo y las llamas'); if (a.tipo === 'humano' && a.tarea && a.tarea.tipo !== 'apagarFuego') { soltarTarea(s, a); a.dentro = false; a.pos = { ...LUGAR.puerta }; } }
+  }
+  if (s.fuegos?.length) {
+    for (const F of s.fuegos.filter((x) => x.intensidad <= 0)) log(s, `🔥 Se apagó el fuego en ${F.nombre}.`, 'bueno');
+    s.fuegos = s.fuegos.filter((x) => x.intensidad > 0);
+    if (!s.fuegos.length) s.politica.incendio = null;
+  }
+  // lobos: llegan de noche, buscan una presa; Berlín y la guardia los espantan
+  const W = s.lobos;
+  if (W) {
+    if (s.t > W.hasta || W.n <= 0) { if (!W.huyendo) log(s, '🐺 Los lobos se fueron con el amanecer.', 'info'); s.lobos = null; s.politica.lobos = null; }
+    else if (s.t >= W.llegan) {
+      const presas = s.ganado.filter((g) => g.vivo && !esAve(g.tipo) && (s.politica?.lobos !== 'encerrar' || rng(s) < 0.002));
+      if (!W.presa || !presas.includes(s.ganado.find((g) => g.id === W.presa))) W.presa = presas.sort((x, y) => (x.crec - y.crec) || (x.salud - y.salud))[0]?.id;
+      const presa = s.ganado.find((g) => g.id === W.presa);
+      const destino = W.huyendo ? { x: CORRAL.x0 - 12, z: CORRAL.z0 - 6 } : presa ? presa.pos : { x: CORRAL.x0 + 4, z: 0 };
+      const dx = destino.x - W.x, dz = destino.z - W.z, dist = Math.hypot(dx, dz), v = 2.3 * d;
+      if (dist > v) { W.x += dx / dist * v; W.z += dz / dist * v; }
+      if (W.huyendo && dist < 1) { s.lobos = null; s.politica.lobos = null; }
+      else if (!W.huyendo) {
+        // defensores: Berlín (protector) y quien haga guardia
+        const perro = s.agentes.find((a) => a.vivo && a.tipo === 'perro');
+        const guardias = humanos(s).filter((a) => a.tarea?.tipo === 'guardia' && a.tarea.fase === 'trabajo');
+        if (perro && !herido(perro, 0.5) && (!perro.tarea || perro.tarea.tipo !== 'defender')) perro.tarea = { tipo: 'defender', fase: 'trabajo', trabajo: 600 };
+        const defensa = (perro && !herido(perro, 0.5) ? 0.45 : 0) + guardias.length * 1.6;
+        const cerca = (x) => Math.hypot(x.pos.x - W.x, x.pos.z - W.z) < 3;
+        if (defensa > 0 && rng(s) < 0.012 * d * defensa / W.n) {
+          W.huyendo = true;
+          log(s, `🐺 ${guardias.length ? guardias.map((x) => x.nombre).join(' y ') + (perro ? ` y ${perro.nombre}` : '') : perro.nombre} espantaron a los lobos.`, 'bueno');
+          for (const g of guardias) recuerdo(s, g, 'Espantamos a los lobos', 8, 48);
+        }
+        if (perro && cerca(perro) && rng(s) < 0.004 * d * W.n) herir(s, perro, 'mordida', 0.3 + rng(s) * 0.4, 'pierna', 'peleando con los lobos');
+        for (const g of guardias) if (cerca(g) && rng(s) < 0.0015 * d * W.n) herir(s, g, 'mordida', 0.3 + rng(s) * 0.3, 'pierna', 'espantando a los lobos');
+        if (presa && dist < 1.2 && rng(s) < 0.05 * d) {
+          morirAnimal(s, presa, 'atacado por los lobos');
+          W.huyendo = true;
+        }
+      }
+    }
+  }
+  // ladrón: llega de madrugada
+  const Lr = s.ladron;
+  if (Lr && s.t >= Lr.llega) {
+    const objetivo = { x: 4, z: 8 }, dx = objetivo.x - Lr.x, dz = objetivo.z - Lr.z, dist = Math.hypot(dx, dz);
+    if (dist > 1.8 * d) { Lr.x += dx / dist * 1.8 * d; Lr.z += dz / dist * 1.8 * d; }
+    else if (!Lr.hecho) {
+      Lr.hecho = true;
+      const perro = s.agentes.find((a) => a.vivo && a.tipo === 'perro');
+      const modo = Lr.modo || 'perro';
+      const H = humanos(s);
+      if (modo === 'enfrentar' && rng(s) < 0.85) {
+        log(s, `🕵️ ${H.map((x) => x.nombre).join(' y ')} sorprendieron al ladrón y salió corriendo.`, 'bueno');
+        if (rng(s) < 0.3 && H[0]) herir(s, H[Math.floor(rng(s) * H.length)], 'golpe', 0.3 + rng(s) * 0.3, 'cabeza', 'forcejeando con el ladrón');
+        H.forEach((x) => recuerdo(s, x, 'Espantamos al ladrón', 6, 48));
+      } else if (modo === 'perro' && perro && rng(s) < 0.8) {
+        log(s, `🕵️ ${perro.nombre} se le tiró encima al ladrón y lo hizo huir.`, 'bueno');
+        if (rng(s) < 0.2) herir(s, perro, 'golpe', 0.3, 'cuerpo', 'defendiendo la casa');
+        vincular(s, perro, H[0], 5); vincular(s, perro, H[1], 5);
+      } else {
+        const robo = [];
+        const m = Math.round((s.comercio?.monedas || 0) * (modo === 'esconder' ? 0.15 : 0.4)); if (m > 0) { s.comercio.monedas -= m; robo.push(`${m} monedas`); }
+        if (R.vino >= 2) { const v = Math.min(R.vino, modo === 'esconder' ? 2 : 6); R.vino -= v; robo.push(`${Math.round(v)} botellas de vino`); }
+        if ((R.conservas || 0) >= 4) { R.conservas -= 4; robo.push('4 conservas'); }
+        log(s, `🕵️ Entró un ladrón de madrugada y se llevó ${robo.join(', ') || 'casi nada'}.`, 'malo');
+        H.forEach((x) => recuerdo(s, x, 'Nos robaron', -14, 96));
+      }
+      s.ladron = null;
+    }
+  }
+  if (Lr && s.ladron && s.t > Lr.hasta) s.ladron = null;
+  // forastero: al irse agradece (o roba)
+  const Fo = s.forastero;
+  if (Fo && s.t >= Fo.hasta) {
+    if (Fo.bueno) {
+      const regalo = rng(s) < 0.5 ? (s.comercio.monedas += 60, '60 monedas') : (Object.keys(R.semillas).forEach((c) => { R.semillas[c] += 3; }), 'semillas de todo tipo');
+      log(s, `🧳 El forastero se despidió muy agradecido y les dejó ${regalo}.`, 'bueno'); humanos(s).forEach((x) => recuerdo(s, x, 'El forastero agradeció', 6, 48));
+    } else { const m = Math.round((s.comercio?.monedas || 0) * 0.3); s.comercio.monedas -= m; log(s, `🧳 El forastero se fue de madrugada… y con él ${m} monedas.`, 'malo'); humanos(s).forEach((x) => recuerdo(s, x, 'Nos engañó el forastero', -8, 72)); }
+    s.forastero = null;
+  }
+  if (Fo && s.forastero && rng(s) < d / MIN_DIA * 2) consumirComida(s, s.agentes[0], 0);   // come con ellos
+}
+
+// ---------------------------------------------------------------- quiebres mentales (cuando el ánimo toca fondo)
+const QUIEBRE = {
+  atracon: ['un atracón', 'se puso a comer sin parar', 'menor'], llanto: ['un ataque de llanto', 'se encerró a llorar', 'menor'], deambular: ['un ataque de angustia', 'se fue a caminar sin rumbo', 'menor'],
+  portazos: ['un ataque de mal genio', 'anda dando portazos y gritándole a todo', 'menor'],
+  borrachera: ['una borrachera', 'se puso a tomar sin control', 'mayor'], berrinche: ['un berrinche', 'rompió cosas de la casa', 'mayor'], huida: ['una huida', 'se fue al monte y no quiere volver por ahora', 'mayor'],
+  colapso: ['un colapso', 'no se puede levantar de la cama', 'extremo'],
+};
+function quiebres(s) {   // cada media hora
+  for (const a of humanos(s)) {
+    if (a.quiebre || !despierto(s, a) || a.nadando) continue;
+    const ani = a.animo, nivelQ = ani < 6 ? 'extremo' : ani < 15 ? 'mayor' : ani < 25 ? 'menor' : null;
+    if (!nivelQ) continue;
+    const p = { menor: 0.02, mayor: 0.03, extremo: 0.05 }[nivelQ] * (0.5 + P5(a, 'neuroticismo')) * (tiene(a, 'tranquilo') ? 0.5 : 1);
+    if (rng(s) > p) continue;
+    const ops = Object.entries(QUIEBRE).filter(([k, q]) => q[2] === nivelQ || (nivelQ === 'extremo' && q[2] === 'mayor'))
+      .filter(([k]) => (k !== 'borrachera' || (s.rec.vino >= 1 && (HAB(a).placeres?.vino ?? 0) > 0.3)) && (k !== 'atracon' || comidaTotal(s) > 10) && (k !== 'portazos' || tiene(a, 'malgenio')));
+    const peso = ([k]) => (k === 'berrinche' || k === 'portazos' ? (tiene(a, 'malgenio') ? 3 : 1) : k === 'huida' ? (tiene(a, 'hiperactivo') ? 2 : 1) : k === 'borrachera' ? 1 + (HAB(a).placeres?.vino ?? 0) * 2 : 1);
+    let r = rng(s) * ops.reduce((t, o) => t + peso(o), 0), elegido = ops[0];
+    for (const o of ops) { if ((r -= peso(o)) <= 0) { elegido = o; break; } }
+    empezarQuiebre(s, a, elegido[0]);
+  }
+}
+function empezarQuiebre(s, a, k) {
+  const q = QUIEBRE[k], horas = { atracon: 2, llanto: 4, deambular: 3, portazos: 3, borrachera: 3, berrinche: 1.5, huida: 18, colapso: 20 }[k];
+  a.quiebre = { tipo: k, hasta: s.t + horas * 60 };
+  soltarTarea(s, a);
+  log(s, `⚠️ ${a.nombre} tuvo ${q[0]}: ${q[1]}.`, 'malo');
+  efecto(s, k === 'llanto' || k === 'colapso' ? 'llanto' : k === 'borrachera' ? 'borrachera' : 'quiebre', a.pos.x, a.pos.z, { dentro: a.dentro });
+  const b = pareja(s, a); if (b) recuerdo(s, b, `${a.nombre} se quebró`, -5, 24);
+  s.stats.quiebres = (s.stats.quiebres || 0) + 1;
+  if (k === 'berrinche') {
+    const roto = (s.comercio?.lujos || []).length && rng(s) < 0.4 ? s.comercio.lujos.splice(Math.floor(rng(s) * s.comercio.lujos.length), 1)[0] : null;
+    if (roto) log(s, `En el berrinche se rompió ${LUJOS.find((l) => l[0] === roto)?.[1] || 'algo valioso'}.`, 'malo');
+    else { s.casa.estado = Math.max(0, s.casa.estado - 8); s.casa.limpieza = Math.max(0, s.casa.limpieza - 25); }
+  }
+  if (k === 'portazos') { s.pareja.tension = Math.min(100, (s.pareja.tension || 0) + 15); }
+}
+function tareaDeQuiebre(s, a) {
+  const Q = a.quiebre;
+  if (s.t >= Q.hasta) {
+    a.quiebre = null;
+    recuerdo(s, a, 'Catarsis', 12, 48);   // después de quebrarse, se siente liviano un tiempo (como en RimWorld)
+    log(s, `${a.nombre} se repuso del ${QUIEBRE[Q.tipo][0].replace(/^un |^una /, '')}.`, 'info');
+    return null;
+  }
+  const quedan = Q.hasta - s.t;
+  switch (Q.tipo) {
+    case 'atracon': if (comidaTotal(s) >= 1) return crearTarea(s, a, 'comer', { trabajo: 20, atracon: true }); break;
+    case 'llanto': case 'colapso': return crearTarea(s, a, 'reposo', { trabajo: Math.min(quedan, 120), quiebre: true });
+    case 'deambular': case 'huida': {
+      const ang = rng(s) * Math.PI * 2, r = Q.tipo === 'huida' ? 40 + rng(s) * 6 : 10 + rng(s) * 20;
+      return crearTarea(s, a, 'deambular', { trabajo: Math.min(quedan, Q.tipo === 'huida' ? 180 : 40), destino: { x: 2 + Math.cos(ang) * r, z: 6 + Math.sin(ang) * r } });
+    }
+    case 'borrachera': if (s.rec.vino >= 0.25) { a.borrachera = true; return crearTarea(s, a, 'tomarVino', { trabajo: 30 }); } break;
+    case 'portazos': case 'berrinche': return crearTarea(s, a, 'deambular', { trabajo: 30, destino: { ...LUGAR.puerta } });
+  }
+  return crearTarea(s, a, 'reposo', { trabajo: Math.min(quedan, 60), quiebre: true });
 }
 
 // ---------------------------------------------------------------- encuentros
@@ -2391,6 +2860,8 @@ function comportamientoAnimal(s, a, d) {
   if (!a.tarea) {
     const cocinando = humanos(s).find((h) => h.tarea?.tipo === 'cocinar' && h.tarea.fase === 'trabajo');
     if (n.agua < 45 && R.bebedero >= 0.5) a.tarea = { tipo: 'beber', fase: 'camino', destino: { x: LUGAR.comedero.x - 0.5, z: LUGAR.comedero.z + 0.4 }, trabajo: 3 };
+    else if (n.comida < 22 && R.comedero < 0.3 && (R.raciones >= 1 || (R.secos || 0) >= 1)) a.tarea = { tipo: 'robarComida', fase: 'camino', destino: { ...LUGAR.puerta }, trabajo: 4 };
+    else if (n.agua < 30) a.tarea = { tipo: 'beberPiscina', fase: 'camino', destino: { x: LUGAR.piscina.x - 0.3, z: LUGAR.piscina.z }, trabajo: 3 };   // sin agua en el plato: de la piscina
     else if (n.comida < 45 && R.comedero >= 0.3) a.tarea = { tipo: 'comer', fase: 'camino', destino: { x: LUGAR.comedero.x + 0.3, z: LUGAR.comedero.z + 0.6 }, trabajo: 10 };
     else if (gato && cocinando && rng(s) < 0.02) a.tarea = { tipo: 'pedir', fase: 'camino', destino: { ...LUGAR.puerta }, trabajo: 30, dentro: true };
     // juegan entre ellos: el perro persigue al gato (de día, si los dos están libres)
@@ -2470,6 +2941,11 @@ function comportamientoAnimal(s, a, d) {
   if (T.fase === 'camino') {
     if (a.dentro && !T.dentro) { a.dentro = false; a.pos = { ...LUGAR.puerta }; }
     if (mover(a, T.destino, d * (T.tipo === 'huir' ? 1.35 : 1))) { T.fase = 'trabajo'; if (T.dentro) a.dentro = true; }
+    return;
+  }
+  if (T.tipo === 'defender') {
+    if (!s.lobos) { a.tarea = null; return; }
+    mover(a, { x: s.lobos.x + 1, z: s.lobos.z }, d * 1.1);
     return;
   }
   if (T.tipo === 'huir') {   // llegó al árbol: se trepa
@@ -2608,6 +3084,8 @@ function comportamientoAnimal(s, a, d) {
   if (T.trabajo > 0) return;
   if (T.tipo === 'comer' && R.comedero >= 0.3) { const c = a.tipo === 'gato' ? 0.3 : 0.5; R.comedero = Math.max(0, R.comedero - c); n.comida = Math.min(100, n.comida + 45); }
   if (T.tipo === 'beber' && R.bebedero >= 0.5) { R.bebedero = Math.max(0, R.bebedero - 0.5); n.agua = Math.min(100, n.agua + 40); }
+  if (T.tipo === 'beberPiscina') n.agua = Math.min(100, n.agua + 45);
+  if (T.tipo === 'robarComida') { const k = R.raciones >= 1 ? 'raciones' : 'secos'; R[k] = Math.max(0, R[k] - 1); n.comida = Math.min(100, n.comida + 40); if (rng(s) < 0.4) log(s, `${a.nombre} tenía el plato vacío y se robó comida de la cocina.`, 'info'); }
   if (T.tipo === 'cazar') {
     if (rng(s) < 0.4) { n.comida = Math.min(100, n.comida + 35); n.diversion = Math.min(100, n.diversion + 25); log(s, `${a.nombre} cazó un ratón en el huerto.`, 'info'); }
     else if (rng(s) < 0.08) { const p = s.parcelas[T.parcelaCaza]; if (p && p.estado === 'creciendo') { p.crec = Math.max(0, p.crec - 0.5); log(s, `${a.nombre} persiguió un insecto y pisoteó un poco la parcela ${p.id + 1}.`, 'info'); } }
@@ -2661,6 +3139,7 @@ function migrar(s) {
     { const n = placeresNuevos(); s.parras ??= n.parras; s.matas ??= n.matas; s.barricas ??= []; s.curado ??= [];
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
+    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {};
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
     if (!s.jugador) Object.assign(s, jugadorNuevo());

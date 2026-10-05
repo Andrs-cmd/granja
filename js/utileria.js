@@ -23,6 +23,7 @@ const HACER = {
 };
 // qué lleva en la mano en cada tarea: [objeto, mano]
 export const UTILERIA_DE = {
+  apagarFuego: ['balde', 'r'], repararPozo: ['martillo', 'r'], guardia: ['pala', 'r'],
   regar: ['regadera', 'r'], sacarAgua: ['balde', 'r'], ordenar: ['balde', 'l'], alimentar: ['balde', 'r'], alimentarGanado: ['balde', 'r'],
   recogerHuevos: ['cesta', 'l'], recogerFruta: ['cesta', 'l'], vendimia: ['cesta', 'l'], cosecharHierba: ['cesta', 'l'], cosechar: ['cesta', 'l'], recogerFlores: ['cesta', 'l'],
   sembrar: ['pala', 'r'], limpiar: ['pala', 'r'], abonar: ['pala', 'r'], arrancar: ['pala', 'r'], fumigar: ['regadera', 'r'], cuidarJardin: ['pala', 'r'],
