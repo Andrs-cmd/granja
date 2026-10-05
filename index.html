@@ -184,7 +184,8 @@ function pintarDatos() {
     ['🍼', 'cría|crías', (g) => g.crec < 1 && g.tipo !== 'pollito'], ['🐣', 'pollito|pollitos', (g) => g.tipo === 'pollito'],
   ];
   const vivosG = s.ganado.filter((g) => g.vivo);
-  const animales = grupos.map(([ic, txt, f]) => { const l = vivosG.filter(f); return l.length ? `<span title="${l.map((g) => g.nombre).join(', ')}">${ic} ${l.length} ${txt.split('|')[l.length === 1 ? 0 : 1]}</span>` : ''; }).join('')
+  const fichaAnimal = (g) => `${g.nombre} · gen. ${g.generacion || 0}${g.rasgo ? ' · ' + g.rasgo : ''} · estrés ${Math.round(g.estres || 0)}`;
+  const animales = grupos.map(([ic, txt, f]) => { const l = vivosG.filter(f); return l.length ? `<span title="${l.map(fichaAnimal).join('&#10;')}">${ic} ${l.length} ${txt.split('|')[l.length === 1 ? 0 : 1]}</span>` : ''; }).join('')
     + (s.ganado.some((g) => g.empolla) ? '<span>🥚 empollando</span>' : '');
   const huerto = s.parcelas.map((p) => p.cultivo ? `${ICO[p.cultivo]}${p.estado === 'lista' ? '✓' : p.estado === 'muerta' ? '✗' : Math.floor(Math.min(1, p.crec / Sim.CULTIVOS[p.cultivo].dias) * 100) + '%'}` : '·').join('  ');
   const P = s.parcelas, prom = (k) => P.reduce((t, p) => t + (p[k] ?? 0), 0) / P.length;
@@ -224,7 +225,15 @@ function pintarDatos() {
       <span>🧪 Suelo N·P·K</span><b class="${Math.min(prom('N'), prom('P'), prom('K')) < 35 ? 'warn' : ''}">${Math.round(prom('N'))} · ${Math.round(prom('P'))} · ${Math.round(prom('K'))}</b>
       <span>⚗️ pH medio</span><b>${prom('ph').toFixed(1)}</b>
       ${plagas ? `<span>🐛 Plagas</span><b class="warn">${plagas} parcela${plagas > 1 ? 's' : ''}</b>` : ''}
-      <span>♻️ Compost</span><b>${Math.round(R.compost || 0)}</b></div>
+      <span>♻️ Compost</span><b>${Math.round(R.compost || 0)}</b>
+      ${(() => {
+        const vc = vivosG; if (!vc.length) return '';
+        const pg = (k) => (vc.reduce((t, g) => t + Sim.gen(g, k), 0) / vc.length).toFixed(2);
+        const est = vc.reduce((t, g) => t + (g.estres || 0), 0) / vc.length, cons = vc.reduce((t, g) => t + (g.consang || 0), 0) / vc.length;
+        return `<span>🧬 Rebaño</span><b title="Resistencia ×${pg('resistencia')} · Crecimiento ×${pg('crecimiento')}">🥛${pg('leche')} 🧶${pg('lana')} 🥚${pg('huevos')}</b>
+        <span>😣 Estrés animal</span><b class="${est > 50 ? 'warn' : ''}">${Math.round(est)}</b>
+        ${cons > 0.005 ? `<span>🩺 Consanguinidad</span><b class="${cons > 0.15 ? 'warn' : ''}">${Math.round(cons * 100)} %</b>` : ''}`;
+      })()}</div>
       <div class="animales" style="margin-top:6px">${animales}</div>
       <div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Huerto: ${huerto}</div></div>
     <div class="card"><h4>Hogar</h4><div class="grid">

@@ -1092,7 +1092,7 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (tp === 'sacarAgua') f = LUGAR.pozo;
       else if (tp === 'jugarGato') f = s.agentes.find((x) => x.tipo === 'gato')?.pos;
       else if (tp === 'jugarPerro') f = s.agentes.find((x) => x.tipo === 'perro')?.pos;
-      else if (tp === 'curar') f = s.ganado.find((g) => g.id === T.animal)?.pos;
+      else if (tp === 'curar' || tp === 'cepillar') f = s.ganado.find((g) => g.id === T.animal)?.pos;
       else if (tp === 'reparar') f = LUGAR.taller;
       else if (tp === 'recogerFruta') f = s.frutales?.[T.arbol];
       else if (tp === 'construir') { const o = OBRAS.find((x) => x[0] === T.obra); if (o) f = { x: o[3], z: o[4] }; }
@@ -1123,8 +1123,8 @@ export function crearEscena(host, { onParcela } = {}) {
       const tipo = trabajando ? T.tipo : null;
       const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir'].includes(tipo) ? 1 : 0;
       const asiento = tipo === 'tallar' || tipo === 'esculpir' ? 0.5 : 0.85;
-      const agachado = tipo === 'jugarGato' || tipo === 'ordenar' || tipo === 'jugarPerro' || tipo === 'curar';
-      const bend = ['construir', 'cuidarJardin', 'secar', 'recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
+      const agachado = tipo === 'jugarGato' || tipo === 'ordenar' || tipo === 'jugarPerro' || tipo === 'curar' || tipo === 'cepillar';
+      const bend = ['cepillar', 'construir', 'cuidarJardin', 'secar', 'recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
       const zancada = v.ficha.fisico?.andar !== 'cadera';
