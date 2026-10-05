@@ -736,7 +736,7 @@ export function crearEscena(host, { onParcela } = {}) {
     if ((trabajando || abrazando) && !moving) {
       let f = null;
       const tp = T?.tipo;
-      if (abrazando || tp === 'conversar') f = otroH ? otroH.pos : null;
+      if (abrazando || tp === 'conversar' || tp === 'reconciliar') f = otroH ? otroH.pos : null;
       else if (tp === 'ordenar') f = s.ganado.find((g) => g.tipo === 'vaca')?.pos;
       else if (tp === 'esquilar') f = s.ganado.find((g) => g.id === T.oveja)?.pos;
       else if (tp === 'alimentarGanado') f = LUGAR.pesebre;
@@ -744,6 +744,9 @@ export function crearEscena(host, { onParcela } = {}) {
       else if (T.parcela != null) f = s.parcelas[T.parcela];
       else if (tp === 'sacarAgua') f = LUGAR.pozo;
       else if (tp === 'jugarGato') f = s.agentes.find((x) => x.tipo === 'gato')?.pos;
+      else if (tp === 'jugarPerro') f = s.agentes.find((x) => x.tipo === 'perro')?.pos;
+      else if (tp === 'curar') f = s.ganado.find((g) => g.id === T.animal)?.pos;
+      else if (tp === 'reparar') f = LUGAR.taller;
       else if (tp === 'alimentar' || ((tp === 'comer' || tp === 'beber') && v.kind !== 'humano')) f = LUGAR.comedero;
       else if (['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
       else if (tp === 'contemplar') v.yaw = angLerp(v.yaw, -Math.PI / 4, Math.min(1, dt * 4));
@@ -769,8 +772,8 @@ export function crearEscena(host, { onParcela } = {}) {
       const tipo = trabajando ? T.tipo : null;
       const sit = ['descansar', 'leer', 'siesta', 'tallar', 'tejer'].includes(tipo) ? 1 : 0;
       const asiento = tipo === 'tallar' ? 0.5 : 0.85;
-      const agachado = tipo === 'jugarGato' || tipo === 'ordenar';
-      const bend = ['regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos'].includes(tipo) ? 1 : 0;
+      const agachado = tipo === 'jugarGato' || tipo === 'ordenar' || tipo === 'jugarPerro' || tipo === 'curar';
+      const bend = ['regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
       const zancada = v.ficha.fisico?.andar !== 'cadera';
@@ -788,7 +791,7 @@ export function crearEscena(host, { onParcela } = {}) {
       const inclin = tipo === 'sembrar' || tipo === 'cosechar' || tipo === 'limpiar' ? 0.75 : agachado ? 0.2 : lee ? 0.25 : 0.35;
       v.upper.rotation.set(zancada ? 0 : -Math.sin(ph) * 0.05 * w, zancada ? Math.sin(ph) * 0.14 * w : 0, -(bend || lee ? inclin : 0) - encorvado);
       const work = Math.sin(t * (tipo === 'sacarAgua' ? 3 : 6));
-      const habla = tipo === 'conversar' ? Math.max(0, Math.sin(t * 1.3 + a.id.length)) : 0;
+      const habla = tipo === 'conversar' || tipo === 'reconciliar' ? Math.max(0, Math.sin(t * 1.3 + a.id.length)) : 0;
       v.arms.forEach((arm, j) => {
         const sw = -Math.sin(ph + j * Math.PI) * 0.45 * w;
         let z = sw + sit * 0.5, x = 0;
@@ -796,7 +799,7 @@ export function crearEscena(host, { onParcela } = {}) {
         if (tipo === 'leer') z = 1.0;
         if (tipo === 'tallar') z = 0.9 + (j ? Math.sin(t * 7) * 0.25 : 0);
         if (tipo === 'contemplar') { z = -0.35; x = (j ? 1 : -1) * 0.15; }   // manos atrás
-        if (tipo === 'conversar' && j) z = 0.5 + habla * 0.7;              // gesticula al hablar
+        if ((tipo === 'conversar' || tipo === 'reconciliar') && j) z = 0.5 + habla * 0.7;              // gesticula al hablar
         if (abrazando) { z = 1.35; x = (j ? -1 : 1) * 0.45; }
         arm.rotation.set(x, 0, z);
       });
@@ -941,7 +944,7 @@ export function crearEscena(host, { onParcela } = {}) {
   // ------------------------------------------------------------ efectos flotantes: corazones, charla, discusión, kikirikí
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const efectosVis = new Map();
-  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓' };
+  const EMOJI_EF = { corazones: '💞', charla: '💬', discusion: '💢', kikiriki: '🐓', ladrido: '🐕💥' };
   let tReal = 0;
   function efectos(s, dt) {
     tReal += dt;

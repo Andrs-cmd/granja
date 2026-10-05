@@ -7,6 +7,9 @@
 //   hambre, sed, cansancio → qué tan rápido baja esa necesidad (1 = normal)
 //   huerto, agua, cuidado, casa → velocidad de trabajo en esa área
 //   pozo · cosecha · aprende · enfermar → litros del pozo, raciones por cosecha, aprendizaje, riesgo de enfermar
+//   carpinteria · aprende_<oficio> → velocidad en carpintería / aprende ese oficio más rápido
+//   los rasgos sin número (gruñón, romántico, alergia, chef, juguetón, guardián, travieso, mimoso…) activan comportamientos
+//   (los rasgos se leen siempre de esta ficha: cambiarlos NO reinicia la granja)
 //
 // PERSONALIDAD (Big Five, de 0 a 1):
 //   apertura         → prueba cultivos y recetas nuevas; las comidas nuevas le alegran más
@@ -35,11 +38,22 @@ export const RASGOS = {
   ahorradora: { nombre: 'Ahorradora', desc: 'Le da hambre 15 % más lento.', mod: { hambre: 0.85 } },
   leal: { nombre: 'Leal', desc: 'Sigue a la pareja a todas partes y espanta plagas.', mod: { leal: 1 } },
   cazador: { nombre: 'Cazador', desc: 'Caza ratones en el huerto cuando tiene hambre.', mod: { cazador: 1 } },
+  // personas
+  manitas: { nombre: 'Manitas', desc: 'Repara y talla 40 % más rápido, aprende carpintería 50 % más rápido y a veces regala lo que talla.', mod: { carpinteria: 1.4, aprende_carpinteria: 1.5, manitas: 1 } },
+  grunon: { nombre: 'Gruñón mañanero', desc: 'Antes de las 9:00 se irrita fácil: más riesgo de discutir.', mod: { grunon: 1 } },
+  chef: { nombre: 'Cocina de chef', desc: 'Cocina 30 % más rápido y sus cenas alegran el doble.', mod: { casa: 1.3, chef: 1 } },
+  romantico: { nombre: 'Alma romántica', desc: 'Busca más abrazos, recoge flores para regalar y propicia noches románticas.', mod: { romantico: 1 } },
+  alergia: { nombre: 'Alergia al polen', desc: 'En primavera estornuda afuera y se enferma con más facilidad.', mod: { alergia: 1 } },
+  // mascotas
+  jugueton: { nombre: 'Juguetón', desc: 'Trae la pelota para que jueguen con él.', mod: { jugueton: 1 } },
+  guardian: { nombre: 'Guardián', desc: 'De noche espanta a los zorros que rondan el gallinero.', mod: { guardian: 1 } },
+  travieso: { nombre: 'Travieso', desc: 'Tumba cosas en la casa y se roba algún huevo.', mod: { travieso: 1 } },
+  mimoso: { nombre: 'Mimoso', desc: 'Se sube al regazo de quien lee o teje y consuela a quien está triste.', mod: { mimoso: 1 } },
 };
 
 export const PERSONAJES = [
   {
-    id: 'tomas', tipo: 'humano', nombre: 'Andrés', rasgos: ['fuerte', 'comilon'],
+    id: 'tomas', tipo: 'humano', nombre: 'Andrés', rasgos: ['fuerte', 'comilon', 'manitas', 'grunon'],
     personalidad: { apertura: 0.35, responsabilidad: 0.8, extraversion: 0.4, amabilidad: 0.6, neuroticismo: 0.45 },
     habitos: { cronotipo: 'madrugador', ocio: ['tallar', 'pasearPerro', 'nadar', 'contemplar'], comida: 'papa', animales: { nube: 0.9, esmoquin: 0.5 }, estres: 'trabaja', rol: 'granja' },
     fisico: { andar: 'zancada', detalles: ['sombrero', 'barba'] },
@@ -47,7 +61,7 @@ export const PERSONAJES = [
     voz: 'Grave y pausada; postura abierta, habla poco y actúa.',
   },
   {
-    id: 'lucia', tipo: 'humano', nombre: 'María', rasgos: ['manoVerde', 'ahorradora'],
+    id: 'lucia', tipo: 'humano', nombre: 'María', rasgos: ['manoVerde', 'ahorradora', 'chef', 'romantico', 'alergia'],
     personalidad: { apertura: 0.8, responsabilidad: 0.55, extraversion: 0.75, amabilidad: 0.75, neuroticismo: 0.55 },
     habitos: { cronotipo: 'noctambulo', ocio: ['leer', 'tejer', 'jugarGato', 'nadar', 'contemplar'], comida: 'lechuga', animales: { nube: 0.6, esmoquin: 0.95 }, estres: 'raciona', rol: 'huerto' },
     fisico: { andar: 'cadera', detalles: ['pecas', 'diadema'] },
@@ -55,12 +69,12 @@ export const PERSONAJES = [
     voz: 'Cálida y rápida; planifica en voz alta.',
   },
   {
-    id: 'nube', tipo: 'perro', nombre: 'Berlín', rasgos: ['leal'],
+    id: 'nube', tipo: 'perro', nombre: 'Berlín', rasgos: ['leal', 'jugueton', 'guardian'],
     fisico: { detalles: ['collar'] },
     motivacion: 'Estar cerca de su gente (y salir a pasear).',
   },
   {
-    id: 'esmoquin', tipo: 'gato', nombre: 'Axel', rasgos: ['cazador'],
+    id: 'esmoquin', tipo: 'gato', nombre: 'Axel', rasgos: ['cazador', 'travieso', 'mimoso'],
     fisico: { detalles: [] },
     motivacion: 'Su independencia, los ratones y dormir con quien más lo necesite.',
   },
