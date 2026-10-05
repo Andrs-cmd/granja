@@ -10,7 +10,7 @@
   body { background: radial-gradient(ellipse at 50% 45%, #e9e5de 0%, #cfcac1 42%, #5d5952 100%); }
   #stage { position: fixed; inset: 0; }
   #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
-  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 50%, rgba(6,6,10,.5) 80%, rgba(4,4,8,.85) 100%); }
+  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 64%, rgba(6,6,10,.22) 86%, rgba(4,4,8,.55) 100%); }
   .etiquetas { z-index: 1; }
   .fx { font-size: 26px; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
 
@@ -207,6 +207,7 @@ function pintarDatos() {
       if (a.colocadoHasta > s.t) est.push('🌿 relajado');
       for (const [k, ic] of [['vino', '🍷'], ['hierba', '🌿']]) { const d = PL[k]?.dep || 0; if (PL[k]?.pausa > Sim.dia(s)) est.push(`${ic} lo está dejando`); else if (d > 0.3) est.push(`<span class="warn">${ic} dependencia ${Math.round(d * 100)} %</span>`); }
       if ((a.deseoSex || 0) > 70) est.push('💗 con ganas');
+      est.push(`💪 forma ${Math.round(a.forma ?? 40)}`);
       if (est.length) extra += `<div title="Vino: ${PL.vino?.usos || 0} veces · Hierba: ${PL.hierba?.usos || 0} veces">${est.join(' · ')}</div>`;
     } else if (a.vivo && a.vinculo) {
       const fav = Object.entries(a.vinculo).sort((x, y) => y[1] - x[1])[0];
@@ -299,6 +300,16 @@ function pintarDatos() {
         ${(C.lujos || []).length ? `<span>🛋️ Lujos</span><b title="${C.lujos.join(', ')}">${C.lujos.length}</b>` : ''}
         ${(C.herramientas || []).length ? `<span>🧰 Herramientas</span><b>${C.herramientas.length} / 4</b>` : ''}</div>
         ${U ? `<div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Último trueque (${U.quien}): ${U.vende.length ? 'entregó ' + U.vende.join(', ') : 'nada vendido'}${U.compra.length ? ' · trajo ' + U.compra.join(', ') : ''}</div>` : ''}</div>`;
+    })()}
+    ${(() => {
+      const K = s.casa || {}, M = Sim.MEJORAS_CASA, hechas = K.mejoras || [];
+      const O = K.obra, Mo = O && (M.find((x) => x[0] === O.id) || ['reforma', 'la reforma de estilo']);
+      return `<div class="card"><h4>Casa y proyectos</h4><div class="grid">
+        <span>🎨 Estilo</span><b>${K.estilo ? Sim.ESTILOS[K.estilo].nombre : 'sin elegir'}${K.estilo && !hechas.includes('fachada') ? ' (en obra)' : ''}</b>
+        <span>🏠 Etapa</span><b>${Sim.etapaCasa(s)} de 4</b>
+        ${O ? `<span>🏗️ Construyendo</span><b title="${Mo[1]}">${Math.round(O.progreso * 100)} %</b>` : ''}
+        <span>✅ Hechos</span><b title="${hechas.map((id) => M.find((x) => x[0] === id)?.[1]).join('&#10;')}">${hechas.length} de ${M.length}</b></div>
+        ${O ? `<div style="margin-top:6px;font-size:12px;color:rgba(241,238,232,.75)">Ahora: ${Mo[1]}</div>` : ''}</div>`;
     })()}
     <div class="card"><h4>Hogar</h4><div class="grid">
       ${hum === 2 ? `<span>💞 Relación</span><b class="${s.pareja.afinidad < 35 ? 'warn' : ''}">${Math.round(s.pareja.afinidad)} / 100</b>` : ''}
