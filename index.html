@@ -50,6 +50,10 @@
   .speeds { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 2px; padding: 4px;
     background: rgba(18,18,22,.6); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; transition: opacity .6s; z-index: 3; }
   .speeds.hide { opacity: 0; pointer-events: none; }
+  .speeds { max-width: calc(100vw - 16px); }
+  .menuMas { position: fixed; right: 10px; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 9; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: rgba(24,22,30,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .menuMas.off { display: none; }
+  .menuMas button { text-align: left; background: rgba(255,255,255,.06); border: 0; color: #f1eee8; font: inherit; font-size: 13px; font-weight: 600; padding: 10px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap; }
   .speeds button { white-space: nowrap; background: none; border: 0; color: inherit; font: inherit; font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 99px; cursor: pointer; opacity: .75; }
   .speeds button.on { background: rgba(231,196,106,.95); color: #1b1a17; opacity: 1; }
   .caption { position: fixed; left: 50%; top: 22px; transform: translateX(-50%); font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
@@ -774,6 +778,20 @@ speeds.append(bDatos);
 { const b = document.createElement('button'); b.textContent = '⚡'; b.title = 'Poderes del orbe'; b.onclick = () => abrirVida('poderes'); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '📈'; b.title = 'Crónica: cómo ha cambiado el orbe'; b.onclick = () => abrirVida('cronica'); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '🔮'; b.title = 'Otros orbes'; b.onclick = () => { guardar(); location.href = 'mundos/index.html'; }; speeds.append(b); }   // la galería de mundos
+// en el celular no caben todos: los extras van a un menú «⋯» (con su nombre escrito)
+const EXTRAS = [...speeds.querySelectorAll('button')].slice(VELOCIDADES.length + 1).map((b) => ({ b, icono: b.textContent, etq: { '👁': '👁 Seguir a alguien', '⚡': '⚡ Poderes y naturaleza', '📈': '📈 Crónica', '🔮': '🔮 Otros orbes' }[b.textContent] || b.textContent }));
+const menuMas = document.createElement('div'); menuMas.className = 'menuMas off'; document.body.append(menuMas);
+const bMas = document.createElement('button'); bMas.textContent = '⋯'; bMas.title = 'Más opciones'; bMas.className = 'mas'; speeds.append(bMas);
+bMas.onclick = (e) => { e.stopPropagation(); menuMas.classList.toggle('off'); };
+menuMas.addEventListener('click', () => menuMas.classList.add('off'));
+addEventListener('pointerdown', (e) => { if (!menuMas.contains(e.target) && e.target !== bMas) menuMas.classList.add('off'); });
+const esMovil = matchMedia('(max-width: 640px)');
+function acomodarBarra() {
+  const m = esMovil.matches;
+  for (const x of EXTRAS) { if (m) { menuMas.append(x.b); if (x.etq !== x.icono) x.b.textContent = x.etq; } else { speeds.insertBefore(x.b, bMas); x.b.textContent = x.icono; } }
+  bMas.style.display = m ? '' : 'none'; if (!m) menuMas.classList.add('off');
+}
+esMovil.addEventListener('change', acomodarBarra); acomodarBarra();
 pintar(); aplicarDatos();
 addEventListener('resize', encuadre);
 let idle;
