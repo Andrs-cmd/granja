@@ -858,7 +858,7 @@ uniform float uRafaga;
     }
     const flores = new THREE.Group(); planta.add(flores);
     for (let k = 0; k < 7; k++) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), cogollo); c.position.set((rand() - 0.5) * 0.5, 0.9 + rand() * 0.8, (rand() - 0.5) * 0.5); c.scale.y = 1.6; flores.add(c); }
-    return { planta, flores, fase: rand() * 6 };
+    return { g, planta, flores, fase: rand() * 6 };
   });
   // colgadero donde se secan los cogollos (al lado de la huerta de hierbas)
   const colgadero = new THREE.Group(); colgadero.position.set(LUGAR.colgadero.x, 0, LUGAR.colgadero.z); root.add(colgadero);
@@ -926,6 +926,29 @@ uniform float uRafaga;
       add(g, B(0.08, 2.4, 0.08), metal, 2.0, 1.2, 0.8); add(g, B(0.8, 0.08, 0.08), metal, 1.65, 2.4, 0.8);
       const saco = add(g, new THREE.CylinderGeometry(0.25, 0.25, 1.0, 12), M(0x7a2a22), 1.3, 1.5, 0.8); g.userData.saco = saco;
       for (const dx of [-1.6, -1.2]) add(g, new THREE.SphereGeometry(0.16, 10, 8), metal, dx, 0.16, 1.0); }
+    // skatepark: losa de concreto, dos quarter pipes, un funbox con riel y un riel suelto
+    { const g = grupo('skatepark', LUGAR.skatepark.x, LUGAR.skatepark.z), conc = M(0xbab6ae, { roughness: 0.95 }), conc2 = M(0xa8a39a, { roughness: 0.95 }), metal = M(0x8a9098, { metalness: 0.8, roughness: 0.3 });
+      add(g, B(12.5, 0.12, 9), conc, 0, 0.06, 0);
+      const cuarto = (ancho, alto) => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(alto, 0); sh.lineTo(alto, alto); sh.absarc(0, alto, alto, 0, -Math.PI / 2, true); const geo = new THREE.ExtrudeGeometry(sh, { depth: ancho, bevelEnabled: false, curveSegments: 10 }); geo.translate(0, 0, -ancho / 2); return geo; };
+      for (const sg of [-1, 1]) { const q = new THREE.Mesh(cuarto(7, 1.6), conc2); q.position.set(sg * 4.65, 0.12, 0); q.rotation.y = sg > 0 ? 0 : Math.PI; q.castShadow = q.receiveShadow = true; g.add(q);
+        add(g, new THREE.CylinderGeometry(0.05, 0.05, 7, 8), metal, sg * 6.2, 1.74, 0).rotation.x = Math.PI / 2; }
+      add(g, B(2.6, 0.5, 2.2), conc2, 0, 0.37, -2.4); add(g, B(2.6, 0.05, 0.05), metal, 0, 0.66, -2.4);   // funbox con coping
+      for (const dx of [-1, 1]) add(g, B(1.3, 0.06, 2.2), conc2, dx * 1.85, 0.36, -2.4).rotation.z = dx * -0.42;   // rampas del funbox
+      add(g, B(4.2, 0.06, 0.06), metal, 0, 0.55, 2.6); for (const dx of [-1.9, 1.9]) add(g, B(0.06, 0.45, 0.06), metal, dx, 0.33, 2.6);   // riel
+      for (const [x, z, c] of [[-2.8, 3.4, 0xe0453a], [2.4, -0.4, 0x3a8ae0], [-1, 0.6, 0xf2c94c]]) add(g, B(0.9 + rand() * 0.6, 0.012, 0.5), M(c, { roughness: 1 }), x, 0.125, z);   // grafitis en el piso
+    }
+    // muelle de tablas sobre el estanque (para pescar)
+    { const g = new THREE.Group(); g.position.set(LUGAR.muelle.x, 0, LUGAR.muelle.z); root.add(g); const tabla = TEMA.madera || M(0x8a6040), poste = M(0x5a3e28);
+      for (let k = 0; k < 9; k++) add(g, B(2.6, 0.08, 0.36), tabla, 0, 0.32, -0.6 + k * 0.4).rotation.y = (rand() - 0.5) * 0.03;
+      for (const [x, z] of [[-1.15, -0.6], [1.15, -0.6], [-1.15, 2.6], [1.15, 2.6]]) add(g, new THREE.CylinderGeometry(0.09, 0.1, 0.9, 7), poste, x, 0.1, z);
+      add(g, B(0.5, 0.35, 0.5), M(0x7a5a3a), 1.0, 0.54, 0.2); }   // cubeta para los peces
+    // tablero de ajedrez sobre la mesa del comedor (cuando juegan)
+    { const g = new THREE.Group(); g.position.set(-1.2, PISO[0] + 0.85, -1.6); g.visible = false; root.add(g); proy.tablero = g;
+      add(g, B(0.56, 0.03, 0.56), M(0x6b4a2a), 0, 0, 0);
+      const cla = M(0xeee6d4), osc = M(0x3a2a1e);
+      for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) add(g, B(0.062, 0.006, 0.062), (i + j) % 2 ? osc : cla, -0.217 + i * 0.062, 0.017, -0.217 + j * 0.062);
+      const pieza = (m, i, j, alto) => add(g, new THREE.CylinderGeometry(0.012, 0.02, alto, 8), m, -0.217 + i * 0.062, 0.02 + alto / 2, -0.217 + j * 0.062);
+      for (let i = 0; i < 8; i++) { pieza(cla, i, 1, 0.04); pieza(osc, i, 6, 0.04); if (i % 3 === 0) { pieza(cla, i, 0, 0.07); pieza(osc, i, 7, 0.07); } } }
     // andamio para las obras de la granja
     { const g = new THREE.Group(); g.visible = false; root.add(g); proy.andamio = g;
       const m = M(0xc9a46c);
@@ -933,7 +956,7 @@ uniform float uRafaga;
       for (const y of [1.2, 2.6]) add(g, B(3.2, 0.08, 0.6), m, 0, y, 1.5);
       for (let k = 0; k < 4; k++) add(g, B(0.5, 0.35, 0.5), M(0xb06a42), -1 + k * 0.6, 0.18, -2.2); }
   }
-  const L2 = (k) => [LUGAR[k].x, LUGAR[k].z], SITIO_OBRA = { vinedo: L2('andamioVinedo'), bodegaVino: L2('bodegaVino'), cultivoCaseta: L2('cultivoCaseta'), cultivoPro: L2('cultivoCaseta'), piscina: L2('andamioPiscina'), jacuzzi: L2('jacuzzi'), gimnasio: [LUGAR_GYM.x, LUGAR_GYM.z - 1.4], establo2: [LUGAR.establo.x + 3.6, LUGAR.establo.z], gallinero2: [LUGAR.gallinero.x - 3.4, LUGAR.gallinero.z] };
+  const L2 = (k) => [LUGAR[k].x, LUGAR[k].z], SITIO_OBRA = { skatepark: L2('skatepark'), vinedo2: L2('andamioVinedo'), huertaGrande: L2('obraHierbas'), vinedo: L2('andamioVinedo'), bodegaVino: L2('bodegaVino'), cultivoCaseta: L2('cultivoCaseta'), cultivoPro: L2('cultivoCaseta'), piscina: L2('andamioPiscina'), jacuzzi: L2('jacuzzi'), gimnasio: [LUGAR_GYM.x, LUGAR_GYM.z - 1.4], establo2: [LUGAR.establo.x + 3.6, LUGAR.establo.z], gallinero2: [LUGAR.gallinero.x - 3.4, LUGAR.gallinero.z] };
 
   // ------------------------------------------------------------ la carreta de Don Ramiro (solo los días de visita)
   const carreta = new THREE.Group(); carreta.position.set(LUGAR.carreta.x, 0, LUGAR.carreta.z); carreta.rotation.y = -Math.PI / 2; carreta.visible = false; root.add(carreta);
@@ -1430,7 +1453,7 @@ uniform float uRafaga;
       if (tp === 'cocinar' || tp === 'hacerConservas' || tp === 'hornear') return SITIO.estufa;
       if (tp === 'entrenar') return { ...SITIO['sala' + i], 5: 'entrenar' };
       if (tp === 'hacerQueso') return SITIO.fregadero;
-      if (tp === 'cenar' || tp === 'comer') return SITIO['silla' + i];
+      if (tp === 'cenar' || tp === 'comer' || tp === 'jugarMesa') return SITIO['silla' + i];
       if (tp === 'beber' || tp === 'filtrar') return SITIO.fregadero;
       if (tp === 'leer') return i === 0 ? SITIO.sofa0 : SITIO.sillonAlto;
       if (tp === 'tejer') return SITIO.sillon;
@@ -1593,6 +1616,7 @@ uniform float uRafaga;
       else if (tp === 'vendimia' || tp === 'pisarUva') f = tp === 'pisarUva' ? LUGAR.lagar : s.parras?.reduce((m, q) => (q.uvas > (m?.uvas ?? -1) ? q : m), null);
       else if (tp === 'cosecharHierba') f = s.matas?.find((m) => m.estado === 'lista') || s.matas?.[0];
       else if (tp === 'comerciar') f = LUGAR.carreta;
+      else if (tp === 'pescar') f = { x: ESTANQUE.x, z: ESTANQUE.z + 2 };
       else if (['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'tomarVino', 'fumar'].includes(tp)) v.yaw = angLerp(v.yaw, -Math.PI / 2, Math.min(1, dt * 5));
       else if (tp === 'contemplar') v.yaw = angLerp(v.yaw, -Math.PI / 4, Math.min(1, dt * 4));
       else if (v.kind !== 'humano' && tp === 'jugar') { const hh = s.agentes.find((x) => x.id === T.con); if (hh) f = hh.pos; }
@@ -1918,7 +1942,7 @@ uniform float uRafaga;
       if (estVis !== temaActual) aplicarTema(estVis);
       for (const obj in ESTRUCTURAS) { const e = vistaPrevia[obj] || s.diseno?.[obj] || estVis; if (ESTRUCTURAS[obj].userData.est !== e) vestir(obj, e); }
       const k = (id) => (hechos.includes(id) ? 1 : O?.id === id ? Math.max(0.06, O.progreso) : 0);
-      for (const id of ['bodegaVino', 'cultivoCaseta', 'piscina', 'jacuzzi', 'gimnasio']) { const g = proy[id], kk = k(id); g.visible = kk > 0; g.scale.y = kk || 1; }
+      for (const id of ['bodegaVino', 'cultivoCaseta', 'piscina', 'jacuzzi', 'gimnasio', 'skatepark']) { const g = proy[id], kk = k(id); g.visible = kk > 0; g.scale.y = kk || 1; }
       proy.cultivoCaseta.userData.luz.visible = hechos.includes('cultivoPro');
       if (proy.jacuzzi.visible) proy.jacuzzi.userData.burbujas.forEach((b, i) => { const a = t * 1.3 + i * 2.1, r = 0.2 + (i % 4) * 0.2; b.position.set(Math.cos(a) * r, 0.74 + Math.abs(Math.sin(t * 3 + i)) * 0.08, Math.sin(a) * r); });
       if (proy.gimnasio.visible) proy.gimnasio.userData.saco.rotation.z = Math.sin(t * 2.2) * 0.06;
@@ -1928,7 +1952,9 @@ uniform float uRafaga;
       if (gallineroG) gallineroG.scale.setScalar(hechos.includes('gallinero2') ? 1.3 : 1);
       cocinaModerna.visible = hechos.includes('cocina'); banoG.visible = hechos.includes('bano');
       parrasVis.forEach((v, i) => { v.g.visible = i < (s.parras || []).length; });
+      matasVis.forEach((v, i) => { v.g.visible = i < (s.matas || []).length; });
     }
+    proy.tablero.visible = s.agentes.some((x) => x.vivo && x.tarea?.tipo === 'jugarMesa' && x.tarea.fase === 'trabajo');
     {
       const est = Math.floor(s.t / MIN_DIA / 28) % 4;
       (s.parras || []).forEach((q, i) => { const v = parrasVis[i]; if (!v) return;
@@ -2172,6 +2198,7 @@ uniform float uRafaga;
     const llora = a.accion.startsWith('Llorando');
     v.bulto.rotation.set(0, Math.PI / 2, llora ? Math.sin(t * 11) * 0.12 : Math.sin(t * 0.8) * 0.02);
   }
+  const nivelSkate = (a) => Math.floor(Math.sqrt((a.xp?.skate || 0) / 120));
   function poseAgente(a, v, s, t, dt) {
     if (!v) return;
     if (a.seFue) { v.g.visible = false; if (v.tomb) v.tomb.visible = false; return; }   // se fue (al pueblo, a otra familia)
@@ -2229,6 +2256,15 @@ uniform float uRafaga;
         base = asiento - 0.46 * v.k * v.g.scale.y;   // 0,46 = de los pies a la cola al sentarse (medido), en la escala del mundo
       }
       else if (pose === 'entrenar' || tipo === 'entrenar') { clip = ['Punch_Jab', 'Jump_Loop', 'Punch_Cross'][Math.floor(t / 5 + a.id.length) % 3]; }
+      if (tipo === 'patinar') {
+        const ciclo = (t + a.id.length) % 4, salto = ciclo > 3.2 ? Math.sin((ciclo - 3.2) / 0.8 * Math.PI) * 0.7 : 0;
+        clip = ciclo > 3.2 ? 'Jump_Loop' : 'Idle_Loop'; ts = 1; base = 0.16 + salto;
+        if (!v.tabla) { const k = 1 / v.g.scale.y, tb = new THREE.Group(), mt = new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.6 }), rd = new THREE.MeshStandardMaterial({ color: 0xf2d24c, roughness: 0.4 });
+          const d = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.9), mt); d.position.y = 0.1; d.castShadow = true; tb.add(d);
+          for (const [x, z] of [[-0.1, 0.3], [0.1, 0.3], [-0.1, -0.3], [0.1, -0.3]]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.04, 10), rd); r.rotation.z = Math.PI / 2; r.position.set(x, 0.04, z); tb.add(r); }
+          tb.scale.setScalar(k * 1.4); v.g.add(tb); v.tabla = tb; }
+        v.tabla.visible = true; v.tabla.position.y = salto / v.g.scale.y; v.tabla.rotation.y = salto > 0.1 ? (ciclo - 3.2) / 0.8 * Math.PI * 2 * (nivelSkate(a) >= 6 ? 1 : 0) : 0;
+      } else if (v.tabla) v.tabla.visible = false;
       else if (dentro && (pose === 'trabajo' || pose === 'limpiar')) clip = pose === 'limpiar' ? 'PickUp_Table' : 'Interact';
       else if (RODILLA.includes(tipo)) clip = 'Fixing_Kneeling';
       else if (AGACHADO.includes(tipo)) clip = 'Crouch_Idle_Loop';
@@ -2255,19 +2291,19 @@ uniform float uRafaga;
   function efectos(s, dt) {
     tReal += dt;
     for (const e of s.efectos) {
-      const k = `${e.tipo}${e.t}`;
+      const k = `${e.tipo}${e.t}${e.quien || ''}`;
       if (efectosVis.has(k)) continue;
-      const div = el('div', 'fx', EMOJI_EF[e.tipo] || '✨');
+      const div = e.tipo === 'idea' ? el('div', 'fx idea', '💭 ' + e.texto) : el('div', 'fx', EMOJI_EF[e.tipo] || '✨');
       const obj = new CSS2DObject(div);
       const y0 = e.techo ? 12.5 : e.dentro ? 9.5 : 3.6;
       obj.position.set(e.techo || e.dentro ? 0.5 : e.x, y0, e.techo || e.dentro ? 0 : e.z);
-      root.add(obj); efectosVis.set(k, { obj, div, nace: tReal, y0 });
+      root.add(obj); efectosVis.set(k, { obj, div, nace: tReal, y0: e.tipo === 'idea' ? y0 + 0.6 : y0, vida: e.tipo === 'idea' ? 7 : 3.5 });
     }
     for (const [k, f] of efectosVis) {
       const edad = tReal - f.nace;
-      if (edad > 3.5) { root.remove(f.obj); f.div.remove(); efectosVis.delete(k); continue; }
-      f.obj.position.y = f.y0 + edad * 0.9;
-      f.div.style.opacity = String(Math.min(1, edad * 3) * (1 - Math.max(0, edad - 2.5)));
+      if (edad > f.vida) { root.remove(f.obj); f.div.remove(); efectosVis.delete(k); continue; }
+      f.obj.position.y = f.y0 + edad * (f.vida > 4 ? 0.12 : 0.9);
+      f.div.style.opacity = String(Math.min(1, edad * 3) * (1 - Math.max(0, edad - (f.vida - 1))));
     }
   }
 

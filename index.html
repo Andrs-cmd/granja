@@ -16,6 +16,7 @@
   .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 64%, rgba(6,6,10,.22) 86%, rgba(4,4,8,.55) 100%); }
   .etiquetas { z-index: 1; }
   .fx { font-size: 26px; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+  .fx.idea { font-size: 12px; max-width: 190px; background: rgba(255,255,255,.92); color: #2a2620; padding: 6px 9px; border-radius: 12px; line-height: 1.3; font-family: inherit; filter: none; box-shadow: 0 3px 12px rgba(0,0,0,.2); }
 
   /* columnas de datos a los lados (fuera del orbe) */
   .col { position: fixed; top: 16px; bottom: 76px; width: clamp(150px, 24vw, 232px); z-index: 2; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; scrollbar-width: none; transition: opacity .4s, transform .4s; }
@@ -70,6 +71,17 @@
   .dilema .nota { font-size: 10.5px; opacity: .55; margin-top: 4px; }
   .fichapj { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); width: min(340px, calc(100vw - 24px)); z-index: 6;
     background: rgba(24,22,30,.95); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 11px 13px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .pj .extra .piensa { font-style: italic; color: #cfe3ff; opacity: .9; }
+  .fichapj { max-height: calc(100vh - 150px); overflow-y: auto; }
+  .fichapj .mente { font-size: 11.5px; line-height: 1.4; margin: 6px 0; } .fichapj .mente i { color: #cfe3ff; }
+  .fichapj .habs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; margin: 6px 0 8px; font-size: 11px; }
+  .fichapj .habs span { display: flex; align-items: center; gap: 5px; } .fichapj .habs u { flex: 1; height: 5px; background: rgba(255,255,255,.1); border-radius: 3px; text-decoration: none; overflow: hidden; } .fichapj .habs u i { display: block; height: 100%; background: #7cc36a; }
+  .fichapj .metas { font-size: 11px; color: #e7c46a; margin-bottom: 6px; }
+  .vidaP .tabsV { display: flex; gap: 6px; margin-bottom: 10px; } .vidaP .tabsV button { flex: 1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); color: inherit; font: inherit; font-weight: 700; font-size: 12.5px; padding: 7px; border-radius: 99px; cursor: pointer; } .vidaP .tabsV button.on { background: rgba(231,196,106,.95); color: #1b1a17; }
+  .vidaP .poderes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .vidaP .poder { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: inherit; font: inherit; border-radius: 10px; padding: 8px; cursor: pointer; }
+  .vidaP .poder b { display: block; font-size: 13px; } .vidaP .poder small { display: block; font-size: 10.5px; opacity: .7; line-height: 1.3; margin-top: 3px; } .vidaP .poder:disabled { opacity: .4; cursor: default; } .vidaP .poder.malo { border-color: rgba(255,120,100,.35); }
+  .vidaP .graf { margin-bottom: 10px; } .vidaP .graf h4 { margin: 0 0 2px; font-size: 11.5px; font-weight: 600; display: flex; justify-content: space-between; } .vidaP .graf svg { width: 100%; height: 46px; display: block; background: rgba(255,255,255,.04); border-radius: 6px; }
+  .vidaP .hitos { font-size: 11.5px; line-height: 1.45; } .vidaP .hitos div { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); } .vidaP .hitos .d { opacity: .55; margin-right: 6px; } .vidaP .hitos .muerte { color: #ff9d94; }
   .fichapj.off { display: none; } .fichapj .cerrar { position: absolute; right: 8px; top: 6px; background: none; border: 0; font-size: 18px; padding: 2px 6px; }
   .fichapj h3 { margin: 0 0 2px; font-size: 14px; } .fichapj .sub { font-size: 11.5px; opacity: .75; margin-bottom: 7px; } .fichapj .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
   .fichapj button:disabled { opacity: .35; cursor: default; }
@@ -228,6 +240,7 @@
 <div class="planoP off" id="planoP"></div>
 <button class="btn-dis" id="btnDis">🛠 Diseño</button>
 <div class="disenoP off" id="disenoP"></div>
+<div class="disenoP vidaP off" id="vidaP"></div>
 <button class="btn-dec vacio" id="btnDec">⚖ Decisiones <span class="n">0</span></button>
 <div class="prioridades off" id="prioridades"><div class="caja"><h3>Prioridades de trabajo</h3><p>1 = lo hace primero · 4 = lo deja para el final · – = no lo hace (salvo emergencias). Toca una casilla para cambiarla.</p><table id="tablaP"></table><button class="cerrarP" id="cerrarP">Listo</button></div></div>
 
@@ -269,7 +282,7 @@ let parcelaSel = null;   // ficha de la parcela que se toque
 let fichaId = null;
 const escena = crearEscena(document.getElementById('stage'), { onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); }, onAgente: (id) => { fichaId = fichaId === id ? null : id; pintarJugador(true); } });
 // acceso de depuración desde la consola (no afecta la simulación)
-window.granja = { get estado() { return estado; }, escena };
+window.granja = { get estado() { return estado; }, escena, ficha: (id) => { fichaId = id; pintarJugador(true); } };
 
 // ---------------------------------------------------------------- columnas de datos
 const izq = document.getElementById('izq'), der = document.getElementById('der');
@@ -288,7 +301,7 @@ const NECS = [['comida', '🍽'], ['agua', '💧'], ['energia', '⚡'], ['salud'
 const EMO = { tomas: '👨', lucia: '👩', nube: '🐕', esmoquin: '🐈‍⬛' };
 const EMO_G = { vaca: '🐄', oveja: '🐑', gallina: '🐔', gallo: '🐓' };
 const ICO = { lechuga: '🥬', papa: '🥔', frijol: '🫘', maiz: '🌽' };
-const OFI = { huerto: '🌱', agua: '💧', cuidado: '🩹', casa: '🍳', granja: '🐄', carpinteria: '🔨' };
+const OFI = { huerto: '🌱', agua: '💧', cuidado: '🩹', casa: '🍳', granja: '🐄', carpinteria: '🔨', pesca: '🎣', escultura: '🗿', deporte: '💪', natacion: '🏊', lectura: '📖', juegos: '♟', skate: '🛹' };
 const tarjetas = {};
 function crearTarjetas() {
   izq.replaceChildren();
@@ -322,7 +335,8 @@ function pintarDatos() {
     } else if (a.vivo && a.tipo === 'humano') {
       if (a.embarazada && s.familia?.embarazo) extra += `<div class="deseo">🤰 Embarazada · el bebé llega en ${Math.max(0, Math.ceil((s.familia.embarazo.fin - s.t) / Sim.MIN_DIA))} días</div>`;
       if (a.deseo) extra += `<div class="deseo">✨ ${a.deseo.texto}</div>`;
-      const ofi = Object.entries(a.xp || {}).map(([k, v]) => [k, Sim.nivel(v)]).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1]).slice(0, 4);
+      if (a.pensamiento && s.t - a.pensamiento.t < 600) extra += `<div class="piensa">💭 ${esc(a.pensamiento.texto)}</div>`;
+      const ofi = Object.entries(a.xp || {}).map(([k, v]) => [k, Sim.nivel(v)]).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1]).slice(0, 6);
       if (ofi.length) extra += `<div class="ofi" title="Oficios (nivel)">${ofi.map(([k, n]) => `${OFI[k] || ''}${n}`).join('  ')}</div>`;
       const PL = a.placer || {}, est = [];
       if (a.resacaHasta > s.t) est.push('🥴 resaca'); else if (a.borrachoHasta > s.t) est.push('🍷 entonado');
@@ -447,7 +461,7 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); pintarVida(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
 
 // ---------------------------------------------------------------- alertas y prioridades de trabajo
 const elAlertas = document.getElementById('alertas'), elPrio = document.getElementById('prioridades'), tablaP = document.getElementById('tablaP');
@@ -487,7 +501,12 @@ function pintarJugador(forzar = false) {
   if (!elFicha.querySelector('.cab') || forzar && elFicha.dataset.id !== a.id) { elFicha.innerHTML = '<button class="cerrar" data-cerrar="1">×</button><div class="cab"></div><div class="ops"></div>'; elFicha.dataset.id = a.id; htmlFicha = ''; }
   const cab = `<h3>${Sim.caraAnimo(a.animo)} ${esc(a.nombre)}</h3>
     <div class="sub">${esc(a.dentro ? 'En casa · ' + a.accion.toLowerCase() : a.accion)}${a.deseo ? ` · ✨ ${esc(a.deseo.texto)}` : ''}</div>
-    <div class="sub" style="margin:0">Confianza en ti: ${Math.round(conf)} / 100</div><div class="conf"><i style="width:${conf}%"></i></div>`;
+    <div class="sub" style="margin:0">Confianza en ti: ${Math.round(conf)} / 100</div><div class="conf"><i style="width:${conf}%"></i></div>
+    ${a.tipo === 'humano' ? `<div class="mente">${a.motivo ? `<div>🧭 Por qué: ${esc(a.motivo)}</div>` : ''}${a.pensamiento ? `<div>💭 <i>«${esc(a.pensamiento.texto)}»</i></div>` : ''}
+      <div title="Lo hace pensar mejor: leer, el ajedrez, la responsabilidad y la calma. Con buen criterio decide bien las crisis que no atiendes.">🧠 Criterio: ${Math.round(Sim.criterio(a) * 100)} / 100</div></div>
+      ${(a.metas || []).length ? `<div class="metas">${a.metas.map((m) => `🎯 ${esc(m.texto)}`).join('<br>')}</div>` : ''}
+      <div class="habs">${Object.entries(Sim.PASATIEMPOS).map(([k, P]) => { const xp = a.xp?.[k] || 0, n = Sim.nivel(xp), f = n >= 10 ? 1 : (xp - 120 * n * n) / (120 * (2 * n + 1)); return `<span title="${esc(P.nombre)}: nivel ${n} de 10">${P.icono} ${esc(P.nombre)} ${n}<u><i style="width:${Math.round(f * 100)}%"></i></u></span>`; }).join('')}</div>
+      ${(a.trucos || []).length ? `<div class="sub" style="margin:0 0 6px">🛹 Trucos: ${a.trucos.map(esc).join(', ')}</div>` : ''}` : ''}`;
   const elCab = elFicha.querySelector('.cab'); if (elCab.innerHTML !== cab) elCab.innerHTML = cab;
   const ops = Object.entries(Sim.ACCIONES).map(([k, A]) => `<button data-acc="${k}" ${J.influencia < A.costo ? 'disabled' : ''}>${esc(A.txt)} <span style="opacity:.6">${'●'.repeat(A.costo)}</span><small>${esc(A.pista)}</small></button>`).join('');
   if (ops !== htmlFicha) { elFicha.querySelector('.ops').innerHTML = ops; htmlFicha = ops; }
@@ -558,6 +577,48 @@ elPlano.addEventListener('pointermove', (e) => {
 });
 const soltarArrastre = () => { arrastre = null; };
 elPlano.addEventListener('pointerup', soltarArrastre); elPlano.addEventListener('pointercancel', soltarArrastre);
+
+// ---------------------------------------------------------------- el espíritu del orbe: poderes y crónica
+const elVida = document.getElementById('vidaP');
+let vidaTab = 'poderes', vidaMsg = '', htmlVida = '';
+function abrirVida(tab) {
+  const abrir = elVida.classList.contains('off') || vidaTab !== tab;
+  vidaTab = tab; vidaMsg = ''; elVida.classList.toggle('off', !abrir);
+  if (abrir) { if (angosto()) escena.encuadrar(0, 0, innerHeight * 0.48 + 8); else escena.encuadrar(0, Math.min(372, innerWidth - 24), 0); pintarVida(true); } else encuadre();
+}
+const MALOS = ['rayo', 'plaga', 'lobos', 'tormenta'];
+function grafica(titulo, serie, color, fmt = (v) => Math.round(v)) {
+  if (serie.length < 2) return `<div class="graf"><h4>${titulo}<span>—</span></h4><svg></svg></div>`;
+  const mn = Math.min(...serie), mx = Math.max(...serie), r = mx - mn || 1, W = 300, H = 46;
+  const pts = serie.map((v, i) => `${(i / (serie.length - 1) * W).toFixed(1)},${(H - 4 - (v - mn) / r * (H - 8)).toFixed(1)}`).join(' ');
+  return `<div class="graf"><h4>${titulo}<span>${fmt(serie.at(-1))} <small style="opacity:.55">(mín ${fmt(mn)} · máx ${fmt(mx)})</small></span></h4><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>`;
+}
+function pintarVida(forzar) {
+  if (elVida.classList.contains('off')) return;
+  const s = estado, J = s.jugador || {};
+  let h = `<div class="cab"><b>${vidaTab === 'poderes' ? '⚡ Poderes del orbe' : '📈 Crónica del orbe'}</b><button data-cerrar-vida="1" aria-label="Cerrar">×</button></div>
+    <div class="tabsV"><button data-tab="poderes" class="${vidaTab === 'poderes' ? 'on' : ''}">⚡ Poderes</button><button data-tab="cronica" class="${vidaTab === 'cronica' ? 'on' : ''}">📈 Crónica</button></div>`;
+  if (vidaTab === 'poderes') {
+    h += `<div class="estado">Influencia: <b>${'●'.repeat(Math.floor(J.influencia || 0))}${'○'.repeat(Math.max(0, (J.max || 6) - Math.floor(J.influencia || 0)))}</b> · se recarga cada día</div>
+      <div class="poderes">${Object.entries(Sim.PODERES).map(([k, P]) => `<button class="poder ${MALOS.includes(k) ? 'malo' : ''}" data-poder="${k}" ${(J.influencia || 0) < P.costo ? 'disabled' : ''}><b>${P.icono} ${esc(P.nombre)} <span style="opacity:.6">${'●'.repeat(P.costo)}</span></b><small>${esc(P.desc)}</small></button>`).join('')}</div>
+      <div class="nota">${vidaMsg ? esc(vidaMsg) + '<br>' : ''}Tú eres el espíritu del orbe: puedes ayudar o poner a prueba a tu gente. Ellos no saben que fuiste tú… pero viven las consecuencias.</div>`;
+  } else {
+    const H = (s.historia || []).slice(-120), c = (k) => H.map((x) => x[k] || 0);
+    const ult = H.at(-1);
+    h += `<div class="estado">${ult ? `Día ${ult.d} · ${ult.gen} personas · ${ult.mas} mascotas · ${ult.obras} obras` : 'La crónica empieza mañana.'}</div>
+      ${grafica('🪙 Monedas', c('m'), '#e7c46a')}${grafica('😊 Ánimo de la familia', c('an'), '#7cc36a')}${grafica('🧠 Habilidad (suma de niveles)', c('hab'), '#b48ae0')}
+      ${grafica('🐄 Ganado', c('gan'), '#c08a4a')}${grafica('🌸 Belleza de la granja', c('bel'), '#d4708c')}${grafica('🎣 Peces pescados', c('peces'), '#3fa6c8')}
+      <div class="cab" style="margin-top:6px"><b>🏆 Hitos</b></div>
+      <div class="hitos">${(s.hitos || []).slice(-60).reverse().map((x) => `<div class="${x.tipo}"><span class="d">d${Math.floor(x.t / Sim.MIN_DIA)}</span>${esc(x.texto)}</div>`).join('') || '<div>Todavía no hay hitos: dale tiempo al orbe.</div>'}</div>`;
+  }
+  if (h !== htmlVida || forzar) { elVida.innerHTML = h; htmlVida = h; }
+}
+elVida.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar-vida]')) { elVida.classList.add('off'); return encuadre(); }
+  const bt = e.target.closest('[data-tab]'); if (bt) { vidaTab = bt.dataset.tab; vidaMsg = ''; return pintarVida(true); }
+  const bp = e.target.closest('[data-poder]');
+  if (bp) { if (performance.now() - (elVida.ultimoPoder || 0) < 700) return; elVida.ultimoPoder = performance.now(); const r = Sim.usarPoder(estado, bp.dataset.poder); vidaMsg = r.ok ? `Usaste ${r.msg}.` : r.msg; if (r.ok) { aviso(r.msg); guardar(); pintarDatos(); } pintarVida(true); }
+});
 
 // ---------------------------------------------------------------- catálogo de diseños por construcción
 const elDis = document.getElementById('disenoP');
@@ -667,6 +728,8 @@ const bDatos = document.createElement('button');
 function aplicarDatos() { document.body.classList.toggle('datos', datos); tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
+{ const b = document.createElement('button'); b.textContent = '⚡'; b.title = 'Poderes del orbe'; b.onclick = () => abrirVida('poderes'); speeds.append(b); }
+{ const b = document.createElement('button'); b.textContent = '📈'; b.title = 'Crónica: cómo ha cambiado el orbe'; b.onclick = () => abrirVida('cronica'); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '🔮'; b.title = 'Otros orbes'; b.onclick = () => { guardar(); location.href = 'mundos/index.html'; }; speeds.append(b); }   // la galería de mundos
 pintar(); aplicarDatos();
 addEventListener('resize', encuadre);

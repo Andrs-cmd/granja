@@ -19,6 +19,14 @@ const HACER = {
   porro: () => [malla(cil(0.006, 0.08, 6), M(0xf4f1e8), 0.02, 0.04, 0.03, 0, 0, 1.3), malla(new THREE.SphereGeometry(0.008, 6, 4), M(0xff6a1a, { emissive: 0xff4a0a, emissiveIntensity: 2 }), 0.06, 0.05, 0.03)],
   sarten: () => [malla(cil(0.012, 0.18, 6), M(0x2b2d31), 0, 0.08, 0), malla(new THREE.CylinderGeometry(0.13, 0.11, 0.035, 16), M(0x2b2d31, { metalness: 0.6 }), 0, 0.26, 0.0, Math.PI / 2, 0, 0)],
   guadana: () => [malla(cil(0.016, 1.3, 6), madera, 0, 0.35, 0), malla(new THREE.BoxGeometry(0.55, 0.06, 0.008), metal, 0.25, 0.98, 0, 0, 0, -0.2)],
+  // caña de pescar: vara larga con carrete; el sedal cuelga de la punta hacia el agua
+  cana: () => {
+    const vara = M(0x6b4a2a, { roughness: 0.7 }), punta = 1.75, dir = new THREE.Vector3(0, -0.54, 0.84).normalize();
+    const sedal = malla(cil(0.003, 1.3, 3), M(0xf2f2f2, { transparent: true, opacity: 0.7 }), 0, punta + dir.y * 0.65, dir.z * 0.65);
+    sedal.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    return [malla(new THREE.CylinderGeometry(0.008, 0.02, punta, 6), vara, 0, punta / 2 - 0.15, 0), malla(cil(0.04, 0.03, 10), M(0x3a3d42, { metalness: 0.6 }), 0.035, 0.12, 0, 0, 0, Math.PI / 2), sedal,
+      malla(new THREE.SphereGeometry(0.03, 8, 6), M(0xe8402a), 0, punta + dir.y * 1.3, dir.z * 1.3)];
+  },
   tijeras: () => [malla(new THREE.BoxGeometry(0.02, 0.16, 0.012), metal, 0.01, 0.08, 0, 0, 0, 0.12), malla(new THREE.BoxGeometry(0.02, 0.16, 0.012), metal, -0.01, 0.08, 0, 0, 0, -0.12)],
 };
 // qué lleva en la mano en cada tarea: [objeto, mano]
@@ -28,13 +36,13 @@ export const UTILERIA_DE = {
   recogerHuevos: ['cesta', 'l'], recogerFruta: ['cesta', 'l'], vendimia: ['cesta', 'l'], cosecharHierba: ['cesta', 'l'], cosechar: ['cesta', 'l'], recogerFlores: ['cesta', 'l'],
   sembrar: ['pala', 'r'], limpiar: ['pala', 'r'], abonar: ['pala', 'r'], arrancar: ['pala', 'r'], fumigar: ['regadera', 'r'], cuidarJardin: ['pala', 'r'],
   construir: ['martillo', 'r'], empedrar: ['martillo', 'r'], reparar: ['martillo', 'r'], renovar: ['martillo', 'r'], esculpir: ['martillo', 'r'], tallar: ['martillo', 'r'],
-  leer: ['libro', 'r'], tejer: ['agujas', 'r'], tomarVino: ['copa', 'r'], fumar: ['porro', 'r'],
+  pescar: ['cana', 'r'], leer: ['libro', 'r'], tejer: ['agujas', 'r'], tomarVino: ['copa', 'r'], fumar: ['porro', 'r'],
   cocinar: ['sarten', 'r'], hornear: ['sarten', 'r'], hacerConservas: ['sarten', 'r'], segar: ['guadana', 'r'], esquilar: ['tijeras', 'r'], cepillar: ['tijeras', 'r'],
 };
 // cómo queda el objeto en la palma (en metros, ejes del hueso de la mano)
 const COLGANTES = new Set(['balde', 'cesta']);
 // la guadaña se lleva con el mango hacia abajo y adelante, la hoja al ras del pasto, y se balancea de lado a lado
-const qInclina = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 2.2), qVaiven = new THREE.Quaternion(), EJE_Y = new THREE.Vector3(0, 1, 0);
+const qInclina = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 2.2), qVaiven = new THREE.Quaternion(), EJE_Y = new THREE.Vector3(0, 1, 0), EJE_X = new THREE.Vector3(1, 0, 0);
 export const AJUSTE = { r: { pos: [0.05, -0.02, 0], rot: [Math.PI / 2, 0, 0] }, l: { pos: [-0.05, 0.02, 0], rot: [-Math.PI / 2, 0, 0] } };   // el mango atraviesa el puño
 // arma toda la utilería colgada de las manos de un modelo (oculta hasta que se use)
 export function montarUtileria(modelo, ajuste = {}) {
@@ -58,9 +66,10 @@ export function montarUtileria(modelo, ajuste = {}) {
     // baldes y cestas cuelgan derechos de la mano (por gravedad), sin importar cómo gire la muñeca
     actualizar() {
       const g = visible && piezas[visible]; if (!g) return;
-      const nombre = visible.slice(0, -2), guadana = nombre === 'guadana';
-      if (!guadana && !COLGANTES.has(nombre)) return;
+      const nombre = visible.slice(0, -2), guadana = nombre === 'guadana', cana = nombre === 'cana';
+      if (!guadana && !cana && !COLGANTES.has(nombre)) return;
       modelo.getWorldQuaternion(qa); g.parent.getWorldQuaternion(qb);
+      if (cana) qa.multiply(qVaiven.setFromAxisAngle(EJE_X, 1.05 + Math.sin(performance.now() / 1000 * 0.8) * 0.04));   // la caña hacia el agua, con un leve vaivén
       if (guadana) qa.multiply(qVaiven.setFromAxisAngle(EJE_Y, Math.sin(performance.now() / 1000 * 2.4) * 0.55)).multiply(qInclina);
       g.quaternion.copy(qb.invert().multiply(qa));
     },
