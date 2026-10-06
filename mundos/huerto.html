@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14181a">
+<title>Banco de semillas</title>
+<link rel="stylesheet" href="motor/ui.css">
+<style>
+  body { background: radial-gradient(ellipse at 50% 30%, #34413a 0%, #1f2724 55%, #101413 100%); }
+  .arriba { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px; z-index: 5; display: flex; gap: 6px; align-items: center; pointer-events: none; } .arriba > * { pointer-events: auto; }
+  .pill { background: rgba(18,22,20,.82); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; color: inherit; text-decoration: none; }
+  #titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  #hoja { position: fixed; left: 0; right: 0; bottom: 0; height: var(--h, 148px); z-index: 6; display: flex; flex-direction: column; background: rgba(18,24,22,.97); border-top: 1px solid rgba(255,255,255,.14); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.4); transition: height .28s ease; padding-bottom: env(safe-area-inset-bottom); }
+  #hoja.arrastrando { transition: none; }
+  .asa { height: 22px; flex: none; display: grid; place-items: center; cursor: grab; touch-action: none; } .asa::before { content: ''; width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); }
+  .controles { display: flex; gap: 4px; align-items: center; padding: 0 10px 6px; flex: none; }
+  .controles button { min-height: 38px; min-width: 40px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; padding: 0 9px; }
+  .controles button.on { background: rgba(231,196,106,.95); color: #1b1a17; border-color: transparent; } .controles .sep { flex: 1; }
+  .pestanas { display: flex; flex: none; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .pestanas button { flex: 1; min-height: 46px; background: none; border: 0; border-bottom: 3px solid transparent; font-size: 12px; font-weight: 700; cursor: pointer; opacity: .7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+  .pestanas button span { font-size: 17px; line-height: 1; } .pestanas button.on { opacity: 1; border-bottom-color: #7cc36a; color: #c8f0b8; } .pestanas .badge { font-size: 10px; background: #e0574f; color: #fff; border-radius: 99px; padding: 0 5px; margin-left: 2px; }
+  #cuerpo { flex: 1; overflow-y: auto; padding: 12px 12px 18px; font-size: 13.5px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  @media (min-width: 900px) { #hoja { left: auto; right: 12px; top: 12px; bottom: 12px; width: 420px; height: auto !important; border-radius: 16px; border: 1px solid rgba(255,255,255,.14); } .asa { display: none; } .controles { padding-top: 10px; } .arriba { right: 444px; } }
+  h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #9fdc8e; margin: 14px 0 6px; font-weight: 700; } h3:first-child { margin-top: 2px; }
+  .nota { font-size: 12.5px; opacity: .78; line-height: 1.5; margin: 6px 0; }
+  .camas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; } .camas button { min-height: 54px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; cursor: pointer; font-size: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; }
+  .camas button span { font-size: 20px; } .camas button.on { border-color: #7cc36a; background: rgba(124,195,106,.16); } .camas button.alerta { border-color: #e0574f; }
+  .cab { display: flex; gap: 10px; align-items: center; } .cab em { font-style: normal; font-size: 34px; } .cab b { font-size: 16px; display: block; } .cab small { opacity: .75; }
+  .medidor { display: grid; grid-template-columns: 100px 1fr 46px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; } .medidor u { position: relative; height: 9px; border-radius: 5px; background: rgba(255,255,255,.1); text-decoration: none; overflow: hidden; } .medidor u i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; } .medidor u s { position: absolute; top: 0; bottom: 0; background: rgba(124,195,106,.22); text-decoration: none; } .medidor em { font-style: normal; text-align: right; }
+  .diag { display: grid; gap: 6px; } .diag div { border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.4; } .diag .mal { background: rgba(224,87,79,.14); border-left: 3px solid #e0574f; } .diag .ojo { background: rgba(227,176,75,.12); border-left: 3px solid #e3b04b; } .diag .bien { background: rgba(124,195,106,.12); border-left: 3px solid #7cc36a; }
+  .acciones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; } .acciones button { min-height: 62px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.13); border-radius: 12px; cursor: pointer; font-size: 11.5px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .acciones button span { font-size: 22px; } .acciones button.sug { border-color: #e3b04b; background: rgba(227,176,75,.14); } .acciones button:active { transform: scale(.97); }
+  .sub { display: grid; gap: 5px; margin-top: 8px; } .sub button { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 9px 11px; cursor: pointer; font-size: 13px; font-weight: 700; } .sub button small { display: block; font-weight: 400; opacity: .7; font-size: 11.5px; margin-top: 2px; }
+  .sem { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,.045); border-radius: 12px; padding: 9px 10px; margin-bottom: 6px; } .sem em { font-style: normal; font-size: 26px; } .sem .q { flex: 1; min-width: 0; } .sem .q b { display: block; font-size: 14px; } .sem .q small { opacity: .72; font-size: 11.5px; } .sem button { min-height: 38px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.1); white-space: nowrap; } .tag.ok { background: rgba(124,195,106,.3); } .tag.mal { background: rgba(224,87,79,.3); } .tag.ojo { background: rgba(227,176,75,.3); }
+  .chips { gap: 6px; } .chips button { min-height: 38px; font-size: 12.5px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 13px; } .kv span { opacity: .65; } .kv b { font-weight: 600; }
+  .paso { background: rgba(255,255,255,.04); border-radius: 12px; padding: 10px 12px; margin-bottom: 7px; font-size: 13px; line-height: 1.5; } .paso b { display: block; margin-bottom: 3px; color: #c8f0b8; }
+  .etapas { display: flex; gap: 3px; margin: 6px 0 2px; } .etapas div { flex: var(--d); height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); position: relative; overflow: hidden; } .etapas div i { position: absolute; inset: 0; background: #7cc36a; transform-origin: left; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 12.5px; } table.t td, table.t th { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,.07); text-align: left; vertical-align: top; } table.t th { opacity: .65; font-weight: 600; }
+  #menu { right: 8px; bottom: calc(160px + env(safe-area-inset-bottom)); width: min(300px, calc(100vw - 16px)); } @media (min-width: 900px) { #menu { right: 444px; bottom: 24px; } }
+  .etq { font-size: 12px; } .acc { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; } .acc .boton { flex: 1; min-height: 42px; }
+</style>
+</head>
+<body>
+<div id="loader">PREPARANDO LA HUERTA…</div>
+<div id="stage"></div>
+<div id="etiquetas"></div>
+<div class="arriba"><a class="pill" href="index.html">←</a><div class="pill" id="titulo">Banco de semillas</div><div class="pill" id="clima">—</div></div>
+<div class="panel off" id="menu"></div>
+<section id="hoja"><div class="asa" id="asa"></div><div class="controles" id="controles"></div><nav class="pestanas" id="pestanas"></nav><div id="cuerpo"></div></section>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { crearOrbe, THREE } from './motor/orbe3d.js';
+import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, guardarJSON, cargarJSON } from './motor/ui.js';
+import * as S from './huerto/sim.js';
+import { crearEscena, POS_CAMAS } from './huerto/escena.js';
+
+const CLAVE = 'orbe-huerto', escritorio = () => innerWidth >= 900;
+const O = crearOrbe($('#stage'), { radio: 46, colorSuelo: 0x5a8a3a, colorBase: 0x2a2420, camara: { pos: new THREE.Vector3(30, 46, 58), target: new THREE.Vector3(0, 2, 2) } });
+const ESC = crearEscena(O);
+const pct = (x) => `${Math.round(x)} %`;
+let E = null, mult = 1, acum = 0, tUI = 0, tGuardar = 0, tab = 'planta', cama = 0, sub = null, guiaDe = null;
+const menuP = panel($('#menu'));
+
+// ---------------------------------------------------------------- hoja deslizable
+const hoja = $('#hoja'), ALTOS = () => [148, Math.round(innerHeight * 0.52), Math.round(innerHeight * 0.86)]; let nivelHoja = 1;
+function ponerHoja(n, anim = true) { nivelHoja = Math.max(0, Math.min(2, n)); hoja.classList.toggle('arrastrando', !anim); hoja.style.setProperty('--h', `${ALTOS()[nivelHoja]}px`); setTimeout(encuadre, anim ? 300 : 0); }
+{ let y0 = null, h0 = 0; const asa = $('#asa');
+  asa.addEventListener('pointerdown', (e) => { y0 = e.clientY; h0 = hoja.getBoundingClientRect().height; asa.setPointerCapture(e.pointerId); hoja.classList.add('arrastrando'); });
+  asa.addEventListener('pointermove', (e) => { if (y0 != null) hoja.style.setProperty('--h', `${Math.max(110, Math.min(innerHeight * 0.92, h0 + (y0 - e.clientY)))}px`); });
+  const soltar = (e) => { if (y0 == null) return; const dy = y0 - e.clientY, h = h0 + dy; y0 = null; hoja.classList.remove('arrastrando'); if (Math.abs(dy) < 6) return ponerHoja(nivelHoja === 0 ? 1 : nivelHoja === 1 ? 2 : 0); const A = ALTOS(); let m = 0; A.forEach((a, i) => { if (Math.abs(a - h) < Math.abs(A[m] - h)) m = i; }); ponerHoja(m); };
+  asa.addEventListener('pointerup', soltar); asa.addEventListener('pointercancel', soltar); }
+function encuadre() { const W = innerWidth, H = innerHeight; if (escritorio()) O.camera.setViewOffset(W, H, 210, 0, W, H); else { const h = hoja.getBoundingClientRect().height; O.camera.setViewOffset(W, H, 0, Math.min(h * 0.5, H * 0.33), W, H); } O.camera.updateProjectionMatrix(); }
+addEventListener('resize', () => { if (!escritorio()) ponerHoja(nivelHoja, false); encuadre(); });
+function enfocar(i) { const p = E.camas[i]; O.volar(ESC.centro(i, E), p ? 22 + Math.min(14, p.altura * 8) : 24); }
+
+// ---------------------------------------------------------------- controles: días por segundo
+const ctr = $('#controles');
+const vel = barraVelocidades(ctr, [['⏸', 0], ['🐢', 0.4], ['×1', 1], ['×4', 4], ['×15', 15]], 'huerto-vel', 2, (m) => { mult = m; });
+ctr.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+const bMas = Object.assign(document.createElement('button'), { textContent: '⋯' }); bMas.onclick = () => { pintarMenu(); menuP.alternar(); }; ctr.append(bMas);
+function pintarMenu() {
+  $('#menu').innerHTML = `<div class="cab" style="justify-content:space-between"><b>Más</b><button data-cerrar style="background:none;border:0;font-size:20px;cursor:pointer">×</button></div><div class="ops" style="margin-top:8px">
+    <button id="mNuevo">🌱 Empezar de cero<small>Camas vacías (se conserva lo aprendido)</small></button><button id="mGuardar">💾 Guardar ahora</button>
+    <button id="mAyuda">❔ Cómo se juega</button></div><div class="acc" id="mCal" style="margin-top:8px"></div>`;
+  $('#mNuevo').onclick = () => { if (!confirm('¿Vaciar las camas?')) return; const lec = E.lecciones, hist = E.historial; E = S.crearHuerto(E.piso); E.lecciones = lec; E.historial = hist; menuP.cerrar(); guardar(); pintarTodo(true); };
+  $('#mGuardar').onclick = () => { guardar(); aviso('Guardado.'); };
+  $('#mAyuda').onclick = () => { menuP.cerrar(); aviso('Elige tu piso térmico y una semilla en 🌰 Semillas. Cuida la planta desde 🌱 Planta: riega cuando el suelo esté seco, abona según la etapa, poda, pon tutor, trata las plagas y cosecha a tiempo. El diagnóstico te dice qué le pasa. En 📖 Guía está cómo se cultiva cada una.', 12000); };
+  const cal = botonCalidad($('#mCal'), guardar); cal.className = 'boton';
+}
+
+// ---------------------------------------------------------------- pestañas
+const TABS = [['planta', '🌱', 'Planta'], ['semillas', '🌰', 'Semillas'], ['guia', '📖', 'Guía'], ['lecciones', '💡', 'Lecciones'], ['resultados', '📊', 'Resultados']];
+const cuerpo = $('#cuerpo');
+function pintarTodo(forzar) {
+  const alertas = E.camas.filter((p, i) => p && S.diagnostico(E, i).some((d) => d[0] === 'mal')).length;
+  pintarSi($('#pestanas'), TABS.map(([k, e, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}"><span>${e}</span>${n}${k === 'planta' && alertas ? `<i class="badge">${alertas}</i>` : ''}${k === 'lecciones' ? ` <small style="opacity:.6">${Object.keys(E.lecciones).length}</small>` : ''}</button>`).join(''));
+  const P = S.PISOS[E.piso];
+  $('#titulo').textContent = `🌱 Día ${E.dia - 60} · ${P.e} ${P.n}`;
+  $('#clima').textContent = `${E.clima.lluvia ? '🌧️' : E.clima.temporada === 'lluvias' ? '⛅' : '☀️'} ${E.clima.T} °C`;
+  const h = tab === 'planta' ? htmlPlanta() : tab === 'semillas' ? htmlSemillas() : tab === 'guia' ? htmlGuia() : tab === 'lecciones' ? htmlLecciones() : htmlResultados();
+  if (forzar) cuerpo._html = null; pintarSi(cuerpo, h);
+}
+$('#pestanas').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; if (tab === b.dataset.tab && !escritorio() && nivelHoja > 0) return ponerHoja(nivelHoja === 1 ? 2 : 1); tab = b.dataset.tab; sub = null; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintarTodo(true); cuerpo.scrollTop = 0; });
+
+// ---------------------------------------------------------------- 🌱 la planta de la cama elegida
+function htmlCamas() {
+  return `<div class="camas">${E.camas.map((p, i) => { const c = p && S.CULTIVOS[p.cult], mal = p && S.diagnostico(E, i).some((d) => d[0] === 'mal'); return `<button data-cama="${i}" class="${cama === i ? 'on' : ''} ${mal ? 'alerta' : ''}"><span>${p ? (p.viva ? c.e : '🥀') : '🟫'}</span>${p ? esc(c.n) : `Cama ${i + 1}`}</button>`; }).join('')}</div>`;
+}
+function barra(etq, v, col, ideal = null, txt = null) { return `<div class="medidor"><span>${etq}</span><u>${ideal ? `<s style="left:${ideal[0]}%;width:${ideal[1] - ideal[0]}%"></s>` : ''}<i style="width:${Math.max(0, Math.min(100, v))}%;background:${col}"></i></u><em>${txt ?? pct(v)}</em></div>`; }
+const SUG = { regar: 'regar', nitrogeno: 'abonar', fosforo: 'abonar', potasio: 'abonar', cal: 'abonar', azufre: 'abonar', podar: 'podar', tutor: 'tutor', tratar: 'tratar', luz: 'luz', cosechar: 'cosechar' };
+function htmlPlanta() {
+  let h = htmlCamas(); const p = E.camas[cama];
+  if (!p) {
+    const top = S.aptitudPiso(E.piso).filter(([, f]) => f >= 0.95).slice(0, 8);
+    return h + `<p class="nota">La cama ${cama + 1} está vacía. Elige qué sembrar (ideal para tu piso térmico ${S.PISOS[E.piso].n.toLowerCase()}):</p>${top.map(([k]) => { const c = S.CULTIVOS[k]; return `<div class="sem"><em>${c.e}</em><div class="q"><b>${c.n}</b><small>${c.cat} · ${diasCiclo(c)}</small></div><button class="boton prim" data-sembrar="${k}">🌱 Sembrar</button></div>`; }).join('')}<div class="acc"><button class="boton" data-tab2="semillas">🌰 Ver todas las semillas</button></div>`;
+  }
+  const c = S.CULTIVOS[p.cult], k = S.etapaDe(p), diag = S.diagnostico(E, cama), sug = new Set(diag.map((d) => SUG[d[2]]).filter(Boolean));
+  const fases = Object.entries(c.ciclo).filter(([, d]) => d > 0), iEt = ['germ', 'plantula', 'veg', 'flor', 'fruto', 'cosecha'].indexOf(k);
+  h += `<div class="cab"><em>${p.viva ? c.e : '🥀'}</em><div><b>${c.n} · ${S.ETAPAS.find((x) => x[0] === k)[1]}</b><small>${p.dia} días · ${c.cat}${p.cosechado ? ` · cosechado ${p.cosechado >= 1 ? `${p.cosechado.toFixed(2)} kg` : `${Math.round(p.cosechado * 1000)} g`}` : ''}</small></div></div>
+    <div class="etapas">${fases.map(([kk, d]) => { const j = ['germ', 'plantula', 'veg', 'flor', 'fruto'].indexOf(kk), f = j < iEt ? 1 : j === iEt ? p.prog : 0; return `<div style="--d:${d}" title="${kk}"><i style="transform:scaleX(${f})"></i></div>`; }).join('')}</div>`;
+  h += `<h3>Estado</h3>${barra('❤️ Salud', p.salud, p.salud > 60 ? '#7cc36a' : p.salud > 30 ? '#e3b04b' : '#e0574f')}${barra('💧 Agua del suelo', p.agua, '#5aa8e8', [45, 82])}
+    ${barra('🟢 Nitrógeno', Math.min(100, p.N), '#7cc36a')}${barra('🟣 Fósforo', Math.min(100, p.P), '#b48ae0')}${barra('🟠 Potasio', Math.min(100, p.K), '#e8962a')}
+    ${barra('⚗️ pH', (p.ph - 4) / 5 * 100, '#c8c8c8', [(c.ph[0] - 4) / 5 * 100, (c.ph[1] - 4) / 5 * 100], p.ph.toFixed(1))}
+    ${p.plaga ? barra(`${S.PLAGAS[p.plaga.tipo].e} ${S.PLAGAS[p.plaga.tipo].n.split(' ')[0]}`, p.plaga.nivel * 100, '#e0574f') : ''}${p.hongo > 0.02 ? barra('🍄 Hongo', p.hongo * 100, '#a08a6a') : ''}
+    <div class="nota">📏 ${(p.altura * 100).toFixed(0)} cm · ${p.frutos.length ? `${p.frutos.length} ${c.unidad} en la planta (${p.frutos.filter((f) => f.m >= 1).length} maduros)` : 'sin frutos aún'}${p.flores >= 1 ? ` · ${Math.round(p.flores)} flores` : ''}${p.tutor ? ' · 🪵 con tutor' : ''}${p.luz === 'sombra' ? ' · ⛱️ media sombra' : ''}</div>`;
+  h += `<h3>Diagnóstico</h3><div class="diag">${diag.map(([n, t]) => `<div class="${n}">${esc(t)}</div>`).join('')}</div>`;
+  if (p.viva) {
+    h += `<h3>Cuidados</h3><div class="acciones">
+      <button data-acc="regar" class="${sug.has('regar') ? 'sug' : ''}"><span>💧</span>Regar</button><button data-acc="abonar" class="${sug.has('abonar') ? 'sug' : ''}"><span>🧪</span>Abonar</button>
+      <button data-acc="podar" class="${sug.has('podar') ? 'sug' : ''}"><span>✂️</span>Podar</button><button data-acc="tutor" class="${sug.has('tutor') ? 'sug' : ''}"><span>🪵</span>Tutor</button>
+      <button data-acc="tratar" class="${sug.has('tratar') ? 'sug' : ''}"><span>🐞</span>Plagas</button><button data-acc="luz" class="${sug.has('luz') ? 'sug' : ''}"><span>${p.luz === 'sol' ? '⛱️' : '☀️'}</span>${p.luz === 'sol' ? 'Sombra' : 'Sol'}</button>
+      <button data-acc="cosechar" class="${sug.has('cosechar') ? 'sug' : ''}"><span>🧺</span>Cosechar</button><button data-acc="arrancar"><span>🗑️</span>Arrancar</button></div>`;
+    if (sub === 'regar') h += `<div class="sub">${[['poco', 'Poco', 'un vaso: plántulas o suelo apenas seco'], ['normal', 'Normal', 'hasta mojar la raíz'], ['mucho', 'Mucho', 'riego profundo: suelo muy seco o plantas grandes']].map(([k2, n, d]) => `<button data-regar="${k2}">💧 ${n}<small>${d}</small></button>`).join('')}</div>`;
+    if (sub === 'abonar') h += `<div class="sub">${Object.entries(S.ABONOS).map(([k2, A]) => `<button data-abono="${k2}">${A.e} ${A.n}<small>${esc(A.d)}</small></button>`).join('')}</div>`;
+    if (sub === 'tratar') h += `<div class="sub">${Object.entries(S.REMEDIOS).map(([k2, R]) => `<button data-remedio="${k2}">${R.e} ${R.n}<small>${esc(R.d)}</small></button>`).join('')}</div>`;
+  } else h += `<div class="acc"><button class="boton prim" data-acc="arrancar">🗑️ Arrancar y volver a intentar</button></div>`;
+  h += `<h3>Lo que va pasando</h3>${htmlDiario(E.diario.filter((d) => d.cama === cama).map((d) => ({ ...d, d: `día ${d.d - 60}` })), 8)}`;
+  return h;
+}
+const diasCiclo = (c) => { const d = Object.values(c.ciclo).reduce((s, x) => s + x, 0); return c.perenne ? `${(d / 365).toFixed(1)} años hasta producir` : `${d} días a cosecha`; };
+
+// ---------------------------------------------------------------- 🌰 semillas
+function htmlSemillas() {
+  const apt = S.aptitudPiso(E.piso);
+  return `<h3>Tu piso térmico</h3><div class="chips">${Object.entries(S.PISOS).map(([k, P]) => `<button data-piso="${k}" class="${E.piso === k ? 'on' : ''}">${P.e} ${P.n}</button>`).join('')}</div><p class="nota">${S.PISOS[E.piso].d}. El clima cambia con las temporadas de lluvia (marzo–mayo y septiembre–noviembre).</p>
+    <h3>Semillas · sembrar en la cama ${cama + 1}${E.camas[cama] ? ' (ocupada)' : ''}</h3>
+    ${apt.map(([k, f]) => { const c = S.CULTIVOS[k], tg = f >= 0.95 ? '<span class="tag ok">✅ ideal</span>' : f >= 0.55 ? '<span class="tag ojo">⚠️ posible</span>' : '<span class="tag mal">❌ no se da</span>'; return `<div class="sem"><em>${c.e}</em><div class="q"><b>${c.n} ${tg}</b><small>${c.cat} · ${diasCiclo(c)} · ${c.luz === 'pleno' ? '☀️ sol pleno' : '⛅ media sombra'} · rinde ${c.rinde[0]}–${c.rinde[1]} ${c.rinde[2]}</small></div><button class="boton" data-guia="${k}">📖</button><button class="boton prim" data-sembrar="${k}" ${E.camas[cama] ? 'disabled' : ''}>🌱</button></div>`; }).join('')}`;
+}
+
+// ---------------------------------------------------------------- 📖 guía de cultivo
+function htmlGuia() {
+  const k = guiaDe || E.camas[cama]?.cult || 'tomate', c = S.CULTIVOS[k], G = c.guia;
+  const et = Object.entries(c.ciclo).filter(([, d]) => d > 0).map(([e, d]) => `${S.ETAPAS.find((x) => x[0] === e)[1]} ${d} d`).join(' → ');
+  return `<div class="chips" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">${Object.entries(S.CULTIVOS).map(([kk, cc]) => `<button data-guia="${kk}" class="${kk === k ? 'on' : ''}">${cc.e} ${cc.n}</button>`).join('')}</div>
+    <div class="cab" style="margin-top:10px"><em>${c.e}</em><div><b>Cómo cultivar ${c.n.toLowerCase()}</b><small>${c.cat}</small></div></div>
+    <h3>Ficha</h3><div class="kv"><span>Clima</span><b>${c.pisos.map((p) => `${S.PISOS[p].e} ${S.PISOS[p].n}`).join(', ')} · ideal ${c.temp[1]}–${c.temp[2]} °C (aguanta ${c.temp[0]}–${c.temp[3]})</b>
+      <span>Luz</span><b>${c.luz === 'pleno' ? '☀️ Sol pleno' : '⛅ Media sombra'} (${c.horasSol} h)</b><span>Agua</span><b>${c.agua >= 1.3 ? 'Mucha' : c.agua >= 0.95 ? 'Media' : 'Poca'}</b><span>pH</span><b>${c.ph[0]} – ${c.ph[1]}</b>
+      <span>Ciclo</span><b>${et}${c.perenne ? ' (perenne)' : ''}</b><span>Rinde</span><b>${c.rinde[0]}–${c.rinde[1]} ${c.rinde[2]} por planta (aprox.)</b>
+      <span>Poda</span><b>${c.poda === 'ninguna' ? 'No necesita' : c.poda}</b><span>Tutor</span><b>${c.tutor ? 'Sí' : 'No'}</b></div>
+    ${[['🌰 Siembra', G.siembra], ['💧 Riego', G.riego], ['🧪 Abono', G.abono], ['✂️ Poda y tutorado', G.poda], ['🧺 Cosecha', G.cosecha], ['💡 Consejos', G.consejos]].map(([t, x]) => `<div class="paso"><b>${t}</b>${esc(x)}</div>`).join('')}
+    <h3>Abono por etapa (lo que más pide)</h3><div class="kv">${Object.entries(c.nutr).map(([e, w]) => { const i = w.indexOf(Math.max(...w)); return `<span>${S.ETAPAS.find((x) => x[0] === e)?.[1] || e}</span><b>${['🟢 nitrógeno', '🟣 fósforo', '🟠 potasio'][i]}${c.fijaN && i !== 0 ? ' (fija su propio nitrógeno)' : ''}</b>`; }).join('')}</div>
+    <h3>Plagas comunes</h3>${c.plagas.map((x) => { const pl = S.PLAGAS[x], rs = Object.values(S.REMEDIOS).filter((r) => r.contra.includes(x)).map((r) => `${r.e} ${r.n}`).join(', '); return `<div class="paso"><b>${pl.e} ${pl.n}</b>${esc(pl.d)}<br><span style="opacity:.8">Remedio: ${rs}</span></div>`; }).join('')}
+    <div class="acc"><button class="boton prim" data-sembrar="${k}" ${E.camas[cama] ? 'disabled' : ''}>🌱 Sembrar en la cama ${cama + 1}</button></div>`;
+}
+
+// ---------------------------------------------------------------- 💡 lecciones y 📊 resultados
+function htmlLecciones() {
+  const L = Object.values(E.lecciones).sort((a, b) => b.dia - a.dia);
+  return `<p class="nota">Lo que has aprendido cultivando (con aciertos y errores). Cada planta te enseña algo.</p>${L.length ? L.map((l) => `<div class="paso">💡 ${esc(l.texto)}<br><small style="opacity:.55">día ${l.dia - 60}</small></div>`).join('') : '<p class="nota">Todavía nada: siembra algo y cuídalo.</p>'}`;
+}
+function htmlResultados() {
+  const H = E.historial, por = {};
+  for (const h of H) { por[h.cult] ||= { n: 0, kg: 0, buenos: 0 }; por[h.cult].n++; por[h.cult].kg += h.kg; if (h.kg >= h.esperado[0]) por[h.cult].buenos++; }
+  const apt = S.aptitudPiso(E.piso);
+  return `<h3>Qué funciona en tu clima (${S.PISOS[E.piso].e} ${S.PISOS[E.piso].n})</h3><div class="kv">${apt.slice(0, 24).map(([k, f]) => { const c = S.CULTIVOS[k], r = por[k]; return `<span>${c.e} ${c.n}</span><b>${f >= 0.95 ? '✅ ideal' : f >= 0.55 ? '⚠️ posible' : '❌ no se da'}${r ? ` · tú: ${r.n} ${r.n === 1 ? 'vez' : 'veces'}, ${r.kg.toFixed(2)} kg${r.buenos ? ' 👍' : ''}` : ''}</b>`; }).join('')}</div>
+    <h3>Tus cultivos terminados</h3>${H.length ? `<table class="t"><tr><th>Cultivo</th><th>Días</th><th>Cosecha</th><th>Cómo terminó</th></tr>${H.map((h) => { const c = S.CULTIVOS[h.cult]; return `<tr><td>${c.e} ${c.n}<br><small style="opacity:.6">${S.PISOS[h.piso].n} · salud ${h.salud} %</small></td><td>${h.dias}</td><td>${h.kg.toFixed(2)} kg<br><small style="opacity:.6">esperado ${h.esperado[0]}–${h.esperado[1]}</small></td><td>${esc(h.motivo)}${h.errores.length ? `<br><small style="color:#ff9d94">${esc(h.errores.join(', '))}</small>` : ''}</td></tr>`; }).join('')}</table>` : '<p class="nota">Aún no terminas ningún cultivo.</p>'}
+    <h3>Últimas cosechas</h3>${E.cosechas.slice(0, 12).map((x) => `<div class="nota">${S.CULTIVOS[x.cult].e} día ${x.d - 60}: ${x.n} · ${x.kg >= 1 ? `${x.kg.toFixed(2)} kg` : `${Math.round(x.kg * 1000)} g`}</div>`).join('') || '<p class="nota">Ninguna todavía.</p>'}`;
+}
+
+// ---------------------------------------------------------------- acciones
+function res(r) { if (r?.err) aviso(r.err); else if (r?.ok) aviso(r.ok, 5000); else if (typeof r === 'string') aviso(r); guardar(); sub = null; pintarTodo(true); }
+cuerpo.addEventListener('click', (e) => {
+  const q = (s) => e.target.closest(s); let b;
+  if ((b = q('[data-cama]'))) { cama = +b.dataset.cama; sub = null; enfocar(cama); return pintarTodo(true); }
+  if ((b = q('[data-tab2]'))) { tab = b.dataset.tab2; return pintarTodo(true); }
+  if ((b = q('[data-sembrar]'))) { if (E.camas[cama]) { const libre = E.camas.findIndex((x) => !x); if (libre < 0) return aviso('Todas las camas están ocupadas.'); cama = libre; } const err = S.sembrar(E, cama, b.dataset.sembrar); if (err) return aviso(err); tab = 'planta'; enfocar(cama); guardar(); return pintarTodo(true); }
+  if ((b = q('[data-guia]'))) { guiaDe = b.dataset.guia; tab = 'guia'; cuerpo.scrollTop = 0; return pintarTodo(true); }
+  if ((b = q('[data-piso]'))) { if (E.camas.some(Boolean) && !confirm('Cambiar de piso térmico cambia el clima de las plantas que ya tienes. ¿Seguir?')) return; E.piso = b.dataset.piso; guardar(); return pintarTodo(true); }
+  if ((b = q('[data-regar]'))) return res(S.regar(E, cama, b.dataset.regar));
+  if ((b = q('[data-abono]'))) return res(S.abonar(E, cama, b.dataset.abono));
+  if ((b = q('[data-remedio]'))) return res(S.tratar(E, cama, b.dataset.remedio));
+  if ((b = q('[data-acc]'))) {
+    const a = b.dataset.acc;
+    if (a === 'regar' || a === 'abonar' || a === 'tratar') { sub = sub === a ? null : a; return pintarTodo(true); }
+    if (a === 'podar') return res(S.podar(E, cama)); if (a === 'tutor') return res(S.tutorar(E, cama)); if (a === 'luz') return res(S.cambiarLuz(E, cama));
+    if (a === 'cosechar') return res(S.cosechar(E, cama));
+    if (a === 'arrancar') { if (E.camas[cama]?.viva && !confirm('¿Arrancar la planta?')) return; return res(S.arrancar(E, cama)); }
+  }
+});
+O.alTocar((ev) => { const i = ESC.tocar(ev); if (i < 0) return; cama = i; tab = 'planta'; sub = null; if (!escritorio() && nivelHoja === 0) ponerHoja(1); enfocar(i); pintarTodo(true); });
+
+// ---------------------------------------------------------------- etiquetas sobre cada cama
+const etqs = POS_CAMAS.map(() => { const d = document.createElement('div'); d.className = 'etq'; $('#etiquetas').append(d); return d; });
+function pintarEtiquetas() {
+  E.camas.forEach((p, i) => { const el = etqs[i]; if (!p) { el.style.display = 'none'; return; } const c = S.CULTIVOS[p.cult], mal = S.diagnostico(E, i).some((d) => d[0] === 'mal'), listos = p.frutos.filter((f) => f.m >= 1).length;
+    const t = `${p.viva ? c.e : '🥀'} ${c.n}${mal ? ' ⚠️' : ''}${listos || (S.etapaDe(p) === 'cosecha' && c.cosecha !== 'continua') ? ' 🧺' : ''}`; if (el._t !== t) { el.textContent = t; el._t = t; }
+    const q = O.proyectar(new THREE.Vector3(POS_CAMAS[i][0], 2 + Math.min(10, p.altura * 6 + 1.5), POS_CAMAS[i][1])); el.style.display = q.visible ? '' : 'none'; el.style.left = `${q.x}px`; el.style.top = `${q.y}px`; });
+}
+
+// ---------------------------------------------------------------- guardar y bucle
+function guardar() { if (E) guardarJSON(CLAVE, S.exportar(E)); }
+addEventListener('pagehide', guardar); document.addEventListener('visibilitychange', () => { if (document.hidden) guardar(); });
+let vistoDiario = null;
+O.cada((dt, t) => {
+  if (mult > 0) { acum += dt * mult; let n = 0; while (acum >= 1 && n < 20) { S.paso(E); acum -= 1; n++; } }
+  // avisos de lo importante (listo para cosechar, murió, plaga, lección)
+  if (E.diario[0] && E.diario[0] !== vistoDiario) { const nuevos = []; for (const d of E.diario) { if (d === vistoDiario) break; nuevos.push(d); } vistoDiario = E.diario[0]; for (const d of nuevos.filter((x) => x.tipo === 'logro' || x.tipo === 'malo').slice(0, 2).reverse()) aviso(d.texto, 5500); }
+  const L = O.setHora(mult > 0 && mult <= 1 ? 6 + ((acum % 1) * 13) : 12);
+  ESC.actualizar(E, dt, t, cama); void L;
+  pintarEtiquetas();
+  tUI += dt; if (tUI > 0.5) { tUI = 0; pintarTodo(); }
+  tGuardar += dt; if (tGuardar > 12) { tGuardar = 0; guardar(); }
+});
+const cargado = S.importar(cargarJSON(CLAVE));
+E = cargado || S.crearHuerto('templado');
+vistoDiario = E.diario[0] || null;
+if (!cargado) { tab = 'semillas'; setTimeout(() => aviso('🌱 Elige tu piso térmico y una semilla para tu primera cama.', 6000), 800); }
+ponerHoja(escritorio() ? 1 : 1, false); pintarTodo(true); encuadre();
+setTimeout(() => { $('#loader').style.opacity = '0'; setTimeout(() => $('#loader').remove(), 600); }, 300);
+window.huerto = { get E() { return E; }, S, ESC, O };
+</script>
+</body>
+</html>
