@@ -830,7 +830,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     diario: [], stats: { cosechas: 0, raciones: 0, litrosPozo: 0, litrosLluvia: 0, leche: 0, huevos: 0, lana: 0, nacimientos: 0, deseos: 0, reconciliaciones: 0, zorros: 0, regalos: 0 }, sigCria: 1,
     escasez: false, sequia: 0, fin: null,
   };
-  s.ganado = GANADO.map((g) => nuevoAnimalGranja(s, g));
+  s.ganado = GANADO.map((g) => nuevoAnimalGranja(s, g));  s.crias = {}; for (const a of s.agentes) if (esMascota(a)) { a.sexo = 'm'; a.pelaje = a.tipo === 'perro' ? 'manchado' : 'esmoquin'; a.crec = 1; }
   Object.assign(s.parcelas[0], { cultivo: 'lechuga', crec: 3, estado: 'creciendo', agua: 80 });
   Object.assign(s.parcelas[3], { cultivo: 'lechuga', crec: 2, estado: 'creciendo', agua: 80 });
   Object.assign(s.parcelas[1], { cultivo: 'papa', crec: 4, estado: 'creciendo', agua: 80 });
@@ -1148,7 +1148,86 @@ function eventos(s) {
 }
 
 // ---------------------------------------------------------------- mascotas: travesuras, zorros y vínculos
+// ---------------------------------------------------------------- crías de las mascotas
+const NOMBRES_MASCOTA = { perro: ['Luna', 'Toby', 'Kira', 'Rocky', 'Maya', 'Bruno', 'Nala', 'Coco', 'Pancho', 'Lola'], gato: ['Misha', 'Pelusa', 'Tigre', 'Mora', 'Simba', 'Kiwi', 'Oreo', 'Canela', 'Bigotes', 'Mota'] };
+export const PELAJES = { perro: ['manchado', 'cafe', 'negro', 'dorado'], gato: ['esmoquin', 'naranja', 'gris', 'calico', 'negro'] };
+const MAX_MASCOTAS = 6;
+const lista = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} y ${xs.at(-1)}` : xs[0] || '');
+const mascotasVivas = (s) => s.agentes.filter((x) => x.vivo && esMascota(x));
+export const esCria = (a) => esMascota(a) && (a.crec ?? 1) < 1;
+function nuevaMascota(s, tipo, nombre, pelaje, extra = {}) {
+  s.sigMascota = (s.sigMascota || 0) + 1;
+  const padres = (extra.padres || []).filter(Boolean);
+  const pool = [...new Set(padres.flatMap((p) => p.rasgos))];
+  const rasgos = []; while (pool.length && rasgos.length < Math.min(2, pool.length)) { const r = pool[Math.floor(rng(s) * pool.length)]; if (!rasgos.includes(r)) rasgos.push(r); }
+  if (extra.cria && !rasgos.includes('jugueton') && RASGOS.jugueton) rasgos.push('jugueton');
+  const a = nuevoAgente({ id: 'masc' + s.sigMascota, tipo, nombre, rasgos: rasgos.length ? rasgos : (tipo === 'perro' ? ['leal'] : ['trepador']), edad: extra.edad ?? 0 });
+  Object.assign(a, { pelaje, sexo: extra.sexo || (rng(s) < 0.5 ? 'h' : 'm'), cria: !!extra.cria, nacio: s.t, crec: extra.cria ? 0 : 1, madre: extra.madre || null });
+  a.pos = { ...(tipo === 'perro' ? LUGAR.caseta : LUGAR.banca) }; a.dentro = false;
+  s.agentes.push(a);
+  return a;
+}
+function nombreLibre(s, tipo) { const usados = new Set(s.agentes.map((x) => x.nombre)); const l = NOMBRES_MASCOTA[tipo].filter((n) => !usados.has(n)); return l.length ? l[Math.floor(rng(s) * l.length)] : `${tipo === 'perro' ? 'Cachorro' : 'Gatito'} ${s.sigMascota + 1}`; }
+function criasDelDia(s) {
+  s.crias ||= {};
+  for (const a of s.agentes) if (a.vivo && esMascota(a) && (a.crec ?? 1) < 1) {   // crecen en un mes
+    a.crec = Math.min(1, (a.crec || 0) + 1 / 28);
+    if (a.crec >= 1) log(s, `🐾 ${a.nombre} ya es ${a.tipo === 'perro' ? 'un perro' : 'un gato'} grande.`, 'logro');
+  }
+  for (const tipo of ['perro', 'gato']) {
+    const C = s.crias[tipo];
+    if (C?.fin && s.t >= C.fin) nacenCrias(s, tipo);
+    if (C?.decision && !C.aplicada && s.agentes.some((x) => x.vivo && x.camada === C.id && (x.crec ?? 1) >= 0.5)) aplicarCamada(s, tipo);
+    if (C && !C.fin && C.aplicada) s.crias[tipo] = null;
+    // en primavera o verano puede aparecer una pretendiente
+    const macho = s.agentes.find((x) => x.vivo && x.tipo === tipo && x.sexo !== 'h' && (x.crec ?? 1) >= 1);
+    if (!s.crias[tipo] && macho && mascotasVivas(s).length < MAX_MASCOTAS && estacion(s) <= 1 && rng(s) < 0.04 && !(s.enfriar['visita' + tipo] > s.t)) {
+      const nombre = nombreLibre(s, tipo), pelaje = PELAJES[tipo][Math.floor(rng(s) * PELAJES[tipo].length)];
+      const hembra = s.agentes.find((x) => x.vivo && x.tipo === tipo && x.sexo === 'h' && (x.crec ?? 1) >= 1);
+      if (hembra) { if (rng(s) < 0.5) { s.crias[tipo] = { id: s.t, fin: s.t + 21 * MIN_DIA, madre: hembra.id }; log(s, `🐾 ${hembra.nombre} está preñada: en unas tres semanas habrá ${tipo === 'perro' ? 'cachorros' : 'gatitos'}.`, 'logro'); } continue; }
+      proponer(s, 'visitaMascota', `Una ${tipo === 'perro' ? 'perrita' : 'gata'} ronda la granja`,
+        `${nombre} (${pelaje}) viene todos los días a buscar a ${macho.nombre}. Si se juntan, en unas tres semanas habrá ${tipo === 'perro' ? 'cachorros' : 'gatitos'}. Hoy hay ${mascotasVivas(s).length} mascotas (máximo ${MAX_MASCOTAS}).`, [
+          { k: 'adoptar', txt: 'Adoptarla', pista: 'se queda en la granja y vienen crías' },
+          { k: 'cruzar', txt: 'Dejar que se junten', pista: 'llegan crías; ella vuelve a su casa' },
+          { k: 'espantar', txt: 'Espantarla', pista: 'no pasa nada' },
+        ], 'espantar', { tipo, nombre, pelaje }, 18, 20);
+    }
+  }
+}
+function nacenCrias(s, tipo) {
+  const C = s.crias[tipo], madre = C.madre && s.agentes.find((x) => x.id === C.madre && x.vivo), padre = s.agentes.find((x) => x.vivo && x.tipo === tipo && x.sexo !== 'h' && (x.crec ?? 1) >= 1);
+  C.fin = null;
+  if (C.madre && !madre) { log(s, 'La camada no llegó: la madre ya no está.', 'malo'); s.crias[tipo] = null; return; }
+  const n = 2 + Math.floor(rng(s) * 3), nombres = [];
+  for (let i = 0; i < n; i++) {
+    const pel = rng(s) < 0.5 ? (madre?.pelaje || C.pelaje || PELAJES[tipo][0]) : (padre?.pelaje || PELAJES[tipo][0]);
+    const c = nuevaMascota(s, tipo, nombreLibre(s, tipo), pel, { cria: true, padres: [padre, madre], madre: madre?.id });
+    c.camada = C.id; c.pos = madre ? { ...madre.pos } : { ...(tipo === 'perro' ? LUGAR.caseta : LUGAR.banca) }; nombres.push(c.nombre);
+  }
+  s.stats.crias = (s.stats.crias || 0) + n;
+  log(s, `${tipo === 'perro' ? '🐶' : '🐱'} ¡Nacieron ${n} ${tipo === 'perro' ? 'cachorros' : 'gatitos'}: ${lista(nombres)}!${C.madre ? '' : ` La mamá los dejó en ${tipo === 'perro' ? 'la caseta' : 'la banca'} y volvió a su casa.`}`, 'logro');
+  for (const h of humanos(s)) recuerdo(s, h, `Nacieron ${tipo === 'perro' ? 'cachorros' : 'gatitos'}`, 14, 72);
+  const cabe = MAX_MASCOTAS - mascotasVivas(s).length + n;
+  proponer(s, 'camada', `¿Qué hacen con los ${tipo === 'perro' ? 'cachorros' : 'gatitos'}?`, `Son ${n}: ${nombres.join(', ')}. Cuando dejen la leche (en unas dos semanas) hay que decidir. Con todos, la granja tendría ${mascotasVivas(s).length} mascotas${cabe < n ? ` (y solo caben ${Math.max(0, cabe)})` : ''}.`, [
+    { k: 'todos', txt: 'Quedarse con todos', pista: cabe < n ? `solo caben ${Math.max(0, cabe)}: el resto se regala` : 'más compañía, más bocas' },
+    { k: 'uno', txt: 'Quedarse con uno y regalar el resto', pista: 'van a buenas casas del pueblo' },
+    { k: 'vender', txt: 'Quedarse con uno y vender el resto', pista: `+35 monedas por cada uno, por Don Ramiro` },
+  ], 'uno', { tipo }, 24 * 10, 0);
+}
+function aplicarCamada(s, tipo) {
+  const C = s.crias[tipo], camada = s.agentes.filter((x) => x.vivo && x.camada === C.id);
+  C.aplicada = true;
+  let quedan = C.decision === 'todos' ? Math.max(0, MAX_MASCOTAS - (mascotasVivas(s).length - camada.length)) : 1;
+  const salen = camada.slice(quedan);
+  for (const c of salen) { c.vivo = false; c.seFue = true; c.causa = C.decision === 'vender' ? 'vendido a una familia del pueblo' : 'regalado a una familia del pueblo'; c.accion = 'Vive en el pueblo'; soltarTarea(s, c); }
+  if (C.decision === 'vender' && salen.length) { s.comercio.monedas += 35 * salen.length; log(s, `🪙 Don Ramiro les consiguió familia a ${lista(salen.map((c) => c.nombre))}: +${35 * salen.length} monedas.`, 'bueno'); }
+  else if (salen.length) log(s, `🏡 ${lista(salen.map((c) => c.nombre))} se fueron con familias del pueblo.`, 'info');
+  if (salen.length) for (const h of humanos(s)) recuerdo(s, h, `Despedir a ${salen.length === 1 ? salen[0].nombre : 'las crías'}`, -6, 24);
+  const se = camada.slice(0, quedan).map((c) => c.nombre); if (se.length) log(s, `🐾 Se ${se.length > 1 ? 'quedan' : 'queda'} en la granja: ${lista(se)}.`, 'bueno');
+}
+
 function mascotasDelDia(s) {
+  criasDelDia(s);
   const gato = s.agentes.find((a) => a.vivo && a.tipo === 'gato'), perro = s.agentes.find((a) => a.vivo && a.tipo === 'perro');
   for (const m of [gato, perro]) if (m?.vinculo) for (const h of humanos(s)) m.vinculo[h.id] += (m.vinculo[h.id] - 50) * -0.03;   // sin atención, el vínculo vuelve a lo neutro
   if (gato && tiene(gato, 'travieso') && rng(s) < 0.18) {
@@ -2680,6 +2759,14 @@ function resolver(s, d, k, jugador) {
   } else log(s, `${pre}: ${d.titulo.toLowerCase()} → ${op.txt.toLowerCase()}.`, 'decision');
   switch (d.tipo) {
     case 'crias': P.crias = k; break;
+    case 'visitaMascota': {
+      const { tipo, nombre, pelaje } = d.datos; s.crias ||= {};
+      if (k === 'adoptar') { const h = nuevaMascota(s, tipo, nombre, pelaje, { sexo: 'h', edad: 2 }); s.crias[tipo] = { id: s.t, fin: s.t + 21 * MIN_DIA, madre: h.id }; log(s, `🐾 ${nombre} se quedó a vivir en la granja. En unas tres semanas vienen ${tipo === 'perro' ? 'cachorros' : 'gatitos'}.`, 'bueno'); }
+      else if (k === 'cruzar') { s.crias[tipo] = { id: s.t, fin: s.t + 21 * MIN_DIA, madre: null, pelaje }; log(s, `🐾 ${nombre} y su enamorado pasearon juntos unos días. Vienen crías.`, 'info'); }
+      else s.enfriar['visita' + tipo] = s.t + 30 * MIN_DIA;
+      break;
+    }
+    case 'camada': { const C = s.crias?.[d.datos.tipo]; if (C) C.decision = k; break; }
     case 'hijo': s.familia.plan = k; if (k === 'esperar') s.familia.planHasta = dia(s) + 28; break;
     case 'parto': { const F = s.familia; if (k === 'partera' && s.comercio.monedas >= 80) { s.comercio.monedas -= 80; F.parto = 'partera'; log(s, '🧑‍⚕️ La partera del pueblo vendrá para el parto (80 monedas).', 'info'); } else { F.parto = 'casa'; if (k === 'partera') log(s, 'No alcanzó el dinero para la partera: el parto será en casa.', 'aviso'); } break; }
     case 'nombre': { const h = s.agentes.find((x) => x.id === d.datos.hijo); if (h && h.nombre !== k) { log(s, `Le pusieron ${k} (antes le decían ${h.nombre}).`, 'info'); h.nombre = k; } break; }
@@ -3579,7 +3666,8 @@ function migrar(s) {
     s.comercio ??= comercioNuevo(s.t);
     if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
     s.plano ??= {}; aplicarPlano(s.plano);
-    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.diseno ??= {}; s.encargos ??= []; s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
+    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.diseno ??= {}; s.encargos ??= []; s.crias ??= {};
+    for (const a of s.agentes) if (esMascota(a)) { a.sexo ??= 'm'; a.pelaje ??= a.tipo === 'perro' ? 'manchado' : 'esmoquin'; a.crec ??= 1; } s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
     if (!s.jugador) Object.assign(s, jugadorNuevo());

@@ -308,9 +308,9 @@ function pintarDatos() {
     const c = tarjetas[a.id]; if (!c) continue;
     c.classList.toggle('muerto', !a.vivo);
     const etapa = a.tipo === 'nino' ? Sim.etapaDe(s, a) : null;
-    c.querySelector('.cara').textContent = a.tipo === 'humano' && a.vivo ? Sim.caraAnimo(a.animo) : etapa ? { bebe: '👶', nino: a.sexo === 'm' ? '👧' : '👦', joven: '🧑', adulto: '🧑' }[etapa] : EMO[a.id] || '•';
+    c.querySelector('.cara').textContent = a.tipo === 'humano' && a.vivo ? Sim.caraAnimo(a.animo) : etapa ? { bebe: '👶', nino: a.sexo === 'm' ? '👧' : '👦', joven: '🧑', adulto: '🧑' }[etapa] : EMO[a.id] || (a.tipo === 'perro' ? '🐕' : a.tipo === 'gato' ? '🐈' : '•');
     c.querySelector('b').textContent = (a.vivo ? '' : '† ') + a.nombre + (a.enfermo > 0 ? ' 🤒' : '');
-    c.querySelector('.act').textContent = a.vivo ? (a.dentro ? `En casa · ${a.accion.toLowerCase()}` : a.accion) : a.seFue ? a.accion : `Murió ${a.causa || ''}`;
+    c.querySelector('.act').textContent = a.vivo ? (a.dentro ? `En casa · ${a.accion.toLowerCase()}` : a.accion) : a.seFue ? (a.accion || a.causa) : `Murió ${a.causa || ''}`;
     c.querySelector('.bars').style.display = a.vivo ? '' : 'none';
     // rasgos, deseo, oficios y vínculo
     const rasgos = a.rasgos.map((r) => Sim.RASGOS[r]?.nombre).filter(Boolean).join(' · ');
@@ -331,6 +331,8 @@ function pintarDatos() {
       if ((a.deseoSex || 0) > 70) est.push('💗 con ganas');
       est.push(`💪 forma ${Math.round(a.forma ?? 40)}`);
       if (est.length) extra += `<div title="Vino: ${PL.vino?.usos || 0} veces · Hierba: ${PL.hierba?.usos || 0} veces">${est.join(' · ')}</div>`;
+    } else if (a.vivo && a.vinculo && (a.crec ?? 1) < 1) {
+      extra += `<div class="deseo">${a.tipo === 'perro' ? 'Cachorro' : 'Gatito'} · ${Math.round((a.crec || 0) * 28)} días</div>`;
     } else if (a.vivo && a.vinculo) {
       const fav = Object.entries(a.vinculo).sort((x, y) => y[1] - x[1])[0];
       const h = s.agentes.find((x) => x.id === fav?.[0]);

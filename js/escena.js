@@ -479,7 +479,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     silla2: [0, -0.5, -2.65, -0.5, 0, 'sentado'], silla3: [0, -1.9, -0.55, -1.9, -3, 'sentado'],
     cuna: [1, -2.4, -3.85, -2.4, -6, 'trabajo'], camaNino0: [1, -3.0, -2.2, -3.0, -6, 'acostado'], camaNino1: [1, -2.0, -2.2, -2.0, -6, 'acostado'],
     juegoNino0: [0, 2.0, 1.7, 2.6, 2.3, 'quieto'], juegoNino1: [0, 3.3, 1.8, 2.6, 2.3, 'quieto'],
-    pieCama: [1, 0.2, -3.1, 0.2, 0, 'acostado'], sillonAlto: [1, 4.5, 3.4, 0, 3.4, 'sentado'], biblioteca: [1, 3.5, -4.7, 3.5, -6, 'quieto'],
+    pieCama: [1, 0.2, -2.55, 0.2, 0, 'acostado'], sillonAlto: [1, 4.5, 3.4, 0, 3.4, 'sentado'], biblioteca: [1, 3.5, -4.7, 3.5, -6, 'quieto'],
   };
   const LIMPIAR = ['sala0', 'fregadero', 'tapete', 'biblioteca', 'sillon'];
 
@@ -1367,6 +1367,24 @@ uniform float uRafaga;
     for (const c of plantillas.anim.animations) v.acciones[c.name] = v.mixer.clipAction(c);
     animar(v, 'Idle_Loop');
   }
+  // mascotas que nacen o llegan (crías, la perrita o la gata adoptada)
+  const plantillasMasc = {}, ALTO_MASC = { perro: 0.78, gato: 0.38 };
+  function asegurarMascotas(s) {
+    for (const a of s.agentes) {
+      if (a.tipo !== 'perro' && a.tipo !== 'gato') continue;
+      let v = vis[a.id];
+      if (!v) {
+        v = vis[a.id] = a.tipo === 'perro' ? makeDog() : makeCat();
+        v.g.userData.agente = true; Object.assign(v, { last: V(0, 0, 0), yaw: 0, moving: 0, ready: false, walkPh: 0 });
+        const tomb = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.6, 0.18, 2, 0.08), tombMat); tomb.position.set(-6.0 + Object.keys(vis).length * 0.7, 0.3, 20.4); tomb.visible = false; tomb.castShadow = true; root.add(tomb); v.tomb = tomb;
+      }
+      if (!v.mascota && plantillasMasc[a.tipo] && a.id !== 'nube' && a.id !== 'esmoquin') {
+        const P = plantillasMasc[a.tipo], g = { scene: SkeletonUtils.clone(P.scene), animations: P.animations };
+        const ctrl = (a.tipo === 'perro' ? armarPerro : armarGato)(g, ALTO_MASC[a.tipo], { pelaje: a.pelaje });
+        v.g.children.forEach((c) => { c.visible = false; }); v.g.add(ctrl.raiz); v.mascota = ctrl;
+      }
+    }
+  }
   function asegurarHijos(s) {
     let hay = false;
     for (const a of s.agentes) {
@@ -1416,6 +1434,13 @@ uniform float uRafaga;
       return SITIO['sala' + i];
     }
     const perro = a.tipo === 'perro';
+    const r = sitioMascota(a, s, t, perro, T, tp);
+    if (!r) return r;
+    // varias mascotas: cada una un poco al lado (si no, quedan una encima de la otra)
+    const k = s.agentes.filter((x) => x.vivo && x.dentro && x.tipo === a.tipo).indexOf(a);
+    return k > 0 ? { ...r, 1: r[1] + [0, 0.42, -0.42][k % 3], 2: r[2] - Math.floor(k / 3) * 0.45 } : r;
+  }
+  function sitioMascota(a, s, t, perro, T, tp) {
     if (tp === 'dormir' || tp === 'dormirCon') {
       if (perro) return { ...SITIO.tapete, 5: 'dormido' };
       const h = T.con && s.agentes.find((x) => x.id === T.con);
@@ -1499,7 +1524,7 @@ uniform float uRafaga;
       v.head.rotation.set(0, 0, sentado && (tp === 'leer' || tp === 'tejer') ? -0.35 : trabaja ? -0.3 : 0);
     } else {
       const dormido = pose === 'dormido', sentado = pose === 'quieto' || pose === 'regazo';
-      const sobre = pose === 'regazo' ? 0.55 : dormido && a.tipo === 'gato' && piso === 1 ? 0.62 : 0;   // en el regazo o sobre la cama
+      const sobre = pose === 'regazo' ? 0.55 : dormido && a.tipo === 'gato' && piso === 1 ? 0.76 : 0;   // en el regazo o sobre la cama
       v.g.position.y = PISO[piso] + sobre + Math.abs(Math.sin(ph)) * 0.05 * w - (dormido ? 0.25 : 0);
       v.torso.rotation.z = sentado && !dormido ? 0.5 : 0;
       v.head.rotation.set(0, 0, sentado ? -0.25 : 0);
@@ -1917,7 +1942,7 @@ uniform float uRafaga;
     const cocinando = s.agentes.some((x) => x.tarea?.tipo === 'cocinar' && x.dentro);
     if (hornillas) hornillas.emissiveIntensity = cocinando ? 1.6 + Math.sin(t * 9) * 0.3 : 0;
     if (fuego) fuego.emissiveIntensity = (night > 0.4 || s.clima.lluvia || (s.t / MIN_DIA / 28 | 0) % 4 === 3) ? 1.8 + Math.sin(t * 7) * 0.4 + Math.sin(t * 13) * 0.2 : 0;
-    asegurarHijos(s);
+    asegurarHijos(s); asegurarMascotas(s);
     for (const cv of caminosVis) {   // lajas puestas según el avance
       const k = Math.floor((s.caminos?.[cv.id]?.progreso || 0) * cv.piedras.length + 1e-6);
       if (k !== cv.n) { cv.n = k; cv.piedras.forEach((m, i) => { m.visible = i < k; }); }
@@ -2042,6 +2067,7 @@ uniform float uRafaga;
     const MASC = { nube: ['modelo/perro.glb', armarPerro, 0.78], esmoquin: ['modelo/gato.glb', armarGato, 0.38] };
     for (const [id, [u, armar, alto]] of Object.entries(MASC)) {
       cargar(u).then((g) => {
+        plantillasMasc[id === 'nube' ? 'perro' : 'gato'] = { scene: SkeletonUtils.clone(g.scene), animations: g.animations };   // para las crías y las que llegan
         const v = vis[id]; if (!v) return;
         if (id === 'nube') plantillaPerro = { scene: SkeletonUtils.clone(g.scene), animations: g.animations };
         const ctrl = armar(g, alto);
@@ -2120,6 +2146,7 @@ uniform float uRafaga;
   }
   function poseAgente(a, v, s, t, dt) {
     if (!v) return;
+    if (a.seFue) { v.g.visible = false; if (v.tomb) v.tomb.visible = false; return; }   // se fue (al pueblo, a otra familia)
     if (a.tipo === 'nino' || v.esHijo) {
       if (a.seFue) { v.g.visible = false; v.tomb.visible = false; return; }
       const et = a.vivo ? ajustarEdad(a, v, s) : null;
@@ -2128,6 +2155,7 @@ uniform float uRafaga;
     }
     poseAgenteBase(a, v, s, t, dt);
     if (v.mascota) {
+      v.mascota.raiz.scale.setScalar(0.42 + 0.58 * (a.crec ?? 1));   // las crías van creciendo
       // la pose de la mascota según lo que hace
       const T = a.tarea, tp = T?.tipo, fase = T?.fase;
       const w = v.g.getWorldPosition(new THREE.Vector3());
@@ -2141,7 +2169,7 @@ uniform float uRafaga;
       else if (['jugar', 'jugarJuntos'].includes(tp)) e = 'juega';
       v.mascota.estado(e, ts);
       v.g.rotation.x = 0; v.g.rotation.z = 0;
-      v.mascota.raiz.position.y = (a.vivo ? (v.altura || 0) : 0) - v.g.position.y;
+      v.mascota.raiz.position.y = a.dentro ? 0 : (a.vivo ? (v.altura || 0) : 0) - v.g.position.y;   // adentro el grupo ya está a la altura del piso (antes quedaba bajo el suelo)
       v.mascota.update(dt);
       return;
     }

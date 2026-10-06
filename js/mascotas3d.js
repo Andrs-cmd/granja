@@ -5,12 +5,13 @@ import * as THREE from 'three';
 const ESTADOS_PERRO = { quieto: 'iddle', camina: 'walk', corre: 'run', juega: 'jump', pelea: 'attack1', sentado: 'iddle', dormido: 'iddle', trepado: 'iddle' };
 
 // ------------------------------------------------------------ perro
-export function armarPerro(gltf, alto = 0.75) {
+const TINTE_PERRO = { cafe: 0xb07a4a, negro: 0x4a4a4e, dorado: 0xe8b860 };
+export function armarPerro(gltf, alto = 0.75, opts = {}) {
   const m = gltf.scene;
   const box = new THREE.Box3().setFromObject(m), k = alto / (box.max.y - box.min.y);
   const raiz = new THREE.Group(); raiz.add(m);
   m.scale.setScalar(k); m.rotation.y = -Math.PI / 2;   // mira hacia +x (como el resto de las mascotas)
-  m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (/icosphere/i.test(o.name)) o.visible = false; } });
+  m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (/icosphere/i.test(o.name)) o.visible = false; else if (TINTE_PERRO[opts.pelaje]) { o.material = o.material.clone(); o.material.color.setHex(TINTE_PERRO[opts.pelaje]); } } });
   const mixer = new THREE.AnimationMixer(m), acc = {};
   for (const c of gltf.animations) acc[c.name] = mixer.clipAction(c);
   let actual = null;
@@ -30,7 +31,9 @@ export function armarPerro(gltf, alto = 0.75) {
 }
 
 // ------------------------------------------------------------ gato
-export function armarGato(gltf, alto = 0.36) {
+const PELAJE_GATO = { esmoquin: ['0.045, 0.045, 0.05', '0.95, 0.94, 0.92'], naranja: ['0.78, 0.42, 0.14', '0.98, 0.86, 0.66'], gris: ['0.36, 0.37, 0.4', '0.82, 0.82, 0.84'], negro: ['0.035, 0.035, 0.04', '0.13, 0.13, 0.14'], calico: ['0.62, 0.33, 0.12', '0.96, 0.94, 0.9'] };
+export function armarGato(gltf, alto = 0.36, opts = {}) {
+  const [oscuro, claro] = PELAJE_GATO[opts.pelaje] || PELAJE_GATO.esmoquin;
   const m = gltf.scene;
   const box = new THREE.Box3().setFromObject(m), k = alto / (box.max.y - box.min.y);
   const raiz = new THREE.Group(), cuerpo = new THREE.Group(); raiz.add(cuerpo); cuerpo.add(m);
@@ -50,7 +53,7 @@ export function armarGato(gltf, alto = 0.36) {
         blanco = max(blanco, (1.0 - smoothstep(0.11, 0.14, vRep.y)) * (1.0 - smoothstep(0.03, 0.05, abs(vRep.x))) * step(-0.12, vRep.z) * (1.0 - step(0.15, vRep.z)));   // panza
         blanco = max(blanco, smoothstep(0.08, 0.1, vRep.z) * (1.0 - smoothstep(0.2, 0.23, vRep.y)) * (1.0 - smoothstep(0.035, 0.055, abs(vRep.x))));                     // pecho
         blanco = max(blanco, smoothstep(0.17, 0.19, vRep.z) * step(0.17, vRep.y) * (1.0 - smoothstep(0.22, 0.245, vRep.y)));                                         // hocico
-        diffuseColor.rgb = mix(vec3(0.045, 0.045, 0.05), vec3(0.95, 0.94, 0.92), blanco);`);
+        diffuseColor.rgb = mix(vec3(${oscuro}), vec3(${claro}), blanco);`);
     };
     o.material = mat;
   });
