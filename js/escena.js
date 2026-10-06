@@ -24,7 +24,8 @@ const yawTo = (dx, dz) => Math.atan2(-dz, dx);
 
 export function crearEscena(host, { onParcela, onAgente } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+  const tactil = matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, tactil ? 1.0 : 1.25));   // en el celular arranca más liviano
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -53,7 +54,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 3);
-  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  key.castShadow = true; key.shadow.mapSize.set(tactil ? 1024 : 2048, tactil ? 1024 : 2048);
   Object.assign(key.shadow.camera, { left: -54, right: 54, top: 54, bottom: -54, near: 1, far: 200 });
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
   scene.add(key, key.target); key.target.position.copy(CENTER);
@@ -1508,12 +1509,12 @@ uniform float uRafaga;
   let downAt = null, seleccion = null;
   renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
   renderer.domElement.addEventListener('pointerup', (e) => {
-    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > (e.pointerType === 'touch' ? 14 : 6)) return;
     const r = renderer.domElement.getBoundingClientRect();
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     // ¿tocó a una persona? (se proyecta cada una a la pantalla: son pequeñas y así es fácil tocarlas)
     if (onAgente) {
-      let mejor = null, dmin = 44;
+      let mejor = null, dmin = e.pointerType === 'touch' ? 56 : 44;   // con el dedo se apunta menos fino
       for (const [id, v] of Object.entries(vis)) {
         if (v.kind !== 'humano' || !v.g.visible) continue;
         const w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera);
@@ -1530,7 +1531,10 @@ uniform float uRafaga;
   // ------------------------------------------------------------ tamaño
   function resize() {
     const w = host.clientWidth, h = host.clientHeight;
-    renderer.setSize(w, h, false); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false); labelRenderer.setSize(w, h); camera.aspect = w / h;
+    // pantalla vertical (celular): lente más abierta para que el orbe quepa de lado a lado sin alejar tanto la cámara
+    camera.fov = w < h ? 28 + Math.min(1, (h / w - 1) / 1.2) * 18 : 28;
+    camera.updateProjectionMatrix();
   }
   addEventListener('resize', resize); resize();
   // calidad adaptativa: si el equipo no da (celulares, portátiles viejos), baja de a un paso la resolución y luego las sombras
@@ -1541,7 +1545,7 @@ uniform float uRafaga;
     () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
     () => renderer.setPixelRatio(0.65),
   ];
-  let paso = 0, acum = 0, nCal = 0, esperaCal = 4, ocupado = false;
+  let paso = tactil ? 2 : 0, acum = 0, nCal = 0, esperaCal = 4, ocupado = false;
   function calidad(dt) {
     if (paso >= PASOS.length || !cargada || document.hidden) return;
     if (ocupado) { acum = 0; nCal = 0; esperaCal = 2; return; }   // poniéndose al día: esos cuadros no cuentan
@@ -1952,15 +1956,16 @@ uniform float uRafaga;
   }
 
   // encuadre: deja espacio a los lados para las columnas de datos
-  function encuadrar(margenIzq, margenDer, margenAbajo = 0) {
+  function encuadrar(margenIzq, margenDer, margenAbajo = 0, margenArriba = 0) {
     const W = renderer.domElement.clientWidth || innerWidth, H = renderer.domElement.clientHeight || innerHeight;
     camera.clearViewOffset();
-    if (margenIzq || margenDer || margenAbajo) camera.setViewOffset(W, H, (margenDer - margenIzq) / 2, margenAbajo / 2, W, H);
+    if (margenIzq || margenDer || margenAbajo || margenArriba) camera.setViewOffset(W, H, (margenDer - margenIzq) / 2, (margenAbajo - margenArriba) / 2, W, H);
     camera.updateProjectionMatrix();
-    const utilW = Math.max(0.35, (W - margenIzq - margenDer) / W), utilH = Math.max(0.35, (H - margenAbajo) / H);
+    const utilW = Math.max(0.35, (W - margenIzq - margenDer) / W), utilH = Math.max(0.3, (H - margenAbajo - margenArriba) / H);
     const halfV = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * utilH);
     const halfH = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * utilW);
     const dist = (ORB_R + 6) / Math.sin(Math.min(halfV, halfH));
+    controls.maxDistance = Math.max(380, dist * 1.25); camera.far = Math.max(500, dist * 2.5); camera.updateProjectionMatrix();
     camera.position.sub(controls.target).setLength(dist).add(controls.target);
   }
 
