@@ -1908,7 +1908,7 @@ uniform float uRafaga;
       if (!quieto) { clip = 'Walk_Loop'; ts = THREE.MathUtils.clamp(v.rap / (1.25 * v.k), 0.6, 2.1); }   // siempre caminan (el paso sigue a la velocidad)
       else if (dentro ? pose === 'sentado' : SENTADO_FUERA.includes(tipo)) {
         clip = CHARLA.includes(tipo) ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop';
-        const asiento = dentro ? suelo + 0.5 : tipo === 'tallar' || tipo === 'esculpir' ? 0.5 : 0.8;
+        const asiento = dentro ? suelo + 0.52 : tipo === 'tallar' || tipo === 'esculpir' ? 0.51 : 0.84;   // silla y sofá, tronco del taller, banca
         base = asiento - 0.46 * v.k;
       }
       else if (pose === 'entrenar' || tipo === 'entrenar') { clip = ['Punch_Jab', 'Jump_Loop', 'Punch_Cross'][Math.floor(t / 5 + a.id.length) % 3]; }
