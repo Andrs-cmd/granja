@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b1a17">
+<title>Orbe</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; font: 13px/1.35 "Inter", system-ui, -apple-system, Segoe UI, sans-serif; color: #f1eee8; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; user-select: none; }
+  body { background: radial-gradient(ellipse at 50% 45%, #e9e5de 0%, #cfcac1 42%, #5d5952 100%); }
+  #stage { position: fixed; inset: 0; } #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .col { position: fixed; top: 14px; bottom: 76px; width: clamp(160px, 23vw, 240px); z-index: 2; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; scrollbar-width: none; transition: opacity .3s; }
+  .col::-webkit-scrollbar { display: none; } .col.izq { left: 14px; } .col.der { right: 14px; } .col.off { opacity: 0; pointer-events: none; }
+  .card { background: rgba(16,17,21,.74); border: 1px solid rgba(255,255,255,.09); border-radius: 12px; padding: 8px 10px; }
+  .card h4 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin-bottom: 5px; font-weight: 600; }
+  .pj { cursor: pointer; } .pj .top { display: flex; gap: 6px; align-items: baseline; } .pj b { font-size: 12.5px; } .pj .act { font-size: 11px; opacity: .72; margin: 1px 0 5px; }
+  .bars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; } .bars i { display: flex; align-items: center; gap: 2px; font-style: normal; font-size: 9px; }
+  .bars u { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; display: block; } .bars em { display: block; height: 100%; background: #7cc36a; } .bars em.mid { background: #e3b341; } .bars em.low { background: #e0574f; }
+  .grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; } .grid span { opacity: .7; } .grid b { text-align: right; }
+  .diario { list-style: none; display: grid; gap: 4px; font-size: 11.2px; } .diario li { padding-left: 7px; border-left: 2px solid rgba(255,255,255,.15); } .diario li.bueno { border-color: #7cc36a; } .diario li.malo { border-color: #e0574f; } .diario li.aviso { border-color: #e3b341; } .diario li.decision { border-color: #b48ae0; }
+  .fecha { font: 600 13px ui-monospace, Consolas, monospace; } .titulo { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #e7c46a; }
+  .barra { position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 2px; padding: 4px; background: rgba(18,18,22,.66); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; z-index: 3; }
+  .barra button, .boton { white-space: nowrap; background: none; border: 0; color: inherit; font: inherit; font-size: 12px; font-weight: 600; padding: 7px 11px; border-radius: 99px; cursor: pointer; opacity: .8; }
+  .barra button.on { background: rgba(231,196,106,.95); color: #1b1a17; opacity: 1; }
+  .izqAbajo { position: fixed; left: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; z-index: 4; }
+  .izqAbajo .boton { background: rgba(18,18,22,.72); border: 1px solid rgba(255,255,255,.15); opacity: 1; }
+  .izqAbajo .boton .n { background: #b48ae0; color: #1b1a17; border-radius: 99px; padding: 0 6px; margin-left: 4px; font-size: 11px; }
+  .panel { position: fixed; z-index: 7; background: rgba(24,22,30,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.45); overflow-y: auto; }
+  .panel.off { display: none; } .panel .cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .panel .cab b { color: #e7c46a; } .panel .cab button { background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; }
+  #decP { left: 50%; transform: translateX(-50%); bottom: 70px; width: min(440px, calc(100vw - 24px)); max-height: 70vh; }
+  .uno { border: 1px solid rgba(255,255,255,.1); border-radius: 11px; padding: 9px 10px; margin-bottom: 8px; } .uno h3 { font-size: 13px; color: #e6d3ff; margin-bottom: 3px; } .uno p { font-size: 12px; opacity: .85; margin: 4px 0 7px; }
+  .ops { display: grid; gap: 5px; } .ops button { text-align: left; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: inherit; font: inherit; font-weight: 600; font-size: 12.5px; padding: 8px 10px; border-radius: 9px; cursor: pointer; } .ops button small { display: block; font-weight: 400; opacity: .65; font-size: 11px; }
+  .sino { font-size: 11px; margin-top: 7px; padding: 6px 8px; border-radius: 8px; background: rgba(224,87,79,.1); border-left: 3px solid #e0574f; } .plazo { font-size: 11px; opacity: .8; }
+  #fichaP { right: 14px; top: 14px; width: min(320px, calc(100vw - 24px)); max-height: calc(100vh - 100px); }
+  #fichaP .rel { display: flex; justify-content: space-between; font-size: 11.5px; padding: 2px 0; } #fichaP .rasgos { font-size: 11px; opacity: .75; margin: 4px 0 8px; }
+  .caption { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; opacity: 0; transition: opacity .8s; pointer-events: none; text-shadow: 0 1px 8px rgba(0,0,0,.6); z-index: 6; } .caption.on { opacity: .95; }
+  #loader { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: #1b1a17; color: #a3a09a; font: 600 12px ui-monospace, monospace; letter-spacing: .12em; transition: opacity .6s; }
+  .volver { position: fixed; left: 12px; top: 12px; z-index: 5; } .volver a { color: inherit; text-decoration: none; background: rgba(18,18,22,.66); border: 1px solid rgba(255,255,255,.12); padding: 6px 11px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  body.datos .volver { display: none; }
+  @media (max-width: 640px) {
+    .col { top: auto; bottom: calc(60px + env(safe-area-inset-bottom)); height: 38vh; width: auto; left: 8px !important; right: 8px !important; }
+    .col.izq { display: grid; grid-template-columns: 1fr 1fr; align-content: start; } .col.der { display: none; } body.verDer .col.der { display: flex; } body.verDer .col.izq { display: none; }
+    #decP { bottom: calc(60px + env(safe-area-inset-bottom)); } #fichaP { top: auto; bottom: calc(60px + env(safe-area-inset-bottom)); left: 8px; right: 8px; width: auto; max-height: 50vh; }
+    .izqAbajo { bottom: calc(62px + env(safe-area-inset-bottom)); } body.datos .izqAbajo { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="loader">CARGANDO…</div>
+<div id="stage"></div>
+<div class="volver"><a href="index.html">← Orbes</a></div>
+<aside class="col izq off" id="izq"></aside>
+<aside class="col der off" id="der"></aside>
+<div class="izqAbajo"><button class="boton" id="btnDec">⚖ Decisiones<span class="n" id="nDec">0</span></button></div>
+<div class="barra" id="barra"></div>
+<div class="caption" id="caption"></div>
+<div class="panel off" id="decP"></div>
+<div class="panel off" id="fichaP"></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import * as M from './motor/sim.js';
+import { crearEscena } from './motor/escena.js';
+const id = new URLSearchParams(location.search).get('m') || 'ciudad';
+const F = (await import(`./fichas/${id}.js`)).default;
+document.title = `${F.emoji || '🌍'} ${F.nombre}`;
+const CLAVE = `orbe-${F.id}-v${F.version || 1}`;
+const ahora = () => { const d = new Date(); return (d.getHours() * 60 + d.getMinutes()); };
+let estado = M.cargar(F, CLAVE) || M.crearMundo(F, { semilla: Date.now() & 0xffffffff, inicio: 7 * 60 });
+// ponerse al día con el tiempo que pasó con la página cerrada (máximo 3 días de mundo)
+const VEL = [[1, '×60'], [2, '×120'], [10, '×600'], [40, '×2400']];
+let vel = 1; try { vel = +(localStorage.getItem('orbe-vel') ?? 1); } catch { /* sin almacenamiento */ }
+let pendiente = 0;
+try { const t = +localStorage.getItem(CLAVE + '-ts'); if (t) pendiente = Math.min(3 * M.MIN_DIA, (Date.now() - t) / 1000 * VEL[vel][0]); } catch { /* nada */ }
+const guardar = () => { M.guardar(estado, CLAVE); try { localStorage.setItem(CLAVE + '-ts', Date.now()); } catch { /* nada */ } };
+addEventListener('pagehide', guardar); setInterval(guardar, 20000);
+
+const izq = document.getElementById('izq'), der = document.getElementById('der');
+let fichaId = null;
+const escena = crearEscena(document.getElementById('stage'), F, { onAgente: (aid) => { fichaId = fichaId === aid ? null : aid; pintarFicha(); } });
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const angosto = () => innerWidth <= 640;
+let datos = !angosto();
+function encuadre() { if (!datos) return escena.encuadrar(0, 0, 0); if (angosto()) return escena.encuadrar(0, 0, innerHeight * 0.38 + 70); const w = izq.getBoundingClientRect().width || 240; escena.encuadrar(w + 40, w + 40, 0); }
+addEventListener('resize', encuadre);
+
+// ---------------------------------------------------------------- tarjetas
+const EMO = { perro: '🐕', gato: '🐈‍⬛' };
+const NEC = Object.entries(F.necesidades);
+const cara = (v) => (v >= 80 ? '😄' : v >= 62 ? '🙂' : v >= 45 ? '😐' : v >= 28 ? '😟' : '😢');
+const tarj = {};
+function crearTarjetas() {
+  izq.replaceChildren();
+  for (const a of estado.agentes) {
+    const c = document.createElement('div'); c.className = 'card pj'; c.dataset.id = a.id;
+    c.innerHTML = `<div class="top"><span class="cara"></span><b></b></div><div class="act"></div><div class="bars">${NEC.filter(([, N]) => !N.especies || N.especies.includes(a.especie)).map(([k, N]) => `<i title="${N.nombre}">${N.icono}<u><em data-k="${k}"></em></u></i>`).join('')}</div>`;
+    c.onclick = () => { fichaId = a.id; escena.enfocar(a.id); pintarFicha(); };
+    izq.append(c); tarj[a.id] = c;
+  }
+}
+crearTarjetas();
+function pintar() {
+  if (!datos) return;
+  const s = estado;
+  for (const a of s.agentes) {
+    const c = tarj[a.id]; if (!c) continue;
+    c.querySelector('.cara').textContent = a.especie === 'persona' ? cara(a.animo) : EMO[a.especie] || '•';
+    c.querySelector('b').textContent = a.nombre;
+    const L = a.lugar && F.lugares.find((l) => l.id === a.lugar);
+    c.querySelector('.act').textContent = a.vivo ? `${a.accion}${L && a.tarea?.fase === 'haciendo' && !/en |casa/i.test(a.accion) ? ` · ${L.nombre.replace(/^(el|la) /, '')}` : ''}` : 'Murió';
+    c.querySelectorAll('em').forEach((em) => { const v = a.n[em.dataset.k] ?? 0; em.style.width = v + '%'; em.className = v < 25 ? 'low' : v < 50 ? 'mid' : ''; });
+  }
+  const H = F.hogares?.[0], h = H && s.hogares[H.id];
+  der.innerHTML = `<div class="card"><div class="titulo">${esc(F.nombre)}</div><div class="fecha">${M.fechaTxt(s)}</div></div>`
+    + (h ? `<div class="card"><h4>Hogar · ${esc(H.nombre)}</h4><div class="grid"><span>Plata</span><b style="color:${h.dinero < 200 ? '#ff8a80' : 'inherit'}">🪙 ${Math.round(h.dinero)}</b><span>Despensa</span><b>${h.despensa} comidas</b><span>Orden</span><b>${Math.round(h.limpieza)} %</b><span>Arriendo</span><b>${H.alquiler + (h.alquilerExtra || 0)} / mes</b><span>Faltan</span><b>${30 - (M.dia(s) % 30)} días</b></div></div>` : '')
+    + `<div class="card"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, 16).map((l) => `<li class="${l.tipo}">${esc(l.texto)}</li>`).join('')}</ul></div>`;
+}
+function pintarFicha() {
+  const el = document.getElementById('fichaP'), a = fichaId && estado.agentes.find((x) => x.id === fichaId);
+  if (!a) { el.classList.add('off'); return; }
+  const p = F.personajes.find((x) => x.id === a.id) || {};
+  const rels = Object.entries(estado.rel).filter(([k]) => k.split('|').includes(a.id)).map(([k, r]) => [estado.agentes.find((x) => x.id === k.split('|').find((y) => y !== a.id)), r]).filter(([o]) => o).sort((x, y) => y[1].afinidad - x[1].afinidad).slice(0, 6);
+  el.innerHTML = `<div class="cab"><b>${a.especie === 'persona' ? cara(a.animo) : EMO[a.especie]} ${esc(a.nombre)}${a.edad ? `, ${a.edad}` : ''}</b><button data-c="1">×</button></div>
+    <div style="font-size:12px;opacity:.85">${esc(a.accion)}</div>
+    <div class="rasgos">${a.rasgos.map((r) => F.rasgos[r]?.nombre || r).join(' · ')}${p.trabajo ? `<br>💼 ${esc(p.trabajo.texto || 'Trabaja')} · ${p.trabajo.entrada}–${p.trabajo.salida % 24} h` : ''}</div>
+    ${a.especie === 'persona' ? `<div style="font-size:11.5px;margin-bottom:6px">Ánimo ${Math.round(a.animo)} · ${a.recuerdos.filter((r) => r.hasta > estado.t).slice(-3).map((r) => `${r.valor > 0 ? '＋' : '－'} ${esc(r.texto)}`).join(' · ') || 'sin novedades'}</div>` : ''}
+    ${rels.map(([o, r]) => `<div class="rel"><span>${r.pareja ? '❤️ ' : r.amigos ? '🤝 ' : ''}${esc(o.nombre)}</span><b style="color:${r.afinidad < 0 ? '#ff8a80' : '#9fe0a0'}">${Math.round(r.afinidad)}</b></div>`).join('')}`;
+  el.classList.remove('off');
+  el.querySelector('[data-c]').onclick = () => { fichaId = null; pintarFicha(); };
+}
+// ---------------------------------------------------------------- decisiones
+const decP = document.getElementById('decP'); let decAbierto = false, htmlDec = '';
+function pintarDec() {
+  const L = estado.dilemas; document.getElementById('nDec').textContent = L.length;
+  if (!decAbierto) { decP.classList.add('off'); return; }
+  const h = `<div class="cab"><b>⚖ Decisiones</b><button data-c="1">×</button></div>` + (L.length ? L.map((d) => { const def = d.opciones.find((o) => o.k === d.defecto), r = Math.max(0, d.vence - estado.t);
+    return `<div class="uno"><h3>${esc(d.titulo)}</h3><div class="plazo">⏳ ${Math.floor(r / 60)} h ${Math.floor(r % 60)} min del mundo</div><p>${esc(d.texto)}</p><div class="ops">${d.opciones.map((o) => `<button data-d="${d.id}" data-k="${o.k}">${esc(o.txt)}${o.pista ? `<small>${esc(o.pista)}</small>` : ''}</button>`).join('')}</div>${def ? `<div class="sino"><b>Si no decides:</b> «${esc(def.txt)}»${def.pista ? ` — ${esc(def.pista)}` : ''}.</div>` : ''}</div>`; }).join('') : '<div style="opacity:.7;font-size:12px">Nada que decidir por ahora.</div>');
+  if (h !== htmlDec) { decP.innerHTML = h; htmlDec = h; } decP.classList.remove('off');
+}
+document.getElementById('btnDec').onclick = () => { decAbierto = !decAbierto; htmlDec = ''; pintarDec(); };
+decP.addEventListener('click', (e) => { if (e.target.closest('[data-c]')) { decAbierto = false; return pintarDec(); } const b = e.target.closest('[data-d]'); if (b) { M.decidir(F, estado, +b.dataset.d, b.dataset.k); htmlDec = ''; guardar(); pintarDec(); pintar(); } });
+// ---------------------------------------------------------------- velocidad y datos
+const barra = document.getElementById('barra');
+VEL.forEach(([, txt], i) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = () => { vel = i; try { localStorage.setItem('orbe-vel', i); } catch { /* nada */ } pintarVel(); }; barra.append(b); });
+const bDatos = document.createElement('button'); bDatos.onclick = () => { datos = !datos; aplicarDatos(); }; barra.append(bDatos);
+const bLado = document.createElement('button'); bLado.textContent = '📖'; bLado.title = 'Hogar y diario'; bLado.onclick = () => document.body.classList.toggle('verDer'); if (angosto()) barra.append(bLado);
+function pintarVel() { [...barra.children].slice(0, VEL.length).forEach((b, i) => b.classList.toggle('on', i === vel)); }
+function aplicarDatos() { document.body.classList.toggle('datos', datos); izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; encuadre(); pintar(); }
+pintarVel(); aplicarDatos();
+setInterval(() => { try { pintar(); pintarDec(); if (fichaId) pintarFicha(); } catch (e) { console.warn(e); } }, 500);
+const caption = document.getElementById('caption');
+// ---------------------------------------------------------------- bucle
+let last = performance.now(), t = 0;
+function bucle(now) {
+  requestAnimationFrame(bucle);
+  const dt = Math.min((now - last) / 1000, 0.1); last = now; t += dt;
+  if (pendiente > 0) { const t0 = performance.now(); while (pendiente > 0 && performance.now() - t0 < 12) { const m = Math.min(pendiente, 20); M.avanzar(F, estado, m); pendiente -= m; } caption.textContent = pendiente > 1 ? `Poniéndose al día…` : ''; caption.classList.toggle('on', pendiente > 30); }
+  M.avanzar(F, estado, dt * VEL[vel][0]);
+  try { escena.update(estado, t, dt); } catch (e) { console.warn('[orbe] error al dibujar', e); }
+  if (escena.cargada) { const l = document.getElementById('loader'); if (l) { l.style.opacity = 0; setTimeout(() => l.remove(), 600); } }
+}
+requestAnimationFrame(bucle);
+window.orbe = { get estado() { return estado; }, escena, F, M };
+</script>
+</body>
+</html>

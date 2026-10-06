@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1a17">
+<title>Orbes</title>
+<style>
+  :root { --fondo: #15141a; --tarjeta: #211f28; --borde: rgba(255,255,255,.1); --texto: #f1eee8; --suave: rgba(241,238,232,.68); --oro: #e7c46a; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { min-height: 100vh; background: radial-gradient(ellipse at 50% -10%, #3a3346 0%, var(--fondo) 60%); color: var(--texto); font: 15px/1.45 "Inter", system-ui, -apple-system, Segoe UI, sans-serif; padding: 28px 16px 40px; }
+  header { max-width: 980px; margin: 0 auto 22px; } h1 { font-size: 26px; letter-spacing: -.01em; } header p { color: var(--suave); margin-top: 6px; max-width: 640px; }
+  .orbes { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .orbe { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: inherit; transition: transform .15s, border-color .15s; }
+  a.orbe:hover { transform: translateY(-2px); border-color: rgba(231,196,106,.5); }
+  .bola { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; font-size: 42px; background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(255,255,255,.04) 55%), var(--c, #3a6a4a); box-shadow: inset 0 -10px 20px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.35); margin-bottom: 4px; }
+  .orbe h2 { font-size: 17px; } .orbe p { color: var(--suave); font-size: 13.5px; flex: 1; } .orbe .ir { color: var(--oro); font-weight: 700; font-size: 13px; }
+  .orbe.pronto { opacity: .55; } .orbe.pronto .ir { color: var(--suave); }
+  footer { max-width: 980px; margin: 26px auto 0; color: var(--suave); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔮 Orbes</h1>
+  <p>Mundos en miniatura que viven solos. Cada uno tiene sus personajes, sus recursos y sus reglas; tú decides en los momentos importantes.</p>
+</header>
+<main class="orbes">
+  <a class="orbe" href="../index.html" style="--c:#4f8a3a"><div class="bola">🌾</div><h2>La granja</h2><p>Andrés y María sobreviven y prosperan en su granja con animales, huerto, hijos y crisis.</p><span class="ir">Entrar →</span></a>
+  <a class="orbe" href="orbe.html?m=ciudad" style="--c:#3a5a8a"><div class="bola">🏙</div><h2>Barrio Los Almendros</h2><p>Andrés y María viven en el 3B de un edificio con vecinos: trabajo, arriendo, mercado, amigos y peleas.</p><span class="ir">Entrar →</span></a>
+  <div class="orbe pronto" style="--c:#5a3a3a"><div class="bola">🧟</div><h2>Ciudad zombi</h2><p>Un grupo de sobrevivientes busca escapar: refugio, saqueo, hordas e infección.</p><span class="ir">Próximamente</span></div>
+  <div class="orbe pronto" style="--c:#6a5a2a"><div class="bola">⚔️</div><h2>Guerra de facciones</h2><p>Facciones con territorio, ejércitos, economía y diplomacia.</p><span class="ir">Próximamente</span></div>
+</main>
+<footer>Para un mundo nuevo, descríbeselo a Claude: el lugar, los personajes y sus rasgos, los recursos y las reglas.</footer>
+</body>
+</html>
