@@ -23,10 +23,12 @@ const rand = (() => { let s = 11; return () => (s = (s * 16807) % 2147483647) / 
 const angLerp = (a, b, k) => a + (((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * k;
 const yawTo = (dx, dz) => Math.atan2(-dz, dx);
 
-export function crearEscena(host, { onParcela, onAgente } = {}) {
+export function crearEscena(host, { onParcela, onAgente, modoCalidad = 'auto' } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   const tactil = matchMedia('(pointer: coarse)').matches;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, tactil ? 1.6 : 1.25));   // en el celular las pantallas son densas: menos que esto se ve borroso
+  // resolución nítida: la de la pantalla (hasta 2×). Nunca por debajo de 1: eso es lo que se veía pixelado
+  const PR = { auto: Math.min(devicePixelRatio, 2), alta: Math.min(devicePixelRatio, 2), ultra: Math.min(devicePixelRatio * 1.25, 2.5) };
+  renderer.setPixelRatio(Math.max(1, PR[modoCalidad] || PR.auto));
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -59,7 +61,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 3);
-  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  key.castShadow = true; key.shadow.mapSize.set(tactil && modoCalidad === 'auto' ? 2048 : 4096, tactil && modoCalidad === 'auto' ? 2048 : 4096);   // sombras finas (no en escalones)
   Object.assign(key.shadow.camera, { left: -54, right: 54, top: 54, bottom: -54, near: 1, far: 200 });
   key.shadow.bias = -0.0005; key.shadow.normalBias = 0.05;
   scene.add(key, key.target); key.target.position.copy(CENTER);
@@ -350,6 +352,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     casaRoot.traverse((o) => { if (!o.isMesh) return; const min = MIN_OPAC[o.material.name]; if (min == null) return; if (!porMat.has(o.material)) porMat.set(o.material, { mat: o.material, min, mallas: [] }); porMat.get(o.material).mallas.push(o); });
     transparentables.push(...porMat.values());
     cargada = true;
+    { const an = renderer.capabilities.getMaxAnisotropy(); scene.traverse((o) => { if (!o.isMesh) return; for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap']) if (m?.[k] && m[k].anisotropy !== an) { m[k].anisotropy = an; m[k].needsUpdate = true; } }); }
   }
   aplicarTema('rustico');
 
@@ -678,32 +681,37 @@ uniform float uRafaga;
   const nenufares = [];
   const FA = { conejos: [], pajaros: [], peces: [], ranas: [], zorros: [] };
   {
-    const MF = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true });
+    // cada animal se funde en una o dos mallas con color por vértice (antes eran 9 a 13 piezas: muchas llamadas de dibujo)
+    const MV = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
+    const mtx = new THREE.Matrix4(), qq = new THREE.Quaternion(), ee = new THREE.Euler(), cc = new THREE.Color();
+    const fundir = (partes) => new THREE.Mesh(mergeGeometries(partes.map(([geo, c, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0]) => {
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      g.applyMatrix4(mtx.compose(new THREE.Vector3(x, y, z), qq.setFromEuler(ee.set(rx, 0, 0)), new THREE.Vector3(sx, sy, sz)));
+      cc.set(c); const n = g.attributes.position.count, arr = new Float32Array(n * 3); for (let i = 0; i < n; i++) cc.toArray(arr, i * 3);
+      g.setAttribute('color', new THREE.BufferAttribute(arr, 3)); return g;
+    })), MV);
     const fauna = new THREE.Group(); fauna.userData.sinLote = true; root.add(fauna); FA.grupo = fauna;
     const sitioAnillo = () => { for (let i = 0; i < 60; i++) { const a = rand() * Math.PI * 2, r = 30 + rand() * 15; const x = CENTER.x + Math.cos(a) * r, z = CENTER.z + Math.sin(a) * r; if (libreAnillo(x, z)) return { x, z }; } return { x: CENTER.x + 38, z: CENTER.z }; };
-    const pieza = (g, geo, m, x, y, z, sx = 1, sy = 1, sz = 1) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); g.add(o); return o; };
     const esfera = new THREE.IcosahedronGeometry(1, 1), caja = new THREE.BoxGeometry(1, 1, 1), cono = new THREE.ConeGeometry(1, 1, 5);
-    // conejos
-    const pelo = [MF(0x9a8670), MF(0x7d6a58), MF(0xc9b8a2)], blanco = MF(0xf2efe8), rosa = MF(0xe8a0a0);
+    // conejos: cuerpo (con la cola) y cabeza (con las orejas)
+    const PELO = [0x9a8670, 0x7d6a58, 0xc9b8a2];
     for (let i = 0; i < 16; i++) {
-      const g = new THREE.Group(), m = pelo[i % 3]; g.visible = false; fauna.add(g);
+      const g = new THREE.Group(), c = PELO[i % 3]; g.visible = false; fauna.add(g);
       const cuerpo = new THREE.Group(); g.add(cuerpo);
-      pieza(cuerpo, esfera, m, 0, 0.24, 0, 0.2, 0.19, 0.28);
-      const cab = new THREE.Group(); cab.position.set(0, 0.36, 0.24); cuerpo.add(cab);
-      pieza(cab, esfera, m, 0, 0, 0, 0.13, 0.12, 0.14);
-      for (const dx of [-0.05, 0.05]) { pieza(cab, caja, m, dx, 0.17, -0.02, 0.04, 0.2, 0.025).rotation.x = -0.2; pieza(cab, caja, rosa, dx, 0.17, -0.005, 0.02, 0.15, 0.01).rotation.x = -0.2; }
-      pieza(cuerpo, esfera, blanco, 0, 0.26, -0.27, 0.07, 0.07, 0.07);
+      cuerpo.add(fundir([[esfera, c, 0, 0.24, 0, 0.2, 0.19, 0.28], [esfera, 0xf2efe8, 0, 0.26, -0.27, 0.07, 0.07, 0.07]]));
+      const cab = fundir([[esfera, c, 0, 0, 0, 0.13, 0.12, 0.14], ...[-0.05, 0.05].flatMap((dx) => [[caja, c, dx, 0.17, -0.02, 0.04, 0.2, 0.025, -0.2], [caja, 0xe8a0a0, dx, 0.17, -0.005, 0.02, 0.15, 0.01, -0.2]])]);
+      cab.position.set(0, 0.36, 0.24); cuerpo.add(cab);
       g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       g.scale.setScalar(1.5);
       const casa = sitioAnillo();
       FA.conejos.push({ g, cuerpo, cab, casa, x: casa.x, z: casa.z, tx: casa.x, tz: casa.z, espera: rand() * 3, fase: 0, yaw: rand() * 6 });
     }
-    // pájaros en bandada
-    const plumas = [MF(0x3a3d48), MF(0x6a4a32), MF(0xc8a040)];
+    // pájaros en bandada (cuerpo y dos alas que aletean)
+    const PLUMA = [0x3a3d48, 0x6a4a32, 0xc8a040];
     for (let i = 0; i < 14; i++) {
-      const g = new THREE.Group(), m = plumas[i % 3]; g.visible = false; fauna.add(g);
-      pieza(g, cono, m, 0, 0, 0, 0.08, 0.32, 0.08).rotation.x = Math.PI / 2;
-      const alas = [-1, 1].map((sg) => { const a = new THREE.Group(); a.position.x = sg * 0.04; g.add(a); pieza(a, caja, m, sg * 0.22, 0, 0, 0.44, 0.015, 0.16); return a; });
+      const g = new THREE.Group(), c = PLUMA[i % 3]; g.visible = false; fauna.add(g);
+      g.add(fundir([[cono, c, 0, 0, 0, 0.08, 0.32, 0.08, Math.PI / 2]]));
+      const alas = [-1, 1].map((sg) => { const a = new THREE.Group(); a.position.x = sg * 0.04; g.add(a); const m = fundir([[caja, c, sg * 0.22, 0, 0, 0.44, 0.015, 0.16]]); a.add(m); return a; });
       FA.pajaros.push({ g, alas, ang: rand() * 6.28, radio: 18 + rand() * 16, alto: 9 + rand() * 5, vel: 0.12 + rand() * 0.08, fase: rand() * 6 });
     }
     // peces: sombras bajo el agua y alguno que salta
@@ -712,24 +720,21 @@ uniform float uRafaga;
       const g = new THREE.Mesh(new THREE.CircleGeometry(1, 10), sombra); g.rotation.x = -Math.PI / 2; g.scale.set(0.14, 0.36, 1); g.position.y = 0.035; g.visible = false; fauna.add(g);
       FA.peces.push({ g, ang: rand() * 6.28, r: 0.25 + rand() * 0.6, vel: (rand() < 0.5 ? -1 : 1) * (0.15 + rand() * 0.2) });
     }
-    { const g = new THREE.Group(); g.visible = false; fauna.add(g); pieza(g, esfera, MF(0xc0c8cc), 0, 0, 0, 0.1, 0.12, 0.3); pieza(g, cono, MF(0xe08a3a), 0, 0, -0.32, 0.1, 0.16, 0.04).rotation.x = Math.PI / 2;
+    { const g = new THREE.Group(); g.visible = false; fauna.add(g); g.add(fundir([[esfera, 0xc0c8cc, 0, 0, 0, 0.1, 0.12, 0.3], [cono, 0xe08a3a, 0, 0, -0.32, 0.1, 0.16, 0.04, Math.PI / 2]]));
       const onda = new THREE.Mesh(new THREE.TorusGeometry(1, 0.03, 4, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })); onda.rotation.x = -Math.PI / 2; onda.visible = false; fauna.add(onda);
       FA.salto = { g, onda, t: -1, espera: 3 }; }
     // ranas en los nenúfares y la orilla
-    const verde = MF(0x5a9a3a), ojo = MF(0x1a1a1a);
     for (let i = 0; i < 5; i++) {
       const g = new THREE.Group(); g.visible = false; fauna.add(g);
-      pieza(g, esfera, verde, 0, 0.08, 0, 0.13, 0.08, 0.15); for (const dx of [-0.06, 0.06]) pieza(g, esfera, ojo, dx, 0.15, 0.09, 0.025, 0.025, 0.025);
+      g.add(fundir([[esfera, 0x5a9a3a, 0, 0.08, 0, 0.13, 0.08, 0.15], ...[-0.06, 0.06].map((dx) => [esfera, 0x1a1a1a, dx, 0.15, 0.09, 0.025, 0.025, 0.025])]));
       g.scale.setScalar(1.6); FA.ranas.push({ g, salta: rand() * 8 });
     }
-    // zorros: salen al atardecer
-    const naranja = MF(0xc8642a);
+    // zorros: salen al atardecer (cuerpo fundido y cuatro patas que se mueven)
     for (let i = 0; i < 3; i++) {
-      const g = new THREE.Group(); g.visible = false; fauna.add(g);
-      pieza(g, esfera, naranja, 0, 0.42, 0, 0.18, 0.18, 0.42); pieza(g, esfera, naranja, 0, 0.55, 0.42, 0.14, 0.13, 0.16); pieza(g, cono, naranja, 0, 0.53, 0.6, 0.06, 0.16, 0.06).rotation.x = Math.PI / 2;
-      for (const dx of [-0.07, 0.07]) pieza(g, cono, naranja, dx, 0.72, 0.4, 0.05, 0.12, 0.04);
-      pieza(g, esfera, naranja, 0, 0.46, -0.52, 0.09, 0.09, 0.3).rotation.x = 0.5; pieza(g, esfera, blanco, 0, 0.36, -0.75, 0.06, 0.06, 0.08);
-      const patas = [[-0.1, 0.25], [0.1, 0.25], [-0.1, -0.25], [0.1, -0.25]].map(([x, z]) => pieza(g, caja, MF(0x3a2a20), x, 0.14, z, 0.05, 0.3, 0.05));
+      const g = new THREE.Group(), N = 0xc8642a; g.visible = false; fauna.add(g);
+      g.add(fundir([[esfera, N, 0, 0.42, 0, 0.18, 0.18, 0.42], [esfera, N, 0, 0.55, 0.42, 0.14, 0.13, 0.16], [cono, N, 0, 0.53, 0.6, 0.06, 0.16, 0.06, Math.PI / 2],
+        ...[-0.07, 0.07].map((dx) => [cono, N, dx, 0.72, 0.4, 0.05, 0.12, 0.04]), [esfera, N, 0, 0.46, -0.52, 0.09, 0.09, 0.3, 0.5], [esfera, 0xf2efe8, 0, 0.36, -0.75, 0.06, 0.06, 0.08]]));
+      const patas = [[-0.1, 0.25], [0.1, 0.25], [-0.1, -0.25], [0.1, -0.25]].map(([x, z]) => { const p = fundir([[caja, 0x3a2a20, 0, -0.15, 0, 0.05, 0.3, 0.05]]); p.position.set(x, 0.29, z); g.add(p); return p; });
       g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); g.scale.setScalar(1.5);
       const casa = sitioAnillo(); FA.zorros.push({ g, patas, casa, x: casa.x, z: casa.z, tx: casa.x, tz: casa.z, espera: 0, yaw: 0 });
     }
@@ -1827,17 +1832,15 @@ uniform float uRafaga;
   }
   addEventListener('resize', resize); resize();
   // calidad adaptativa: si el equipo no da (celulares, portátiles viejos), baja de a un paso la resolución y luego las sombras
-  const PASOS = tactil ? [   // celular: baja pero nunca por debajo de 1 (se vería borroso)
-    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.3)),
+  // (medido: el costo está en las llamadas de dibujo, no en los píxeles; bajar la resolución casi no daba fps y lo dejaba pixelado)
+  const PASOS = modoCalidad === 'ultra' ? [] : modoCalidad === 'alta' ? [
     () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
-    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
-    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.normalBias = 0.09; key.shadow.map?.dispose(); key.shadow.map = null; },
   ] : [
-    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
-    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.normalBias = 0.09; key.shadow.map?.dispose(); key.shadow.map = null; },
-    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 0.8)),
     () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
-    () => renderer.setPixelRatio(0.65),
+    () => renderer.setPixelRatio(Math.max(1, Math.min(devicePixelRatio, 1.5))),
+    () => { key.shadow.mapSize.set(2048, 2048); key.shadow.map?.dispose(); key.shadow.map = null; },
+    () => renderer.setPixelRatio(Math.max(1, Math.min(devicePixelRatio, 1.25))),
+    () => renderer.setPixelRatio(1),
   ];
   let paso = 0, acum = 0, nCal = 0, esperaCal = 4, ocupado = false;
   function calidad(dt) {
@@ -1847,7 +1850,7 @@ uniform float uRafaga;
     acum += dt; nCal++;
     if (acum < 3) return;
     const prom = acum / nCal; acum = 0; nCal = 0;
-    if (prom > 1 / 32) { PASOS[paso++](); esperaCal = 2; console.info('[granja] calidad baja un paso:', paso, (1 / prom).toFixed(0) + ' fps'); }
+    if (prom > 1 / 26) { PASOS[paso++](); esperaCal = 2; console.info('[granja] calidad baja un paso:', paso, (1 / prom).toFixed(0) + ' fps'); }
   }
   camera.position.sub(controls.target).setLength(150 * Math.max(1, 1.2 / camera.aspect)).add(controls.target);
 

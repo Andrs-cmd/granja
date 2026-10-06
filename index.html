@@ -281,7 +281,8 @@ document.addEventListener('visibilitychange', () => {
 
 let parcelaSel = null;   // ficha de la parcela que se toque
 let fichaId = null;
-const escena = crearEscena(document.getElementById('stage'), { onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); }, onAgente: (id) => { fichaId = fichaId === id ? null : id; pintarJugador(true); } });
+let modoCalidad = 'auto'; try { modoCalidad = localStorage.getItem('granja3d-calidad') || 'auto'; } catch { /* sin almacenamiento */ }
+const escena = crearEscena(document.getElementById('stage'), { modoCalidad, onParcela: (i) => { parcelaSel = parcelaSel === i ? null : i; escena.seleccionar(parcelaSel); pintarDatos(); }, onAgente: (id) => { fichaId = fichaId === id ? null : id; pintarJugador(true); } });
 // acceso de depuración desde la consola (no afecta la simulación)
 window.granja = { get estado() { return estado; }, escena, ficha: (id) => { fichaId = id; pintarJugador(true); } };
 
@@ -738,6 +739,9 @@ const bDatos = document.createElement('button');
 function aplicarDatos() { document.body.classList.toggle('datos', datos); tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
+{ const NOM = { auto: 'HD auto', alta: 'HD alta', ultra: 'HD ultra' }, SIG = { auto: 'alta', alta: 'ultra', ultra: 'auto' };
+  const b = document.createElement('button'); b.textContent = NOM[modoCalidad] || NOM.auto; b.title = 'Calidad de imagen: auto se ajusta al equipo; alta y ultra se ven más nítidas (más exigentes)';
+  b.onclick = () => { const n = SIG[modoCalidad] || 'auto'; try { localStorage.setItem('granja3d-calidad', n); } catch { /* sin almacenamiento */ } guardar(); location.reload(); }; speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '⚡'; b.title = 'Poderes del orbe'; b.onclick = () => abrirVida('poderes'); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '📈'; b.title = 'Crónica: cómo ha cambiado el orbe'; b.onclick = () => abrirVida('cronica'); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '🔮'; b.title = 'Otros orbes'; b.onclick = () => { guardar(); location.href = 'mundos/index.html'; }; speeds.append(b); }   // la galería de mundos
