@@ -49,6 +49,9 @@ export const LUGAR = {
   piscina: { x: 13.2, z: 14.2 },
   lagar: { x: 25, z: 26.6 },
   carreta: { x: 35, z: 14 },
+  bodegaVino: { x: 29.5, z: 22.8 }, cultivoCaseta: { x: 34.8, z: 27.3 }, jacuzzi: { x: 23.6, z: 14.2 },
+  obraVinedo: { x: 16, z: 28.6 }, andamioVinedo: { x: 16, z: 32 }, obraHierbas: { x: 31.6, z: 27 }, obraPiscina: { x: 22.4, z: 14 }, andamioPiscina: { x: 17.5, z: 18.6 },
+  colgadero: { x: 37.2, z: 32.4 }, farol1: { x: -5.4, z: 13.8 }, farol2: { x: 11.4, z: 11.2 }, farol3: { x: 13.0, z: 18.6 }, farol4: { x: -5.4, z: 26.6 },
 };
 // viñedo (uvas a fin de verano y en otoño) y la huerta de hierbas con dos matas de marihuana
 // (son cultivos de renta: lo que no se toma o se fuma se le vende al comerciante)
@@ -60,12 +63,21 @@ export const LUGAR_GYM = { x: 11.5, z: 23 };
 export const CAMINOS = [
   { id: 'pozo', nombre: 'el camino al pozo', pts: [{ x: -2.6, z: 8.6 }, { x: -5.4, z: 10.3 }] },
   { id: 'corral', nombre: 'el camino al corral', pts: [{ x: -3.0, z: 8.3 }, { x: -8.7, z: 8.5 }] },
-  { id: 'taller', nombre: 'el camino al taller y la piscina', pts: [{ x: -1.4, z: 8.4 }, { x: 4.2, z: 9.6 }, { x: 7.4, z: 9.9 }, { x: 10.0, z: 10.6 }, { x: 12.2, z: 11.4 }] },   // (rodea el tanque)
+  { id: 'taller', nombre: 'el camino al taller', pts: [{ x: -1.4, z: 8.4 }, { x: 4.2, z: 9.6 }, { x: 7.4, z: 9.9 }, { x: 10.0, z: 10.6 }, { x: 12.2, z: 11.4 }] },   // (rodea el tanque)
   { id: 'gallinero', nombre: 'el camino al gallinero', pts: [{ x: 12.2, z: 11.4 }, { x: 13.3, z: 7.6 }, { x: 13.3, z: -4.8 }] },
   { id: 'vinedo', nombre: 'el camino al viñedo', pts: [{ x: 12.2, z: 11.4 }, { x: 13.0, z: 18.4 }, { x: 17.5, z: 22.5 }, { x: 20.0, z: 28.6 }] },
   { id: 'carreta', nombre: 'el camino de la carreta', pts: [{ x: 13.0, z: 18.4 }, { x: 22.5, z: 18.6 }, { x: 33.2, z: 14.6 }] },
   { id: 'mirador', nombre: 'el sendero al mirador', pts: [{ x: -3.2, z: 22.6 }, { x: -8.4, z: 23.4 }, { x: -12.6, z: 23.9 }] },
 ];
+const PLAZA = { x: -2.4, z: 9.0 };
+const DESTINO_CAMINO = {
+  pozo: () => ({ x: LUGAR.pozo.x + 1.3, z: LUGAR.pozo.z }), corral: () => ({ x: CORRAL.puerta.x + 1.1, z: CORRAL.puerta.z }),
+  taller: () => ({ x: LUGAR.taller.x - 0.4, z: LUGAR.taller.z - 1.4 }), gallinero: () => ({ x: GALLINERO.puerta.x - 1.1, z: GALLINERO.puerta.z }),
+  vinedo: () => ({ ...LUGAR.lagar }), carreta: () => ({ x: LUGAR.carreta.x - 1.6, z: LUGAR.carreta.z }), mirador: () => ({ ...LUGAR.mirador }),
+};
+function rehacerCaminos() {
+  for (const c of CAMINOS) { const d = DESTINO_CAMINO[c.id]; if (!d) continue; const fin = d(); c.pts = [{ ...PLAZA }, ...planRuta(PLAZA, fin).map((p) => ({ x: p.x, z: p.z }))]; }
+}
 export const largoCamino = (c) => c.pts.reduce((t, p, i) => t + (i ? Math.hypot(p.x - c.pts[i - 1].x, p.z - c.pts[i - 1].z) : 0), 0);
 export function puntoCamino(c, f) {   // punto a la fracción f del recorrido
   let resto = largoCamino(c) * Math.max(0, Math.min(1, f));
@@ -668,14 +680,90 @@ export const SOMBRAS = { corral: [{ x: -26, z: 12 }, { x: -25.5, z: -18.5 }], av
 // el rebaño se mueve como rebaño: una zona de pastoreo que va recorriendo todo el potrero durante el día,
 // y cada animal pasta suelto alrededor de ella, en su propio lugar (algunos se van a explorar lejos)
 // lugares donde el gato se trepa: [x, z, altura ('techo' = la cumbre de la casa, la calcula la escena), base para subir, nombre]
-export const TREPADEROS = [
+export const TREPADEROS = [];
+function rehacerTrepaderos() { TREPADEROS.length = 0; TREPADEROS.push(
   ...FRUTALES.map((f) => ({ x: f.x + 0.2, z: f.z, alto: 3.35, base: { x: f.x + 1.0, z: f.z + 0.5 }, nombre: f.tipo === 'manzano' ? 'a un manzano' : 'a un naranjo', arbol: true })),
   ...SOMBRAS.corral.concat(SOMBRAS.aves).map((q) => ({ x: q.x + 0.3, z: q.z, alto: 7.6, base: { x: q.x + 1.1, z: q.z + 0.6 }, nombre: 'a un árbol del potrero', arbol: true })),
   { x: 0, z: 0, alto: 'techo', base: { x: 6.9, z: 3.2 }, nombre: 'al techo de la casa', techo: true },
   { x: LUGAR.caseta.x, z: LUGAR.caseta.z, alto: 1.75, base: { x: LUGAR.caseta.x + 1.2, z: LUGAR.caseta.z + 0.4 }, nombre: `a la caseta del perro` },
   { x: LUGAR.gallinero.x, z: LUGAR.gallinero.z, alto: 2.95, base: { x: LUGAR.gallinero.x - 2.0, z: LUGAR.gallinero.z + 1.6 }, nombre: 'al techo del gallinero' },
   { x: LUGAR.pozo.x, z: LUGAR.pozo.z, alto: 2.7, base: { x: LUGAR.pozo.x + 1.3, z: LUGAR.pozo.z }, nombre: 'al techito del pozo' },
-];
+); }
+rehacerTrepaderos();
+// cada bloque arrastra todo lo suyo (puertas, sombras, obras, proyectos); la casa y el patio quedan fijos
+const pt = (o) => ({ o, x: o.x, z: o.z }), rc = (o) => ({ o, r: { x0: o.x0, x1: o.x1, z0: o.z0, z1: o.z1 }, puerta: o.puerta ? { ...o.puerta } : null }), ob = (id) => { const a = OBRAS.find((x) => x[0] === id); return { a, x: a[3], z: a[4] }; };
+export const PIEZAS = {
+  corral: { nombre: 'Corral y establo', precio: 60, rect: [[-32, -9.4, -25.5, 22.3]], m: () => [rc(CORRAL), pt(LUGAR.establo), pt(LUGAR.pesebre), pt(LUGAR.bebederoGanado), pt(LUGAR.heno), ...SOMBRAS.corral.map(pt)] },
+  gallinero: { nombre: 'Gallinero', precio: 40, rect: [[13.8, 30.4, -20.4, -2.8]], m: () => [rc(GALLINERO), pt(LUGAR.gallinero), pt(LUGAR.grano), ...SOMBRAS.aves.map(pt)] },
+  huerto: { nombre: 'Huerto', precio: 50, rect: [[-4.2, 9.9, 14.8, 36.4]], m: () => [...PARCELAS.map(pt), ob('drenaje'), ob('invernadero'), ob('fuente')] },
+  frutales: { nombre: 'Frutales', precio: 35, rect: [[-9.2, 9.6, -27, -14.4]], m: () => [...FRUTALES.map(pt), ob('bodega')] },
+  jardines: { nombre: 'Jardines de flores', precio: 25, rect: [[20, 36, -1.6, 10]], m: () => [...JARDINES.map(pt), pt(ESCULTURAS[0]), pt(ESCULTURAS[1])] },
+  piscina: { nombre: 'Piscina y gimnasio', precio: 60, rect: [[9.95, 27, 10.1, 24.6]], m: () => [rc(PISCINA), pt(LUGAR.piscina), pt(LUGAR_GYM), pt(LUGAR.jacuzzi), pt(LUGAR.obraPiscina), pt(LUGAR.andamioPiscina), ob('pergola'), pt(ESCULTURAS[3]), pt(LUGAR.farol2), pt(LUGAR.farol3)] },
+  vinedo: { nombre: 'Viñedo y lagar', precio: 45, rect: [[12.4, 32, 24.7, 35], [27.8, 31.3, 21.4, 24.7]], m: () => [...PARRAS.map(pt), pt(LUGAR.lagar), pt(LUGAR.bodegaVino), pt(LUGAR.obraVinedo), pt(LUGAR.andamioVinedo), ob('secadero')] },
+  hierbas: { nombre: 'Huerta de hierbas', precio: 20, rect: [[32.05, 37.6, 22.8, 31.8]], m: () => [...MATAS.map(pt), pt(LUGAR.cultivoCaseta), pt(LUGAR.obraHierbas), pt(LUGAR.colgadero)] },
+  taller: { nombre: 'Taller', precio: 15, rect: [[4.9, 7.2, 8.8, 12]], m: () => [pt(LUGAR.taller)] },
+  pozo: { nombre: 'Pozo', precio: 25, rect: [[-7.6, -5, 9.3, 11.9]], m: () => [pt(LUGAR.pozo)] },
+  caseta: { nombre: 'Caseta de Berlín', precio: 10, rect: [[-8.4, -6.85, 1.9, 4.1]], m: () => [pt(LUGAR.caseta)] },
+  mirador: { nombre: 'Mirador y compost', precio: 15, rect: [[-15.6, -5.2, 22.4, 32]], m: () => [pt(LUGAR.mirador), pt(LUGAR.compost), pt(ESCULTURAS[2]), pt(ESCULTURAS[4]), pt(LUGAR.farol4)] },
+};
+// lo que no se mueve: la casa con su patio, el tanque, la carreta del comerciante y los faroles del frente
+export const FIJOS = [[-6.8, 12.8, -7, 6.8], [-3.6, 4.8, 6.8, 13.4], [7.3, 9.9, 7.5, 10.1], [31.8, 38, 12, 16.2], [-5.9, -4.9, 13.3, 14.3]];
+const BASE_PLANO = Object.fromEntries(Object.entries(PIEZAS).map(([k, P]) => [k, P.m()]));
+export const rectsPieza = (id, plano = {}) => { const o = plano[id] || {}, dx = o.dx || 0, dz = o.dz || 0; return PIEZAS[id].rect.map((r) => [r[0] + dx, r[1] + dx, r[2] + dz, r[3] + dz]); };
+const choca = (a, b) => a[0] < b[1] && a[1] > b[0] && a[2] < b[3] && a[3] > b[2];
+const CENTRO_T = { x: (BLOQUE.x0 + BLOQUE.x1) / 2, z: (BLOQUE.z0 + BLOQUE.z1) / 2 };
+// ¿se puede? devuelve la lista de problemas (vacía si todo bien)
+export function validarPlano(plano = {}) {
+  const prob = [], ids = Object.keys(PIEZAS);
+  ids.forEach((id, i) => {
+    const rs = rectsPieza(id, plano);
+    if (rs.some((r) => r[0] < BLOQUE.x0 || r[1] > BLOQUE.x1 || r[2] < BLOQUE.z0 || r[3] > BLOQUE.z1 || [[r[0], r[2]], [r[1], r[2]], [r[0], r[3]], [r[1], r[3]]].some(([x, z]) => Math.hypot(x - CENTRO_T.x, z - CENTRO_T.z) > 47.5))) prob.push([id, 'se sale del terreno']);
+    if (rs.some((r) => FIJOS.some((f) => choca(r, f)))) prob.push([id, 'pisa la casa o el patio']);
+    for (const jd of ids.slice(i + 1)) if (rs.some((r) => rectsPieza(jd, plano).some((q) => choca(r, q)))) prob.push([id, `se cruza con ${PIEZAS[jd].nombre.toLowerCase()}`]);
+  });
+  return prob;
+}
+// mueve las constantes del motor según el plano (siempre desde las posiciones originales)
+let planoAplicado = '';
+export const planoActual = () => JSON.parse(planoAplicado || '{}');
+export function aplicarPlano(plano = {}) {
+  const clave = JSON.stringify(plano); if (clave === planoAplicado) return; planoAplicado = clave;
+  for (const [id, lista] of Object.entries(BASE_PLANO)) {
+    const o = plano[id] || {}, dx = o.dx || 0, dz = o.dz || 0;
+    for (const e of lista) {
+      if (e.r) { Object.assign(e.o, { x0: e.r.x0 + dx, x1: e.r.x1 + dx, z0: e.r.z0 + dz, z1: e.r.z1 + dz }); if (e.puerta) e.o.puerta = { x: e.puerta.x + dx, z: e.puerta.z + dz }; }
+      else if (e.a) { e.a[3] = e.x + dx; e.a[4] = e.z + dz; }
+      else { e.o.x = e.x + dx; e.o.z = e.z + dz; }
+    }
+  }
+  rehacerTrepaderos(); rehacerCaminos();
+}
+// prediseños: cinco maneras de organizar el orbe
+export const PLANOS = {
+  clasico: { nombre: 'Clásico', pista: 'corral a la izquierda, gallinero y flores a la derecha, huerto al frente', plano: {} },
+  norte: { nombre: 'Corral al frente', pista: 'el potrero se estira hacia el frente y el mirador queda atrás, tranquilo', plano: { corral: { dx: 0, dz: 10 }, mirador: { dx: -13.5, dz: -47.5 } } },
+  flores: { nombre: 'Flores al frente', pista: 'jardines y piscina al frente; el huerto a la derecha, al sol', plano: { corral: { dx: 1, dz: -2.5 }, huerto: { dx: 21.5, dz: -17.5 }, piscina: { dx: -32.5, dz: 12.5 }, frutales: { dx: 1, dz: 0 }, jardines: { dx: -25.5, dz: 18 }, mirador: { dx: 17, dz: 6.5 } } },
+  sol: { nombre: 'Piscina al sol', pista: 'la piscina a la derecha junto al gallinero; las flores frente a la casa', plano: { piscina: { dx: 4, dz: -12 }, jardines: { dx: -9.5, dz: 14.5 } } },
+  alreves: { nombre: 'Al revés', pista: 'el gallinero detrás de la casa y los frutales a la derecha', plano: { gallinero: { dx: -21, dz: -7.5 }, frutales: { dx: 23, dz: 11.5 }, jardines: { dx: -4, dz: 0 }, taller: { dx: 0, dz: 1 } } },
+};
+export const precioPlano = (de, a) => Object.keys(PIEZAS).reduce((t, id) => { const x = de[id] || {}, y = a[id] || {}; return t + ((x.dx || 0) !== (y.dx || 0) || (x.dz || 0) !== (y.dz || 0) ? PIEZAS[id].precio : 0); }, 0);
+// después de mover algo: lo guardado en la partida (parcelas, frutales, ganado, personas) se ubica en el lugar nuevo
+export function cambiarPlano(s, plano, precio = 0) {
+  const prob = validarPlano(plano); if (prob.length) return { ok: false, msg: `No se puede: ${PIEZAS[prob[0][0]].nombre.toLowerCase()} ${prob[0][1]}.` };
+  if ((s.comercio?.monedas || 0) < precio) return { ok: false, msg: `No alcanza: la mudanza cuesta ${precio} monedas.` };
+  s.comercio.monedas -= precio;
+  s.plano = JSON.parse(JSON.stringify(plano)); aplicarPlano(s.plano);
+  s.parcelas.forEach((p, i) => { if (PARCELAS[i]) { p.x = PARCELAS[i].x; p.z = PARCELAS[i].z; p.reservada = null; } });
+  (s.frutales || []).forEach((f, i) => { if (FRUTALES[i]) { f.x = FRUTALES[i].x; f.z = FRUTALES[i].z; } });
+  (s.jardines || []).forEach((j, i) => { if (JARDINES[i]) { j.x = JARDINES[i].x; j.z = JARDINES[i].z; } });
+  (s.parras || []).forEach((q, i) => { if (PARRAS[i]) { q.x = PARRAS[i].x; q.z = PARRAS[i].z; } });
+  (s.matas || []).forEach((m, i) => { if (MATAS[i]) { m.x = MATAS[i].x; m.z = MATAS[i].z; } });
+  for (const g of s.ganado) if (g.vivo) { g.pos = puntoEn(s, ZONA(g.tipo)); g.dest = null; g.espera = 0; }
+  for (const a of s.agentes) { soltarTarea(s, a); a.trepado = null; a.nadando = false; if (!a.dentro) a.pos = { ...(a.tipo === 'perro' ? LUGAR.caseta : LUGAR.puerta) }; }
+  s.fuegos = [];
+  if (precio) log(s, `🗺 La granja se reorganizó (${precio} monedas de mudanza).`, 'decision');
+  return { ok: true, msg: 'Listo: la granja se reorganizó.' };
+}
 const trepaderoCerca = (a, soloArboles) => TREPADEROS.map((q, i) => [q, i]).filter(([q]) => !soloArboles || q.arbol || q.techo)
   .sort((x, y) => Math.hypot(x[0].base.x - a.pos.x, x[0].base.z - a.pos.z) - Math.hypot(y[0].base.x - a.pos.x, y[0].base.z - a.pos.z))[0][1];
 function focoRebano(s, aves) {
@@ -718,7 +806,8 @@ function nuevoAnimalGranja(s, g) {
     nombre: g.nombre, vivo: true, pos: puntoEn(s, ZONA(g.tipo), 2), dest: null, espera: 0,
     hambre: 80, sed: 80, salud: 100, enfermo: 0, ubre: g.tipo === 'vaca' ? 4 : 0, lana: g.tipo === 'oveja' ? 40 : 0, edad: { vaca: 4, oveja: 2, gallina: 1, gallo: 1 }[g.tipo] ?? 2, comiendo: false, refugio: false, quieta: 0 };
 }
-export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion = 1 } = {}) {
+export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion = 1, plano = {} } = {}) {
+  aplicarPlano(plano);
   const s = {
     version: VERSION, config: CONFIG, rng: semilla | 0, generacion,
     t: inicio, t0: inicio,
@@ -734,7 +823,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), familia: familiaNueva(), diseno: {}, encargos: [], caminos: caminosNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
+    ...placeresNuevos(), plano: JSON.parse(JSON.stringify(plano)), familia: familiaNueva(), diseno: {}, encargos: [], caminos: caminosNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -1508,7 +1597,7 @@ function crearTarea(s, a, tipo, extra = {}) {
   else if (tipo === 'ordenar') { const v = vaca(s); t.destino = v ? { x: v.pos.x + 1.1, z: v.pos.z + 0.4 } : { ...LUGAR.establo }; }
   else if (tipo === 'esquilar') { const o = s.ganado.find((g) => g.id === t.oveja); t.destino = o ? { x: o.pos.x + 1.0, z: o.pos.z + 0.4 } : { ...LUGAR.establo }; }
   else if (tipo === 'recogerHuevos') t.destino = { x: LUGAR.gallinero.x - 2.0, z: LUGAR.gallinero.z + 1.8 };
-  else if (tipo === 'segar') t.destino = { x: -14.4 + (rng(s) - 0.5) * 5, z: 4 + (rng(s) - 0.5) * 12 };
+  else if (tipo === 'segar') t.destino = { x: CORRAL.x1 - 4.6 + (rng(s) - 0.5) * 5, z: CORRAL.puerta.z - 4.5 + (rng(s) - 0.5) * 12 };
   else if (tipo === 'alimentarGanado') t.destino = { x: LUGAR.pesebre.x + 1.0, z: LUGAR.pesebre.z + 0.8 };
   else if (tipo === 'nadar') t.destino = { ...LUGAR.piscina };
   else if (tipo === 'reparar') t.destino = { x: LUGAR.taller.x + 0.6, z: LUGAR.taller.z + 1.0 };
@@ -2712,12 +2801,12 @@ function dilemasCasa(s) {
 // dónde se trabaja en cada proyecto
 function sitioProyecto(s) {
   const id = s.casa.obra?.id, j = () => (rng(s) - 0.5) * 2;
-  if (id === 'vinedo' || id === 'bodegaVino') return { x: 16 + j(), z: 28.6 };
-  if (id === 'cultivoCaseta' || id === 'cultivoPro') return { x: 31.6, z: 27 + j() };
-  if (id === 'piscina' || id === 'jacuzzi') return { x: 22.4, z: 14 + j() };
+  if (id === 'vinedo' || id === 'bodegaVino') return { x: LUGAR.obraVinedo.x + j(), z: LUGAR.obraVinedo.z };
+  if (id === 'cultivoCaseta' || id === 'cultivoPro') return { x: LUGAR.obraHierbas.x, z: LUGAR.obraHierbas.z + j() };
+  if (id === 'piscina' || id === 'jacuzzi') return { x: LUGAR.obraPiscina.x, z: LUGAR.obraPiscina.z + j() };
   if (id === 'gimnasio') return { x: LUGAR_GYM.x + j(), z: LUGAR_GYM.z - 1.2 };
-  if (id === 'establo2') return { x: -9.2, z: -9 + j() };
-  if (id === 'gallinero2') return { x: 13.4, z: -10 + j() };
+  if (id === 'establo2') return { x: LUGAR.establo.x + 7, z: LUGAR.establo.z + 1.6 + j() };
+  if (id === 'gallinero2') return { x: LUGAR.gallinero.x - 5.6, z: LUGAR.gallinero.z + 1.6 + j() };
   return { x: 2 + rng(s) * 8, z: 7.6 + rng(s) * 0.6 };
 }
 function empezarMejora(s, id) {
@@ -3489,6 +3578,7 @@ function migrar(s) {
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
     if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
+    s.plano ??= {}; aplicarPlano(s.plano);
     s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.diseno ??= {}; s.encargos ??= []; s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }

@@ -14,7 +14,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM, etapaDe, CAMINOS, largoCamino, puntoCamino } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM, etapaDe, CAMINOS, largoCamino, puntoCamino, PIEZAS, rectsPieza, planoActual, PARCELAS } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -53,7 +53,8 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   camera.position.set(78, 60, 120);
 
   const root = new THREE.Group(); scene.add(root);
-  const lotes = crearLotes(scene);   // junta lo quieto en pocas mallas (menos llamadas de dibujo)
+  const lotes = crearLotes(scene);
+  const contornos = new THREE.Group(); contornos.userData.sinLote = true; scene.add(contornos);   // contornos del plano (modo distribución)   // junta lo quieto en pocas mallas (menos llamadas de dibujo)
 
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
@@ -487,15 +488,22 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.45, metalness: 0.6 });
   const box = (w, h, d, mat, x, y, z, parent = root) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
 
+  // ¿un punto cae dentro de un bloque de la granja? (con la distribución actual)
+  const RECTS_PIEZAS = (() => { const pl = planoActual(); return Object.keys(PIEZAS).flatMap((id) => rectsPieza(id, pl).map((r) => [id, r])); })();
+  const enPieza = (x, z, excepto = null, m = 0) => RECTS_PIEZAS.some(([id, r]) => id !== excepto && x > r[0] - m && x < r[1] + m && z > r[2] - m && z < r[3] + m);
   // camino de piedras
   {
     const geos = [];
-    const pathX = (z) => -2.6 + Math.sin(z * 0.22) * 0.5;
-    for (let z = 7.6; z < 28.4; z += 0.95) { if (z > 15.2 && z < 21.2) continue; const g = new THREE.CylinderGeometry(0.42 + rand() * 0.08, 0.46, 0.08, 7); g.rotateY(rand() * 3); g.translate(pathX(z), 0.03, z); geos.push(g); }
+    const pathX = (z) => -2.6 + Math.sin(z * 0.22) * 0.5;   // (el tramo viejo quedó sin uso)
+    const hdx = PARCELAS[0].x + 1.3, hdz = PARCELAS[0].z - 16.7;   // cuánto se movió el huerto
+    const tramos = [[{ x: -2.6, z: 7.6 }, { x: -2.6 + hdx, z: 15.2 + hdz }], [{ x: -2.6 + hdx, z: 21.2 + hdz }, { x: -2.6 + hdx, z: 28.4 + hdz }]];
+    for (const [a, b] of tramos) { const L = Math.hypot(b.x - a.x, b.z - a.z); for (let u = 0; u < L; u += 0.95) { const x = a.x + (b.x - a.x) * u / L + Math.sin(u * 0.22) * 0.5, z = a.z + (b.z - a.z) * u / L; if (enPieza(x, z, 'huerto') || (Math.abs(b.x - a.x) > 1 && z < 13.4 && x > -3.6 && x < 4.8 && z > 6.8 && u > 2)) continue; geos.push(((g) => { g.rotateY(rand() * 3); g.translate(x, 0.03, z); return g; })(new THREE.CylinderGeometry(0.42 + rand() * 0.08, 0.46, 0.08, 7))); } }
+    for (let z = 0; z < 0; z += 1) { const g = new THREE.CylinderGeometry(0.42 + rand() * 0.08, 0.46, 0.08, 7); g.rotateY(rand() * 3); g.translate(pathX(z), 0.03, z); geos.push(g); }
     const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ color: 0xbdb7aa, roughness: 0.95, flatShading: true })); m.receiveShadow = true; root.add(m);
   }
 
   // caminos que va empedrando Andrés: dos hileras de lajas que aparecen a medida que avanza
+  const JC = { x: JARDINES.reduce((t, j) => t + j.x, 0) / JARDINES.length + 0.5, z: JARDINES.reduce((t, j) => t + j.z, 0) / JARDINES.length + 0.25 };
   const caminosVis = (() => {
     const mat = new THREE.MeshStandardMaterial({ color: 0xc4bcae, roughness: 0.95, flatShading: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     return CAMINOS.map((c) => {
@@ -503,6 +511,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       for (let i = 0; i < n; i++) {
         const f = (i + 0.5) / n, p = puntoCamino(c, f), q = puntoCamino(c, Math.min(1, f + 0.01));
         const ang = Math.atan2(q.z - p.z, q.x - p.x), nx = -Math.sin(ang), nz = Math.cos(ang);
+        if (enPieza(p.x, p.z, null, 0.2) && f > 0.06 && f < 0.94) continue;   // cruza un bloque: ahí no se empiedra
         for (const lado of [-1, 1]) {
           const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3 + rand() * 0.06, 0.33, 0.06, 6), mat);
           m.position.set(p.x + nx * lado * 0.34 + (rand() - 0.5) * 0.08, 0.035, p.z + nz * lado * 0.34 + (rand() - 0.5) * 0.08); m.rotation.y = rand() * 3;
@@ -516,13 +525,13 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // huerto: 6 parcelas con cerca baja
   const parcelas = [];
   const soilDry = new THREE.Color(0x9a7650), soilWet = new THREE.Color(0x4a3220);
-  for (const [fz0, fz1] of [[15.2, 21.0], [28.2, 34.0]]) {
+  for (const bloque of [PARCELAS.slice(0, 6), PARCELAS.slice(6, 12)]) {
     const fence = TEMA.cerca;
-    const fx0 = -3.8, fx1 = 9.8;
-    for (let x = fx0; x <= fx1 + 0.01; x += 1.36) for (const z of [fz0, fz1]) if (!(z === fz0 && x > -3.5 && x < -1.5)) box(0.1, 0.7, 0.1, fence, x, 0.35, z);
+    const fz0 = Math.min(...bloque.map((p) => p.z)) - 1.5, fz1 = Math.max(...bloque.map((p) => p.z)) + 1.5, fx0 = Math.min(...bloque.map((p) => p.x)) - 2.5, fx1 = Math.max(...bloque.map((p) => p.x)) + 2.5;
+    for (let x = fx0; x <= fx1 + 0.01; x += 1.36) for (const z of [fz0, fz1]) if (!(z === fz0 && x > fx0 + 0.3 && x < fx0 + 2.3)) box(0.1, 0.7, 0.1, fence, x, 0.35, z);
     for (let z = fz0; z <= fz1 + 0.01; z += 1.45) for (const x of [fx0, fx1]) box(0.1, 0.7, 0.1, fence, x, 0.35, z);
     box(fx1 - fx0, 0.07, 0.06, fence, (fx0 + fx1) / 2, 0.55, fz1);
-    box(fx1 + 1.5 - 0.0, 0.07, 0.06, fence, (fx1 - 1.5) / 2 + 2.1, 0.55, fz0);
+    box(fx1 - fx0 - 2.3, 0.07, 0.06, fence, (fx0 + 2.3 + fx1) / 2, 0.55, fz0);
     for (const x of [fx0, fx1]) box(0.06, 0.07, fz1 - fz0, fence, x, 0.55, (fz0 + fz1) / 2);
   }
   const PLOT_W = 3.6, PLOT_D = 2.2;
@@ -640,6 +649,7 @@ uniform float uRafaga;
   const LEAFS = [0x5f8f34, 0x7faa3f, 0x9cc04f, 0x4d7a2b, 0x8bb848].map((c) => LEAF(c));
   const bark = new THREE.MeshStandardMaterial({ color: 0x6b5644, roughness: 1, flatShading: true });
   function makeTree(x, z, s) {
+    if (!SOMBRAS.corral.concat(SOMBRAS.aves).some((q) => q.x === x && q.z === z) && enPieza(x, z, null, 1.2)) return;   // un bloque se mudó aquí
     const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(s); root.add(t);
     const tr = new THREE.CylinderGeometry(0.12, 0.22, 4.2, 6); tr.translate(0, 2.1, 0); const tm = new THREE.Mesh(tr, bark); tm.castShadow = true; t.add(tm);
     const crown = new THREE.Group(); crown.position.y = 4.4; t.add(crown);
@@ -845,7 +855,7 @@ uniform float uRafaga;
     return { planta, flores, fase: rand() * 6 };
   });
   // colgadero donde se secan los cogollos (al lado de la huerta de hierbas)
-  const colgadero = new THREE.Group(); colgadero.position.set(37.2, 0, 32.4); root.add(colgadero);
+  const colgadero = new THREE.Group(); colgadero.position.set(LUGAR.colgadero.x, 0, LUGAR.colgadero.z); root.add(colgadero);
   for (const dx of [-0.9, 0.9]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), palo); m.position.set(dx, 0.85, 0); colgadero.add(m); }
   { const m = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.05), palo); m.position.y = 1.65; colgadero.add(m); }
   const colgados = new THREE.Group(); colgadero.add(colgados);
@@ -878,12 +888,12 @@ uniform float uRafaga;
     const add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
     const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
     // bodega de vino (piedra y techo del estilo)
-    { const g = grupo('bodegaVino', 29.5, 22.8), piedra = M(0x9d968b, { flatShading: true });
+    { const g = grupo('bodegaVino', LUGAR.bodegaVino.x, LUGAR.bodegaVino.z), piedra = M(0x9d968b, { flatShading: true });
       add(g, B(3.2, 2.2, 2.4), piedra, 0, 1.1, 0); const r = add(g, B(3.6, 0.15, 2.8), TEMA.techo, 0, 2.35, 0); r.rotation.x = 0.1;
       add(g, B(0.9, 1.6, 0.08), TEMA.madera, -0.8, 0.8, 1.22);
       for (const dx of [0.6, 1.4]) { const b = add(g, new THREE.CylinderGeometry(0.38, 0.38, 0.8, 12), M(0x7a4e2c), dx, 0.4, 1.7); b.rotation.x = Math.PI / 2; } }
     // caseta de cultivo sobre las matas (paneles translúcidos; con luces moradas al mejorarla)
-    { const g = grupo('cultivoCaseta', 34.8, 27.3), panel = M(0xf3f6f2, { transparent: true, opacity: 0.28, roughness: 0.2, side: THREE.DoubleSide, depthWrite: false });
+    { const g = grupo('cultivoCaseta', LUGAR.cultivoCaseta.x, LUGAR.cultivoCaseta.z), panel = M(0xf3f6f2, { transparent: true, opacity: 0.28, roughness: 0.2, side: THREE.DoubleSide, depthWrite: false });
       for (const [x, z] of [[-2.5, -4.1], [2.5, -4.1], [-2.5, 4.1], [2.5, 4.1], [-2.5, 0], [2.5, 0]]) add(g, B(0.12, 2.6, 0.12), TEMA.madera, x, 1.3, z);
       for (const [w, d, x, z] of [[5.1, 0.04, 0, -4.1], [5.1, 0.04, 0, 4.1], [0.04, 8.2, -2.5, 0], [0.04, 8.2, 2.5, 0]]) add(g, B(w, 2.5, d), panel, x, 1.25, z).castShadow = false;
       add(g, B(5.6, 0.08, 8.8), panel, 0, 2.7, 0).castShadow = false;
@@ -897,7 +907,7 @@ uniform float uRafaga;
       for (const dx of [-1.5, 0.5]) { add(g, B(0.8, 0.12, 2.0), M(0xf2efe8), dx, 0.35, D / 2 + 1.45); const r = add(g, B(0.8, 0.1, 0.8), M(0xf2efe8), dx, 0.62, D / 2 + 2.2); r.rotation.x = -0.9; }
       add(g, new THREE.CylinderGeometry(0.05, 0.05, 2.6), M(0x8a8a8a), 2.4, 1.3, D / 2 + 1.6); add(g, new THREE.ConeGeometry(1.4, 0.5, 10), M(0xe7c46a), 2.4, 2.6, D / 2 + 1.6); }
     // jacuzzi
-    { const g = grupo('jacuzzi', 23.6, 14.2);
+    { const g = grupo('jacuzzi', LUGAR.jacuzzi.x, LUGAR.jacuzzi.z);
       add(g, new THREE.CylinderGeometry(1.15, 1.2, 0.7, 20), TEMA.madera, 0, 0.35, 0);
       const ag = add(g, new THREE.CircleGeometry(1.0, 20), M(0x6fd6e8, { emissive: 0x2fb8d8, emissiveIntensity: 0.5, roughness: 0.05 }), 0, 0.72, 0); ag.rotation.x = -Math.PI / 2;
       const burbujas = []; for (let k = 0; k < 14; k++) { const b = add(g, new THREE.SphereGeometry(0.05, 6, 4), M(0xffffff, { transparent: true, opacity: 0.7 }), 0, 0.74, 0); burbujas.push(b); } g.userData.burbujas = burbujas; }
@@ -917,7 +927,7 @@ uniform float uRafaga;
       for (const y of [1.2, 2.6]) add(g, B(3.2, 0.08, 0.6), m, 0, y, 1.5);
       for (let k = 0; k < 4; k++) add(g, B(0.5, 0.35, 0.5), M(0xb06a42), -1 + k * 0.6, 0.18, -2.2); }
   }
-  const SITIO_OBRA = { vinedo: [16, 32], bodegaVino: [29.5, 22.8], cultivoCaseta: [34.8, 27.3], cultivoPro: [34.8, 27.3], piscina: [17.5, 18.6], jacuzzi: [23.6, 14.2], gimnasio: [LUGAR_GYM.x, LUGAR_GYM.z - 1.4], establo2: [LUGAR.establo.x + 3.6, LUGAR.establo.z], gallinero2: [LUGAR.gallinero.x - 3.4, LUGAR.gallinero.z] };
+  const L2 = (k) => [LUGAR[k].x, LUGAR[k].z], SITIO_OBRA = { vinedo: L2('andamioVinedo'), bodegaVino: L2('bodegaVino'), cultivoCaseta: L2('cultivoCaseta'), cultivoPro: L2('cultivoCaseta'), piscina: L2('andamioPiscina'), jacuzzi: L2('jacuzzi'), gimnasio: [LUGAR_GYM.x, LUGAR_GYM.z - 1.4], establo2: [LUGAR.establo.x + 3.6, LUGAR.establo.z], gallinero2: [LUGAR.gallinero.x - 3.4, LUGAR.gallinero.z] };
 
   // ------------------------------------------------------------ la carreta de Don Ramiro (solo los días de visita)
   const carreta = new THREE.Group(); carreta.position.set(LUGAR.carreta.x, 0, LUGAR.carreta.z); carreta.rotation.y = -Math.PI / 2; carreta.visible = false; root.add(carreta);
@@ -980,7 +990,7 @@ uniform float uRafaga;
   // postes de luz
   const lamps = [];
   const haloMat = new THREE.SpriteMaterial({ map: glowTexture('rgba(255,214,150,.85)', 'rgba(255,170,80,.25)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
-  for (const [x, z, rot] of [[-5.4, 13.8, 0.4], [11.4, 11.2, Math.PI - 0.4], [13.0, 18.6, Math.PI / 2], [-5.4, 26.6, 0.4]]) {
+  for (const [x, z, rot] of [[LUGAR.farol1.x, LUGAR.farol1.z, 0.4], [LUGAR.farol2.x, LUGAR.farol2.z, Math.PI - 0.4], [LUGAR.farol3.x, LUGAR.farol3.z, Math.PI / 2], [LUGAR.farol4.x, LUGAR.farol4.z, 0.4]]) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; root.add(g);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 4.6, 10), darkMat); pole.position.y = 2.3; pole.castShadow = true; g.add(pole);
     box(1.1, 0.08, 0.08, darkMat, 0.5, 4.6, 0, g);
@@ -1891,7 +1901,7 @@ uniform float uRafaga;
       }
     }
     abejas.pts.visible = day > 0.3 && !s.clima.lluvia && ((s.t / MIN_DIA / 28) | 0) % 4 !== 3;
-    if (abejas.pts.visible) for (let i = 0; i < abejas.N; i++) { const a = t * (0.6 + (i % 5) * 0.13) + i * 1.7; abejas.pos.set([30 + Math.cos(a) * (4 + (i % 4) * 2) + Math.sin(a * 3.1) * 0.6, 0.9 + Math.sin(a * 2.3 + i) * 0.35, 3 + Math.sin(a * 0.9) * (3 + (i % 3)) + Math.cos(a * 2.7) * 0.5], i * 3); }
+    if (abejas.pts.visible) for (let i = 0; i < abejas.N; i++) { const a = t * (0.6 + (i % 5) * 0.13) + i * 1.7; abejas.pos.set([JC.x + Math.cos(a) * (4 + (i % 4) * 2) + Math.sin(a * 3.1) * 0.6, 0.9 + Math.sin(a * 2.3 + i) * 0.35, JC.z + Math.sin(a * 0.9) * (3 + (i % 3)) + Math.cos(a * 2.7) * 0.5], i * 3); }
     abejas.pts.geometry.attributes.position.needsUpdate = true;
     (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); });
 
@@ -2231,6 +2241,19 @@ uniform float uRafaga;
     encuadrar,
     // catálogo de diseños: mirar un estilo sin comprarlo, y llevar la cámara hasta la construcción
     previsualizar(obj, est) { if (est) vistaPrevia[obj] = est; else delete vistaPrevia[obj]; },
+    // distribución: dibuja en el suelo dónde quedaría cada bloque (null para borrar)
+    dibujarPlano(plano, sel, malos = []) {
+      for (const c of [...contornos.children]) { contornos.remove(c); c.geometry.dispose(); }
+      if (!plano) return;
+      for (const id of Object.keys(PIEZAS)) for (const r of rectsPieza(id, plano)) {
+        const mal = malos.includes(id), color = mal ? 0xff5a4f : id === sel ? 0x7cff8a : 0xffffff;
+        const pts = [V(r[0], 0.18, r[2]), V(r[1], 0.18, r[2]), V(r[1], 0.18, r[3]), V(r[0], 0.18, r[3])];
+        const l = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: id === sel || mal ? 1 : 0.55, depthTest: false }));
+        l.renderOrder = 20; contornos.add(l);
+        if (id === sel || mal) { const f = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, depthWrite: false })); f.rotation.x = -Math.PI / 2; f.position.set((r[0] + r[1]) / 2, 0.16, (r[2] + r[3]) / 2); f.renderOrder = 19; contornos.add(f); }
+      }
+    },
+    verTodo() { const t = V(CENTER.x, 0, CENTER.z); vuelo = { t: 0, de: [controls.target.clone(), camera.position.clone()], a: [t, V(CENTER.x, 105, CENTER.z + 52)] }; },
     enfocar(obj) {
       const P = { casa: { x: 0, z: 0, d: 34 }, pozo: { ...LUGAR.pozo, d: 14 }, caseta: { ...LUGAR.caseta, d: 12 }, gallinero: { ...LUGAR.gallinero, d: 18 }, establo: { ...LUGAR.establo, d: 22 } }[obj]; if (!P) return;
       const off = camera.position.clone().sub(controls.target); off.y = Math.max(off.y, off.length() * 0.45);

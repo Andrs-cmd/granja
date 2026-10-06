@@ -100,6 +100,26 @@
   .dilema .uno.urge .plazo { color: #ff9d94; opacity: 1; }
   .dilema .sino { font-size: 11px; margin: 7px 0 0; padding: 6px 8px; border-radius: 8px; background: rgba(224,87,79,.1); border-left: 3px solid #e0574f; color: rgba(241,238,232,.88); }
   .dilema .vacia { font-size: 12px; opacity: .7; padding: 6px 2px 4px; }
+  /* distribución del orbe: prediseños y mapa para arrastrar los bloques */
+  .btn-plano { position: fixed; left: 12px; bottom: 152px; z-index: 5; background: rgba(18,18,22,.7); color: #f1eee8; border: 1px solid rgba(255,255,255,.15); border-radius: 99px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .planoP { position: fixed; right: 12px; top: 12px; bottom: 12px; width: min(380px, calc(100vw - 24px)); z-index: 7; background: rgba(24,22,30,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px; overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .planoP.off { display: none; }
+  .planoP .cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .planoP .cab b { font-size: 14px; color: #e7c46a; }
+  .planoP .cab button { background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; padding: 2px 8px; }
+  .planoP h5 { margin: 10px 0 6px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #e7c46a; }
+  .planoP .pres { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .planoP .pre { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: inherit; font: inherit; border-radius: 10px; padding: 6px; cursor: pointer; }
+  .planoP .pre.on { border-color: #b48ae0; background: rgba(180,138,224,.18); } .planoP .pre b { display: block; font-size: 12px; margin-top: 3px; } .planoP .pre small { display: block; font-size: 10px; opacity: .65; line-height: 1.25; }
+  .planoP .pre svg { width: 100%; height: auto; display: block; border-radius: 6px; }
+  .planoP .mapa { width: 100%; height: auto; display: block; border-radius: 10px; touch-action: none; user-select: none; background: #1b2a1b; }
+  .planoP .mapa .pz { cursor: grab; } .planoP .mapa .pz text { pointer-events: none; }
+  .planoP .msg { font-size: 11.5px; margin-top: 6px; min-height: 16px; } .planoP .msg.mal { color: #ff9d94; } .planoP .msg.bien { color: #9fe0a0; }
+  .planoP .acc { display: flex; gap: 6px; margin-top: 8px; } .planoP .acc button { flex: 1; border: 0; border-radius: 10px; padding: 10px 8px; font: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+  .planoP .aplicar { background: #2e7d4f; color: #fff; } .planoP .aplicar:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.45); cursor: default; } .planoP .deshacer { background: rgba(255,255,255,.08); color: inherit; }
+  .planoP .nota { font-size: 10.5px; opacity: .65; margin-top: 7px; line-height: 1.4; }
+  @media (max-width: 640px) { .planoP { top: auto; left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 62vh; } .btn-plano { bottom: 196px; } body.datos .btn-plano { display: none; } }
+  @media (pointer: coarse) and (max-width: 640px) { .btn-plano { bottom: calc(206px + env(safe-area-inset-bottom)); min-height: 38px; padding: 9px 14px; } }
+  @media (max-height: 480px) and (min-width: 641px) { .btn-plano { bottom: 144px; } }
   /* catálogo de diseños: panel al costado (abajo en el celular) para ver la construcción mientras se elige */
   .btn-dis { position: fixed; left: 12px; bottom: 108px; z-index: 5; background: rgba(18,18,22,.7); color: #f1eee8; border: 1px solid rgba(255,255,255,.15); border-radius: 99px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   .disenoP { position: fixed; right: 12px; top: 12px; bottom: 12px; width: min(360px, calc(100vw - 24px)); z-index: 7; background: rgba(24,22,30,.95); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px; overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
@@ -204,6 +224,8 @@
 <div class="influ" id="influ" title="Influencia: se recarga cada día"></div>
 <div class="alertas" id="alertas"></div>
 <button class="btn-trabajo" id="btnTrabajo">⚙ Trabajo</button>
+<button class="btn-plano" id="btnPlano">🗺 Distribución</button>
+<div class="planoP off" id="planoP"></div>
 <button class="btn-dis" id="btnDis">🛠 Diseño</button>
 <div class="disenoP off" id="disenoP"></div>
 <button class="btn-dec vacio" id="btnDec">⚖ Decisiones <span class="n">0</span></button>
@@ -225,7 +247,7 @@ const VEL_DEFECTO = 1;
 const MAX_AUSENCIA = 30 * Sim.MIN_DIA;
 
 const ahoraEnMinutos = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-const nueva = (generacion = 1) => Sim.nuevaPartida({ inicio: ahoraEnMinutos(), generacion });
+const nueva = (generacion = 1, plano = {}) => Sim.nuevaPartida({ inicio: ahoraEnMinutos(), generacion, plano });   // la nueva generación hereda la distribución
 
 let vel = VEL_DEFECTO;
 try { const v = localStorage.getItem('granja3d-vel2'); if (v != null) vel = Math.max(0, Math.min(VELOCIDADES.length - 1, +v)); } catch { /* sin almacenamiento */ }
@@ -469,6 +491,72 @@ function pintarJugador(forzar = false) {
   if (ops !== htmlFicha) { elFicha.querySelector('.ops').innerHTML = ops; htmlFicha = ops; }
   elFicha.classList.remove('off');
 }
+// ---------------------------------------------------------------- distribución del orbe: prediseños y mapa para arrastrar
+const elPlano = document.getElementById('planoP');
+const MAPA = { x0: -36, z0: -30, w: 76, h: 72 };   // el terreno (vista desde arriba, el norte arriba)
+const COLOR_PIEZA = { corral: '#8a6a3a', gallinero: '#b0503a', huerto: '#5a4028', frutales: '#4f8f3a', jardines: '#d4708c', piscina: '#3fa6c8', vinedo: '#7a3a6a', hierbas: '#5f8a2c', taller: '#9a7a5a', pozo: '#8a8a8a', caseta: '#c08a4a', mirador: '#7a8a9a' };
+let borrador = null, plSel = null, plPre = null, arrastre = null;
+const copiaPlano = (p) => JSON.parse(JSON.stringify(p || {}));
+function svgPlano(plano, { grande = false, sel = null, malos = [] } = {}) {
+  const X = (x) => (x - MAPA.x0).toFixed(2), Z = (z) => (z - MAPA.z0).toFixed(2);
+  let h = `<svg ${grande ? 'class="mapa" id="mapaPlano"' : ''} viewBox="0 0 ${MAPA.w} ${MAPA.h}" xmlns="http://www.w3.org/2000/svg">`;
+  h += `<circle cx="${X(2)}" cy="${Z(6)}" r="49" fill="#3f6a2c" stroke="#2a4a1e" stroke-width=".6"/>`;
+  for (const f of Sim.FIJOS) h += `<rect x="${X(f[0])}" y="${Z(f[2])}" width="${(f[1] - f[0]).toFixed(2)}" height="${(f[3] - f[2]).toFixed(2)}" fill="rgba(240,230,210,.55)" rx=".6"/>`;
+  h += `<text x="${X(3)}" y="${Z(0.6)}" font-size="2.6" text-anchor="middle" fill="#2b2420">casa</text>`;
+  for (const id of Object.keys(Sim.PIEZAS)) {
+    const mal = malos.includes(id), rs = Sim.rectsPieza(id, plano);
+    h += `<g class="pz" data-pz="${id}">`;
+    for (const r of rs) h += `<rect x="${X(r[0])}" y="${Z(r[2])}" width="${(r[1] - r[0]).toFixed(2)}" height="${(r[3] - r[2]).toFixed(2)}" rx=".8" fill="${COLOR_PIEZA[id]}" fill-opacity="${id === sel ? .95 : .75}" stroke="${mal ? '#ff5a4f' : id === sel ? '#7cff8a' : 'rgba(255,255,255,.35)'}" stroke-width="${mal || id === sel ? .9 : .35}"/>`;
+    if (grande) { const r = rs[0]; h += `<text x="${X((r[0] + r[1]) / 2)}" y="${Z((r[2] + r[3]) / 2) * 1 + 1}" font-size="${Math.min(3.2, (r[1] - r[0]) / 4 + 1.2).toFixed(1)}" text-anchor="middle" fill="#fff">${esc(Sim.PIEZAS[id].nombre.split(' ')[0])}</text>`; }
+    h += `</g>`;
+  }
+  return h + '</svg>';
+}
+function pintarPlano() {
+  if (elPlano.classList.contains('off')) return;
+  const s = estado, actual = s.plano || {}, malos = [...new Set(Sim.validarPlano(borrador).map((p) => p[0]))];
+  const prob = Sim.validarPlano(borrador), precio = Sim.precioPlano(actual, borrador), mon = Math.floor(s.comercio?.monedas || 0);
+  const cambia = precio > 0, ok = cambia && !prob.length && mon >= precio;
+  elPlano.innerHTML = `<div class="cab"><b>🗺 Distribución · 🪙 ${mon}</b><button data-cerrar-plano="1" aria-label="Cerrar">×</button></div>
+    <h5>Prediseños</h5><div class="pres">${Object.entries(Sim.PLANOS).map(([k, P]) => `<button class="pre ${plPre === k ? 'on' : ''}" data-pre="${k}">${svgPlano(P.plano)}<b>${esc(P.nombre)}</b><small>${esc(P.pista)}</small></button>`).join('')}</div>
+    <h5>Arrastra los bloques a donde quieras</h5>${svgPlano(borrador, { grande: true, sel: plSel, malos })}
+    <div class="msg ${prob.length ? 'mal' : cambia ? 'bien' : ''}">${prob.length ? `⚠ ${esc(Sim.PIEZAS[prob[0][0]].nombre)} ${esc(prob[0][1])}${prob.length > 1 ? ` (y ${prob.length - 1} más)` : ''}` : cambia ? `Se mudan: ${Object.keys(Sim.PIEZAS).filter((id) => JSON.stringify(actual[id] || {}) !== JSON.stringify(borrador[id] || {}) && ((actual[id]?.dx || 0) !== (borrador[id]?.dx || 0) || (actual[id]?.dz || 0) !== (borrador[id]?.dz || 0))).map((id) => Sim.PIEZAS[id].nombre.toLowerCase()).join(', ')}` : 'Así está la granja ahora.'}</div>
+    <div class="acc"><button class="deshacer" data-deshacer="1">Volver a como está</button><button class="aplicar" data-aplicar="1" ${ok ? '' : 'disabled'}>${cambia ? `Mudar · 🪙 ${precio}${mon < precio ? ' (no alcanza)' : ''}` : 'Mudar'}</button></div>
+    <div class="nota">Cada bloque que se muda cuesta lo suyo (el corral 60, el huerto 50, la caseta 10…). Al mudar, la granja se rearma al instante y todos siguen con su vida en los lugares nuevos.</div>`;
+  escena.dibujarPlano(borrador, plSel, malos);
+}
+function abrirPlano(abrir) {
+  elPlano.classList.toggle('off', !abrir);
+  if (abrir) { borrador = copiaPlano(estado.plano); plPre = null; plSel = null; if (angosto()) escena.encuadrar(0, 0, innerHeight * 0.62 + 8); else escena.encuadrar(0, Math.min(392, innerWidth - 24), 0); escena.verTodo(); pintarPlano(); }
+  else { escena.dibujarPlano(null); encuadre(); }
+}
+document.getElementById('btnPlano').addEventListener('click', () => abrirPlano(elPlano.classList.contains('off')));
+elPlano.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar-plano]')) return abrirPlano(false);
+  const bp = e.target.closest('[data-pre]'); if (bp) { plPre = bp.dataset.pre; borrador = copiaPlano(Sim.PLANOS[plPre].plano); plSel = null; return pintarPlano(); }
+  if (e.target.closest('[data-deshacer]')) { borrador = copiaPlano(estado.plano); plPre = null; plSel = null; return pintarPlano(); }
+  if (e.target.closest('[data-aplicar]')) {
+    const precio = Sim.precioPlano(estado.plano || {}, borrador), r = Sim.cambiarPlano(estado, borrador, precio);
+    aviso(r.msg); if (r.ok) { guardar(); setTimeout(() => location.reload(), 400); } else pintarPlano();
+  }
+});
+// arrastrar en el mapa (dedo o mouse): mueve el bloque de medio en medio metro
+const aMapa = (ev) => { const svg = document.getElementById('mapaPlano'), r = svg.getBoundingClientRect(); return { x: MAPA.x0 + (ev.clientX - r.left) / r.width * MAPA.w, z: MAPA.z0 + (ev.clientY - r.top) / r.height * MAPA.h }; };
+elPlano.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest('#mapaPlano .pz'); if (!g) return;
+  e.preventDefault(); plSel = g.dataset.pz; plPre = null;
+  const p = aMapa(e), o = borrador[plSel] || {}; arrastre = { id: plSel, x: p.x, z: p.z, dx: o.dx || 0, dz: o.dz || 0 };
+  elPlano.setPointerCapture?.(e.pointerId); pintarPlano();
+});
+elPlano.addEventListener('pointermove', (e) => {
+  if (!arrastre) return; const p = aMapa(e);
+  const dx = Math.round((arrastre.dx + p.x - arrastre.x) * 2) / 2, dz = Math.round((arrastre.dz + p.z - arrastre.z) * 2) / 2;
+  const o = borrador[arrastre.id] || {}; if (o.dx === dx && o.dz === dz) return;
+  borrador[arrastre.id] = { dx, dz }; pintarPlano();
+});
+const soltarArrastre = () => { arrastre = null; };
+elPlano.addEventListener('pointerup', soltarArrastre); elPlano.addEventListener('pointercancel', soltarArrastre);
+
 // ---------------------------------------------------------------- catálogo de diseños por construcción
 const elDis = document.getElementById('disenoP');
 const COLORES_EST = { rustico: ['#b5643a', '#a63b2c', '#4a3a32'], mediterranea: ['#f3efe6', '#c4683a', '#2f5d8a'], nordica: ['#3b3f44', '#7a2a22', '#c9a274'], tropical: ['#a86f3e', '#b89a5a', '#5a3d22'], asiatica: ['#e9dfcc', '#8a3a22', '#2f3a3a'], americana: ['#f2efe8', '#a3322a', '#4b4f55'] };
@@ -617,7 +705,7 @@ function loop(now) {
     } else {
       pendiente = 0;
       if (finEn == null) { Sim.registrarGeneracion(estado); finEn = t + 20; guardar(); }
-      if (t > finEn) { estado = nueva(estado.generacion + 1); finEn = null; guardar(); crearTarjetas(); aviso(`Generación ${estado.generacion}`); }
+      if (t > finEn) { estado = nueva(estado.generacion + 1, estado.plano); finEn = null; guardar(); crearTarjetas(); aviso(`Generación ${estado.generacion}`); }
     }
   } catch (e) { console.warn('[granja] error en el bucle:', e); }
   escena.ocupado = pendiente > 0;
