@@ -52,14 +52,33 @@ export const capCelda = (c) => (c.u && !c.ru ? (USOS[c.u].cap || 0) * Math.max(1
 export function celdasDe(s, al, u) { return s.celdas.filter((c) => c.al === al && c.u === u && !c.ru); }
 export function capacidad(s, al, u) { let n = 0; for (const c of s.celdas) if (c.al === al && c.u === u && !c.ru) n += capCelda(c); return n; }
 export const pisosEra = (e) => ERAS[Math.min(7, e)].pisos;
-export const radioCiudad = (s, C, pob) => Math.min(C.id === 0 ? 30 : 17, 7 + Math.sqrt(pob) * 1.5 + s.era * 1.3);
+export const radioCiudad = (s, C, pob) => Math.min(C.id === 0 ? Math.min(44, 20 + s.era * 3.5) : Math.min(27, 13 + s.era * 2), 7 + Math.sqrt(pob) * 1.6 + s.era * 2.8);
+// cuánto terreno ocupa una civilización en cada era (fracción de la tierra útil): la gente simulada es solo una
+// muestra de los habitantes reales, así que la mancha urbana crece con la era aunque la muestra no crezca
+const MANCHA = [0.04, 0.07, 0.11, 0.17, 0.26, 0.37, 0.5, 0.62];
+const MEZCLA = [
+  [['vivienda', 5], ['campo', 5]],
+  [['vivienda', 5], ['campo', 5]],
+  [['vivienda', 5], ['campo', 4], ['mercado', 1]],
+  [['vivienda', 6], ['campo', 2], ['taller', 2], ['mercado', 1]],
+  [['vivienda', 6], ['taller', 3], ['campo', 1], ['mercado', 1]],
+  [['vivienda', 7], ['taller', 2], ['mercado', 1], ['parque', 1], ['escuela', 1], ['hospital', 1]],
+];
+export function metaMancha(s, C, pob) {
+  const util = s.celdas.filter((c) => !['a', 'v', 'c', 'm'].includes(c.t)).length, total = Math.max(1, s.gente.length);
+  const parte = Math.max(0.15, Math.min(1, pob / total));
+  return Math.round(util * MANCHA[Math.min(7, s.era)] * parte);
+}
 
 // ---------------------------------------------------------------- planificador: qué construir, dónde, y cuándo renovar
 // necesidades: { vivienda: personas, porUso: { uso: trabajadores } }
 export function planificar(s, C, nec, R) {
   const mias = s.celdas.filter((c) => c.al === C.id), obras = mias.filter((c) => c.o).length, pob = nec.pob, era = s.era;
-  if (obras >= 1 + Math.floor(pob / 16) + (era >= 4 ? 1 : 0)) return null;
+  if (obras >= 1 + Math.floor(pob / 16) + (era >= 4 ? 1 : 0) + Math.floor(era / 3)) return null;
   const pedidos = [];
+  // expansión: barrios, suburbios, fábricas y campos nuevos hasta cubrir la mancha de la era
+  const ocupadas = mias.filter((c) => (c.u || c.o) && !c.ru).length;
+  if (!s.destino && ocupadas < metaMancha(s, C, pob)) { const mz = MEZCLA[Math.min(5, era)], tot = mz.reduce((n, x) => n + x[1], 0); let r = R() * tot, u = mz[0][0]; for (const [k, w] of mz) { r -= w; if (r <= 0) { u = k; break; } } pedidos.push({ u, p: 30 + (era >= 4 ? 10 : 0), exp: true }); }
   const capV = capacidad(s, C.id, 'vivienda');
   if (pob > capV * 0.9) pedidos.push({ u: 'vivienda', p: 100 * (pob / Math.max(1, capV)) });
   for (const [u, w] of Object.entries(nec.porUso)) { const cap = capacidad(s, C.id, u); if (w > cap * 0.95) pedidos.push({ u, p: 40 + (30 * (w - cap)) / Math.max(1, cap) }); }
@@ -69,12 +88,12 @@ export function planificar(s, C, nec, R) {
   pedidos.sort((a, b) => b.p - a.p);
   for (const pd of pedidos) {
     // primero crecer hacia arriba si la era lo permite y la ciudad ya está llena
-    const sube = pd.u !== 'campo' && !USOS[pd.u].plano && pd.u !== 'puerto' ? mias.filter((c) => c.u === pd.u && !c.o && !c.ru && c.n < pisosEra(era)).sort((a, b) => dist(a.x, a.z, C.x, C.z) - dist(b.x, b.z, C.x, C.z))[0] : null;
+    const sube = !pd.exp && pd.u !== 'campo' && !USOS[pd.u].plano && pd.u !== 'puerto' ? mias.filter((c) => c.u === pd.u && !c.o && !c.ru && c.n < pisosEra(era)).sort((a, b) => dist(a.x, a.z, C.x, C.z) - dist(b.x, b.z, C.x, C.z))[0] : null;
     const nueva = buscarCelda(s, C, pd.u, pob);
     const c = sube && (!nueva || era >= 3 || dist(nueva.x, nueva.z, C.x, C.z) > radioCiudad(s, C, pob) * 0.75) ? sube : nueva;
     if (!c) continue;
-    const n = c === sube ? Math.min(pisosEra(era), c.n + Math.max(1, Math.round(pisosEra(era) / 6))) : 1;
-    if (!pagar(s, C, pd.u, n - (c === sube ? c.n : 0), R)) { C.falta = USOS[pd.u].n; return null; }
+    const n = c === sube ? Math.min(pisosEra(era), c.n + Math.max(1, Math.round(pisosEra(era) / 6))) : pd.exp && !USOS[pd.u].plano ? Math.max(1, Math.round(pisosEra(era) * 0.2)) : 1;
+    if (!pagar(s, C, pd.u, (n - (c === sube ? c.n : 0)) * (pd.exp ? 0.4 : 1), R)) { if (pd.exp) continue; C.falta = USOS[pd.u].n; return null; }
     iniciarObra(s, C, c, pd.u, n);
     return { u: pd.u, c, sube: c === sube };
   }

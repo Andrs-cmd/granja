@@ -853,7 +853,7 @@ export function destruir(s, causa) {
 // ---------------------------------------------------------------- ciudades nuevas
 function fundarCiudad(s) {
   const C0 = s.ciudades[0], G = gentes(s, 0);
-  if (vivas(s).length >= 4 || G.length < 45 || s.era < 1 || !prob(s, 0.25)) return;
+  if (vivas(s).length >= Math.min(7, 3 + Math.floor(s.era / 2)) || G.length < 40 || s.era < 1 || !prob(s, 0.25 + s.era * 0.04)) return;
   const sitio = sitioCiudad(s); if (!sitio) return;
   const parejas = G.filter((a) => a.sexo === 'f' && a.pareja && a.edad >= 18 && a.edad < 40).map((m) => [m, vivo(s, m.pareja)]).filter(([, p]) => p && p.al === 0 && p.id !== C0.lider).sort((x, y) => y[0].v.ambicion + y[1].p.ape - x[0].v.ambicion - x[1].p.ape);
   if (parejas.length < 2) return;
@@ -870,7 +870,7 @@ function sitioCiudad(s) {
   let mejor = null, mp = -1e9;
   for (const c of s.celdas) {
     if (c.u || c.o || ['a', 'v', 'c', 'm'].includes(c.t)) continue;
-    const r = Math.hypot(c.x, c.z); if (r < 20 || r > 37) continue;
+    const r = Math.hypot(c.x, c.z); if (r < 16 || r > 40) continue;
     if (s.ciudades.some((C) => dist(c.x, c.z, C.x, C.z) < (C.id === 0 ? U.radioCiudad(s, C, gentes(s, 0).length) + 6 : 18))) continue;
     if (s.celdas.some((x) => x.u && x.u !== 'campo' && dist(c.x, c.z, x.x, x.z) < 7)) continue;
     const p = -Math.abs(dist(c.x, c.z, s.lago.x, s.lago.z) - 14) * 0.5 + rnd(s) * 6;

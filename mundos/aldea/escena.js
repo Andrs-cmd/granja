@@ -6,12 +6,14 @@
 //    y otra por arquetipo para las ventanas que brillan de noche: pocas llamadas de dibujo
 //  - la gente sigue un horario (casa → trabajo → plaza → casa); las 12 más cercanas a la cámara
 //    tienen cuerpo articulado, el resto son figuras instanciadas vestidas según la era
-//  - autos, voladores, humo, faroles y los efectos de cada destino (cohetes, luz, colmena, hongo nuclear)
+//  - autos, humo, faroles y los efectos de cada destino (cohetes, luz, colmena, hongo nuclear);
+//    el tráfico aéreo de cada era (globos → zepelines → aviones → jets, drones y naves, y cohetes) vive en aereos.js
 // =====================================================================
 import { THREE, fundir, fundirGeo, GEO, MAT_VERTICE, crearPersona, animarPersona, angLerp } from '../motor/orbe3d.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { geometrias, aspecto, ropaDe, ARQ } from './urbe3d.js';
 import * as U from './ciudad.js';
+import { crearAereos } from './aereos.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _e = new THREE.Euler(), UP = V(0, 1, 0);
@@ -150,10 +152,9 @@ export function crearEscenaAldea(O, s0) {
     for (const c of s.celdas) if (c.u && !['campo', 'parque'].includes(c.u) && !c.ru) { const x0 = c.x - 1.5, x1 = c.x + 1.5, z0 = c.z - 1.5, z1 = c.z + 1.5; add([x0, z0], [x1, z0]); add([x1, z0], [x1, z1]); add([x1, z1], [x0, z1]); add([x0, z1], [x0, z0]); }
     aristas = m; nodos = [...m.keys()];
   }
-  // ------------------------------------------------------------ vehículos: autos (era moderna) y voladores (era futura)
+  // ------------------------------------------------------------ vehículos de tierra: autos (era moderna en adelante); los del cielo están en aereos.js
   const autos = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0xffffff, 0, 0.18, 0, 0.32, 0.18, 0.62], [GEO.caja, 0x2a3440, 0, 0.33, -0.04, 0.28, 0.14, 0.32]]), MAT_VERTICE, 70); autos.count = 0; for (let i = 0; i < 70; i++) autos.setColorAt(i, _c.setHSL((i * 0.137) % 1, 0.5, 0.5)); M.add(autos);
-  const matVuelo = new THREE.MeshStandardMaterial({ color: 0xe8f4ff, emissive: 0x6ad8ff, emissiveIntensity: 0.8, roughness: 0.3 });
-  const voladores = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.18, 0.5, 3, 8).rotateX(Math.PI / 2), matVuelo, 40); voladores.count = 0; M.add(voladores);
+  const aereos = crearAereos(M, (x, z) => alt(x, z));
   const carros = [...Array(70)].map((_, i) => ({ de: null, a: null, t: 0, v: 3 + (i % 5) }));
   function moverAutos(dt, mult) {
     const n = s.era >= 5 && !s.destino ? Math.min(70, Math.floor(nodos.length / 6)) : 0;
@@ -167,10 +168,6 @@ export function crearEscenaAldea(O, s0) {
       _m.compose(_p.set(x, alt(x, z), z), _q.setFromAxisAngle(UP, Math.atan2(B[0] - A[0], B[1] - A[1])), _s.setScalar(1)); autos.setMatrixAt(i, _m);
     }
     autos.instanceMatrix.needsUpdate = true;
-    const nv = s.era >= 7 && !s.destino ? 30 : 0, tt = performance.now() / 1000; voladores.count = nv;
-    const C0 = s.ciudades.find((C) => !C.vacia) || s.ciudades[0];
-    for (let i = 0; i < nv; i++) { const r = 6 + (i % 6) * 3, a = tt * (0.15 + (i % 4) * 0.05) * (i % 2 ? 1 : -1) + i, y = 10 + (i % 5) * 3; _m.compose(_p.set(C0.x + Math.cos(a) * r, y, C0.z + Math.sin(a) * r), _q.setFromAxisAngle(UP, -a + (i % 2 ? 0 : Math.PI)), _s.setScalar(1)); voladores.setMatrixAt(i, _m); }
-    voladores.instanceMatrix.needsUpdate = true;
   }
 
   // ------------------------------------------------------------ fuego, humo y faroles
@@ -276,6 +273,7 @@ export function crearEscenaAldea(O, s0) {
     for (const c of fog) emis.push([c.x, 1.2, c.z, 1]);
     if (!D) for (const c of s.celdas) if (!c.ru && ((c.u === 'taller' && c.e >= 4 && c.e <= 5) || (c.u === 'central' && c.e >= 4 && c.e <= 5))) emis.push([c.x + 0.9, alt(c.x, c.z) + 3.2, c.z - 0.7, c.u === 'central' ? 2 : 1]);
     if (arde) for (const r of ruinasFuego.slice(0, 10)) emis.push([r[0], r[1] + 2, r[2], 2]);
+    for (const e of aereos.actualizar(s, dt, tt, D, L.noche)) emis.push(e);   // globos, aviones, drones, naves y estelas de cohetes
     matHumo.color.set(s.era >= 4 ? '#6a645c' : '#c8c4bc');
     const tot = emis.reduce((n, e) => n + e[3], 0); let nuevos = Math.min(6, Math.round(dt * 60));
     for (let i = 0; i < NH; i++) {
