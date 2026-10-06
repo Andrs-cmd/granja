@@ -228,6 +228,9 @@ function horaDeDormir(s, a) {
 const despierto = (s, a) => !horaDeDormir(s, a);
 const pareja = (s, a) => s.agentes.find((x) => x !== a && x.tipo === 'humano' && x.vivo);
 const humanos = (s) => s.agentes.filter((x) => x.tipo === 'humano' && x.vivo);
+export const esMascota = (a) => a.tipo === 'perro' || a.tipo === 'gato';
+export const esHijo = (a) => a.tipo === 'nino';
+const hijos = (s) => s.agentes.filter((x) => x.tipo === 'nino' && x.vivo);
 
 // comida disponible: raciones del huerto + huevos y leche (medio "plato" cada uno)
 export const comidaTotal = (s) => s.rec.raciones + s.rec.huevos * 0.5 + s.rec.leche * 0.5 + (s.rec.conservas || 0) + (s.rec.queso || 0) * 1.5 + (s.rec.secos || 0);
@@ -372,6 +375,210 @@ function planRuta(from, to) {
   return pasos;
 }
 
+// ---------------------------------------------------------------- familia: embarazo, parto e hijos que crecen
+// etapas por días de vida (el tiempo de la granja va rápido): bebé, niño, joven y adulto
+export const ETAPAS = [['bebe', 0, 'Bebé'], ['nino', 14, 'Niño'], ['joven', 56, 'Joven'], ['adulto', 140, 'Adulto']];
+export const ETAPA_NOMBRE = Object.fromEntries(ETAPAS.map(([k, , n]) => [k, n]));
+export function etapaDe(s, a) { const dd = (s.t - (a.nacio ?? s.t)) / MIN_DIA; let e = 'bebe'; for (const [k, desde] of ETAPAS) if (dd >= desde) e = k; return e; }
+export const diasDeVida = (s, a) => Math.floor((s.t - (a.nacio ?? s.t)) / MIN_DIA);
+const familiaNueva = () => ({ plan: null, planHasta: 0, embarazo: null, parto: null, nacidos: 0, preguntado: -99 });
+const NOMBRES_HIJO = { h: ['Mateo', 'Simón', 'Emilio', 'Joaquín', 'Martín', 'Gabriel', 'Tadeo'], m: ['Valentina', 'Sofía', 'Isabella', 'Emma', 'Julieta', 'Antonia', 'Paz'] };
+const SUENO_HIJO = { nino: [20, 7.5], joven: [21.5, 7], adulto: [22.5, 6.5] };
+const madreDe = (s) => s.agentes.find((x) => x.id === 'lucia' && x.vivo && x.tipo === 'humano');
+const padreDe = (s) => s.agentes.find((x) => x.id === 'tomas' && x.vivo && x.tipo === 'humano');
+const bebes = (s) => hijos(s).filter((k) => etapaDe(s, k) === 'bebe');
+const bebeQueNecesita = (s) => bebes(s).find((b) => b.n.comida < 60 || b.n.agua < 60 || b.n.social < 40);
+const bebeLlora = (s) => bebes(s).find((b) => b.n.comida < 40 || b.n.agua < 40 || b.n.social < 28);
+const turnoNoche = (s) => { const H = humanos(s); return H.length > 1 ? H[dia(s) % 2] : H[0]; };
+
+function nuevoHijo(s, sexo, nombre, padres) {
+  const pool = [...new Set(padres.filter(Boolean).flatMap((p) => p.rasgos))].filter((r) => RASGOS[r]);
+  const rasgos = [];
+  while (rasgos.length < Math.min(3, pool.length)) { const r = pool[Math.floor(rng(s) * pool.length)]; if (!rasgos.includes(r)) rasgos.push(r); }
+  s.sigHijo = (s.sigHijo || 0) + 1;
+  return {
+    id: 'hijo' + s.sigHijo, tipo: 'nino', sexo, nombre, nacio: s.t, etapa: 'bebe', padres: padres.filter(Boolean).map((p) => p.id), rasgos, vivo: true,
+    pos: { ...LUGAR.puerta }, dentro: true, n: { comida: 80, agua: 80, energia: 80, salud: 100, social: 75, diversion: 70 },
+    animo: 80, recuerdos: [], memorias: [], deseo: null, xp: { huerto: 0, agua: 0, cuidado: 0, casa: 0, granja: 0, carpinteria: 0 },
+    tarea: null, accion: 'Durmiendo en la cuna', murio: null, causa: null, nadando: false, edad: 0, enfermo: 0, animo_buff: 0, ultimoAbrazo: 0, abrazo: 0, heridas: [],
+  };
+}
+// la pareja habla de agrandar la familia (cada tanto, si están bien)
+function familiaDelDia(s) {
+  const F = (s.familia ||= familiaNueva()), M = madreDe(s), P = padreDe(s), K = hijos(s);
+  if (K.length) for (const h of humanos(s)) recuerdo(s, h, `Ver crecer a ${K.map((k) => k.nombre).join(' y ')}`, 5, 24);
+  if (F.embarazo) {
+    const faltan = Math.ceil((F.embarazo.fin - s.t) / MIN_DIA);
+    if (faltan <= 2 && !F.embarazo.preguntado && M) {
+      const mon = Math.floor(s.comercio?.monedas || 0);
+      if (proponer(s, 'parto', `${M.nombre} está por dar a luz`, `Faltan unos ${faltan} días. Un parto en casa es gratis, pero si se complica no hay a quién llamar. La partera del pueblo cobra 80 monedas (hay ${mon}).`, [
+        { k: 'partera', txt: 'Llamar a la partera', pista: mon >= 80 ? '80 monedas; parto seguro' : `no alcanza (hay ${mon} de 80)` },
+        { k: 'casa', txt: 'Parto en casa', pista: 'gratis; puede complicarse' },
+      ], 'casa', {}, 30, 30)) F.embarazo.preguntado = true;
+    }
+    return;
+  }
+  if (!M || !P || F.nacidos >= 3 || M.edad > 44) return;
+  if (F.plan === 'buscar' || F.plan === 'azar' || (F.plan === 'esperar' && dia(s) < F.planHasta)) return;
+  if (dia(s) - F.preguntado < 18 || diasVividos(s) < 5 || s.pareja.afinidad < 60 || (s.pareja.tension || 0) > 40) return;
+  F.preguntado = dia(s);
+  proponer(s, 'hijo', K.length ? '¿Otro bebé?' : '¿Agrandar la familia?',
+    `${P.nombre} y ${M.nombre} están bien juntos (afinidad ${Math.round(s.pareja.afinidad)}) y hablan de ${K.length ? `darle un hermano a ${K[0].nombre}` : 'tener un bebé'}. Un bebé trae mucha alegría, pero hay que cuidarlo de día y de noche y gasta comida y agua${etapaCasa(s) < 2 ? '; además la casa todavía es chica' : ''}.`, [
+      { k: 'buscar', txt: 'Sí, buscar un bebé', pista: 'lo más probable es que llegue en unas semanas' },
+      { k: 'esperar', txt: 'Todavía no', pista: 'lo vuelven a hablar en un mes' },
+      { k: 'azar', txt: 'Que la vida decida', pista: 'puede pasar… o no' },
+    ], 'azar', {}, 24, 18);
+}
+// después de una noche juntos
+function concebir(s) {
+  const F = s.familia, M = madreDe(s);
+  if (!F || F.embarazo || !M || !padreDe(s) || F.nacidos >= 3 || M.edad > 44 || s.t - (F.ultimoParto ?? -1e9) < 25 * MIN_DIA) return;   // después de un parto, un tiempo sin embarazos
+  const p = F.plan === 'buscar' ? 0.4 : F.plan === 'azar' ? 0.07 : F.plan === 'esperar' ? 0.01 : 0.008;
+  if (rng(s) >= p) return;
+  F.embarazo = { inicio: s.t, fin: s.t + 21 * MIN_DIA, preguntado: false };
+  M.embarazada = true;
+  log(s, `🤰 ¡${M.nombre} está embarazada! El bebé llegará en unas tres semanas.`, 'logro');
+  for (const h of humanos(s)) recuerdo(s, h, 'Vamos a tener un bebé', 18, 24 * 5);
+}
+function familiaTick(s) {
+  const F = s.familia; if (!F?.embarazo) return;
+  const M = madreDe(s);
+  if (!M) { F.embarazo = null; return; }
+  M.embarazada = true;
+  if (s.t >= F.embarazo.fin) nacimiento(s);
+}
+function nacimiento(s) {
+  const F = s.familia, M = madreDe(s), P = padreDe(s);
+  const sexo = rng(s) < 0.5 ? 'h' : 'm';
+  const libres = NOMBRES_HIJO[sexo].filter((n) => !s.agentes.some((x) => x.nombre === n));
+  const nombre = libres[Math.floor(rng(s) * libres.length)] || (sexo === 'h' ? 'Nico' : 'Nina');
+  const seguro = F.parto === 'partera', complica = rng(s) < (seguro ? 0.03 : 0.18);
+  const b = nuevoHijo(s, sexo, nombre, [P, M]);
+  if (complica) b.n.salud = 45;
+  s.agentes.push(b);
+  F.nacidos += 1; F.embarazo = null; F.parto = null; F.plan = null; F.preguntado = dia(s) + 30; F.ultimoParto = s.t; M.embarazada = false;   // no vuelven a hablarlo hasta que el bebé crezca un poco
+  s.stats.bebes = (s.stats.bebes || 0) + 1;
+  log(s, `👶 ¡Nació ${nombre}! ${sexo === 'h' ? 'Un niño' : 'Una niña'}${complica ? ', pero el parto se complicó' : ` san${sexo === 'h' ? 'o' : 'a'}`}${seguro ? ' (con la partera)' : ''}. Heredó de sus padres: ${b.rasgos.map((r) => RASGOS[r]?.nombre || r).join(', ').toLowerCase()}.`, 'logro');
+  if (complica) herir(s, M, 'parto', seguro ? 0.3 : 0.62, 'cuerpo', '');
+  for (const h of humanos(s)) recuerdo(s, h, `Nació ${nombre}`, 30, 24 * 7);
+  efecto(s, 'corazones', LUGAR.puerta.x, LUGAR.puerta.z);
+  const otros = libres.filter((n) => n !== nombre).sort(() => rng(s) - 0.5).slice(0, 2);
+  proponer(s, 'nombre', '¿Cómo se llamará?', `${P ? P.nombre + ' y ' : ''}${M.nombre} dudan entre tres nombres para ${sexo === 'h' ? 'el niño' : 'la niña'}. Por ahora le dicen ${nombre}.`,
+    [nombre, ...otros].map((n) => ({ k: n, txt: n, pista: n === nombre ? 'como le dicen ahora' : '' })), nombre, { hijo: b.id }, 12, 0);
+}
+// un hijo grande hereda la granja si ya no quedan adultos
+function heredar(s) {
+  const h = hijos(s).filter((k) => ['joven', 'adulto'].includes(etapaDe(s, k))).sort((x, y) => x.nacio - y.nacio)[0];
+  if (!h) return false;
+  h.tipo = 'humano'; h.heredero = true; h.placer = placerNuevo(); h.deseoSex = 20; h.forma = 50; soltarTarea(s, h);
+  log(s, `🌾 ${h.nombre} se queda a cargo de la granja. La vida sigue.`, 'logro');
+  return true;
+}
+function irseAlPueblo(s, h) {
+  h.vivo = false; h.seFue = true; h.causa = 'se fue a estudiar al pueblo'; h.accion = 'Estudia en el pueblo'; h.dentro = false; soltarTarea(s, h);
+  log(s, `🎓 ${h.nombre} se fue a estudiar al pueblo. Prometió volver de visita.`, 'info');
+  for (const o of humanos(s)) { recuerdo(s, o, `Orgullo por ${h.nombre}`, 10, 24 * 3); recuerdo(s, o, `Extrañan a ${h.nombre}`, -8, 24 * 7); }
+}
+function crecer(s, a, et) {
+  if (et === 'nino') log(s, `🎂 ${a.nombre} ya camina y corretea por la granja.`, 'logro');
+  if (et === 'joven') log(s, `🎂 ${a.nombre} ya es ${a.sexo === 'h' ? 'un muchacho' : 'una muchacha'}: ahora ayuda con los huevos, las mascotas y el riego.`, 'logro');
+  if (et === 'adulto') {
+    log(s, `🎂 ${a.nombre} ya es ${a.sexo === 'h' ? 'un hombre' : 'una mujer'} hech${a.sexo === 'h' ? 'o' : 'a'}.`, 'logro');
+    proponer(s, 'mayoria', `${a.nombre} ya es grande`, `${a.nombre} piensa en su futuro: puede quedarse a trabajar la granja con sus padres o irse a estudiar al pueblo.`, [
+      { k: 'quedarse', txt: 'Que se quede en la granja', pista: 'una mano más para todo' },
+      { k: 'estudiar', txt: 'Que se vaya a estudiar', pista: 'orgullo, pero lo van a extrañar' },
+    ], 'quedarse', { hijo: a.id }, 24, 0);
+  }
+  for (const h of humanos(s)) recuerdo(s, h, `${a.nombre} está creciendo`, 8, 24);
+}
+const ACCION_HIJO = { jugarConPerro: 'Jugando con el perro', jugarConGato: 'Persiguiendo al gato', aprender: 'Mirando cómo se trabaja', seguir: 'Acompañando a sus padres', jugar: 'Jugando afuera', jugarDentro: 'Jugando en la casa', dormir: 'Durmiendo', comer: 'Comiendo', beber: 'Tomando agua', recogerHuevos: 'Recogiendo huevos', alimentar: 'Dando de comer a las mascotas', regar: 'Regando' };
+const AYUDA_HIJO = ['recogerHuevos', 'alimentar', 'regar', 'beber', 'comer'];
+function comportamientoHijo(s, a, d) {
+  const et = etapaDe(s, a), n = a.n;
+  if (et !== a.etapa) { const antes = a.etapa; a.etapa = et; if (antes) crecer(s, a, et); }
+  if (et === 'bebe') {   // en la cuna: duerme a ratos y llora cuando necesita algo
+    a.dentro = true; a.pos = { ...LUGAR.puerta };
+    const llora = n.comida < 40 || n.agua < 40 || n.social < 28, debil = n.salud < 60;
+    const duerme = !llora && (debil || n.energia < 70 || esNoche(s) || hora(s) % 3 < 1.6);   // débil: duerme mucho y así se repone
+    if (duerme) { if (a.tarea?.tipo !== 'dormir') a.tarea = { tipo: 'dormir', fase: 'trabajo', inicio: s.t }; } else a.tarea = null;
+    if (duerme && n.energia >= 100 && !esNoche(s) && !debil) a.tarea = null;
+    a.accion = llora ? 'Llorando 😭' : debil ? 'Débil, durmiendo en la cuna' : duerme ? 'Durmiendo en la cuna' : 'Despierto en la cuna';
+    return;
+  }
+  if (a.tarea && lloviendo(s) && esAfuera(a.tarea)) soltarTarea(s, a);
+  if (a.tarea && !['beber', 'comer', 'dormir'].includes(a.tarea.tipo) && ((n.agua < 20 && (s.rec.potable >= 1 || s.rec.cruda >= 1)) || (n.comida < 20 && comidaTotal(s) >= 1))) soltarTarea(s, a);
+  if (!a.tarea) elegirTareaHijo(s, a, et);
+  const T = a.tarea; if (!T) return;
+  a.accion = ACCION_HIJO[T.tipo] || ACCION[T.tipo] || 'Jugando';
+  if (T.fase === 'camino') {
+    if (a.dentro && !T.dentro) { a.dentro = false; a.pos = { ...LUGAR.puerta }; }
+    if (a.dentro && T.dentro) { T.fase = 'trabajo'; return; }
+    if (mover(a, T.destino, d)) { if (T.ruta && T.ruta.length) { T.destino = T.ruta.shift(); return; } T.fase = 'trabajo'; if (T.dentro) a.dentro = true; }
+    return;
+  }
+  if (T.tipo === 'dormir') { const [dd, dp] = SUENO_HIJO[et], h = hora(s); if (!(h >= dd || h < dp) && n.energia >= 95) soltarTarea(s, a); return; }
+  const o = T.con && s.agentes.find((x) => x.id === T.con && x.vivo);
+  if (T.tipo === 'jugarConPerro' || T.tipo === 'jugarConGato') {
+    const m = s.agentes.find((x) => x.tipo === (T.tipo === 'jugarConPerro' ? 'perro' : 'gato') && x.vivo);
+    if (m) { m.n.diversion = Math.min(100, m.n.diversion + d); if (!m.tarea || m.tarea.tipo !== 'jugar') { m.tarea = { tipo: 'jugar', fase: 'trabajo', trabajo: T.trabajo, con: a.id }; m.dentro = false; } }
+    n.diversion = Math.min(100, n.diversion + 1.2 * d); n.social = Math.min(100, n.social + 0.5 * d);
+  } else if (T.tipo === 'aprender') {
+    if (o && o.tarea?.fase === 'trabajo' && AREA[o.tarea.tipo]) {
+      const area = AREA[o.tarea.tipo], antes = nivel(a.xp[area]);
+      a.xp[area] = (a.xp[area] || 0) + d * 0.35 * mod(a, 'aprende');
+      if (nivel(a.xp[area]) > antes) log(s, `📚 ${a.nombre} aprendió de ${o.nombre}: ${HABILIDADES[area].toLowerCase()} nivel ${nivel(a.xp[area])}.`, 'logro');
+    } else T.trabajo = Math.min(T.trabajo, 2);
+    n.social = Math.min(100, n.social + 0.8 * d); n.diversion = Math.min(100, n.diversion + 0.3 * d);
+  } else if (T.tipo === 'seguir') {
+    n.social = Math.min(100, n.social + 1.5 * d);
+    if (o && !o.dentro && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) > 4) { soltarTarea(s, a); tareaHijo(s, a, 'seguir', { con: o.id }); return; }
+  } else if (T.tipo === 'jugar') n.diversion = Math.min(100, n.diversion + 1.0 * d);
+  else if (T.tipo === 'jugarDentro') n.diversion = Math.min(100, n.diversion + 0.6 * d);
+  T.trabajo -= d;
+  if (T.trabajo > 0) return;
+  if (AYUDA_HIJO.includes(T.tipo)) {
+    completar(s, a, T);
+    if (['recogerHuevos', 'alimentar', 'regar'].includes(T.tipo)) { const ar = AREA[T.tipo]; if (ar) a.xp[ar] = (a.xp[ar] || 0) + 15; for (const h of humanos(s)) recuerdo(s, h, `${a.nombre} ayudó en la granja`, 3, 8); }
+  }
+  if (a.tarea === T) soltarTarea(s, a);
+}
+function elegirTareaHijo(s, a, et) {
+  const n = a.n, R = s.rec, [dd, dp] = SUENO_HIJO[et], h = hora(s), noche = h >= dd || h < dp;
+  if (n.agua < 45 && (R.potable >= 1 || R.cruda >= 1)) return crearTarea(s, a, 'beber');
+  if (n.comida < 45 && comidaTotal(s) >= 1) return crearTarea(s, a, 'comer');
+  if (noche || n.energia < 20) return crearTarea(s, a, 'dormir');
+  if (lloviendo(s) || (frio(s) && rng(s) < 0.5)) return tareaHijo(s, a, 'jugarDentro');
+  const padres = humanos(s), perro = s.agentes.find((x) => x.tipo === 'perro' && x.vivo && !x.dentro), gato = s.agentes.find((x) => x.tipo === 'gato' && x.vivo && !x.dentro && !x.trepado);
+  const op = [];
+  if (et !== 'nino') {
+    if (R.nido >= 1 && !yaHaceAlguien(s, a, 'recogerHuevos')) op.push([3, 'recogerHuevos']);
+    if ((R.comedero < 0.5 || R.bebedero < 2) && comidaTotal(s) >= 1 && !yaHaceAlguien(s, a, 'alimentar') && s.agentes.some((x) => esMascota(x) && x.vivo)) op.push([3, 'alimentar']);
+    const p = s.parcelas.find((q) => !q.reservada && q.estado === 'creciendo' && q.agua < 45);
+    if (p && R.cruda >= 12) op.push([et === 'adulto' ? 4 : 2, 'regar', { parcela: p.id }]);
+  }
+  if (perro && n.diversion < 85) op.push([tiene(a, 'jugueton') ? 3 : 2, 'jugarConPerro']);
+  if (gato && n.diversion < 85) op.push([1.5, 'jugarConGato']);
+  const trabaja = padres.find((x) => !x.dentro && x.tarea?.fase === 'trabajo' && AREA[x.tarea.tipo]);
+  if (trabaja && et !== 'adulto') op.push([et === 'nino' ? 2.5 : 1.5, 'aprender', { con: trabaja.id }]);
+  const afuera = padres.find((x) => !x.dentro && !x.nadando);
+  if (afuera && n.social < 80) op.push([2, 'seguir', { con: afuera.id }]);
+  op.push([1.5, 'jugar']);
+  let r = rng(s) * op.reduce((t, x) => t + x[0], 0);
+  for (const [w, tipo, extra] of op) if ((r -= w) <= 0) return tareaHijo(s, a, tipo, extra);
+  return tareaHijo(s, a, 'jugar');
+}
+function tareaHijo(s, a, tipo, extra = {}) {
+  if (['recogerHuevos', 'alimentar', 'regar'].includes(tipo)) return crearTarea(s, a, tipo, extra);
+  if (tipo === 'jugarDentro') { if (a.dentro) { a.tarea = { tipo, fase: 'trabajo', trabajo: 40, inicio: s.t, dentro: true }; return a.tarea; } const t = crearTarea(s, a, 'deambular', { destino: { ...LUGAR.puerta }, trabajo: 40 }); Object.assign(t, { tipo, dentro: true }); return t; }
+  const o = extra.con && s.agentes.find((x) => x.id === extra.con);
+  const m = tipo === 'jugarConPerro' ? s.agentes.find((x) => x.tipo === 'perro' && x.vivo) : tipo === 'jugarConGato' ? s.agentes.find((x) => x.tipo === 'gato' && x.vivo) : null;
+  const base = o ? o.pos : m ? m.pos : { x: LUGAR.banca.x + (rng(s) - 0.5) * 8, z: LUGAR.banca.z + 2 + rng(s) * 4 };
+  const destino = { x: base.x + 1.1 + (rng(s) - 0.5) * 0.6, z: base.z + 0.8 + (rng(s) - 0.5) * 0.6 };
+  const t = crearTarea(s, a, 'deambular', { destino, trabajo: { aprender: 30, seguir: 25, jugar: 30, jugarConPerro: 25, jugarConGato: 20 }[tipo] || 25 });
+  t.tipo = tipo; Object.assign(t, extra);
+  return t;
+}
+
 // ---------------------------------------------------------------- partida nueva
 const placeresNuevos = () => ({ parras: PARRAS.slice(0, PARRAS_BASE).map((q, i) => ({ id: i, ...q, uvas: 0 })), matas: MATAS.map((q, i) => ({ id: i, ...q, crec: 0.2, estado: 'creciendo' })), barricas: [], curado: [] });
 // (arrancan con algunos ahorros y el comerciante llega pronto)
@@ -465,7 +672,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
+    ...placeresNuevos(), familia: familiaNueva(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -560,7 +767,7 @@ function vigilar(s) {
       s.stats.rescates = (s.stats.rescates || 0) + 1;
       if (quieto && !a.dentro) a.pos = { ...LUGAR.puerta };
       try { soltarTarea(s, a); } catch { a.tarea = null; }
-      if (a.tipo !== 'humano') a.dentro = false;
+      if (esMascota(a)) a.dentro = false;
     }
     if (!p || Math.hypot(a.pos.x - p.x, a.pos.z - p.z) >= 0.05) a._vig = { x: a.pos.x, z: a.pos.z, t: s.t };
   }
@@ -671,7 +878,7 @@ function tick(s, d) {
   encuentros(s);
   if (s.fuegos?.length || s.lobos || s.ladron || s.forastero) crisisTick(s, d);
   if (s.comercio?.visita) comercioTick(s);
-  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); heridasTick(s); quiebres(s); }
+  if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); heridasTick(s); quiebres(s); familiaTick(s); }
 }
 
 function nuevoDia(s) {
@@ -703,6 +910,7 @@ function nuevoDia(s) {
   placeresDelDia(s);
   comercioDelDia(s);
   dilemasDelDia(s);
+  familiaDelDia(s);
   narradorDelDia(s);
   for (const a of humanos(s)) a.forma = Math.max(10, (a.forma ?? 40) - 0.45);   // sin entrenar se pierde
   aplicarProyectos(s);
@@ -718,7 +926,7 @@ function nuevoDia(s) {
 }
 
 // ---------------------------------------------------------------- eventos de la naturaleza y de la vida
-const LONGEVIDAD = { humano: 70, perro: 13, gato: 16, vaca: 18, oveja: 12, gallina: 8, gallo: 8, pollito: 8 };
+const LONGEVIDAD = { nino: 70, humano: 70, perro: 13, gato: 16, vaca: 18, oveja: 12, gallina: 8, gallo: 8, pollito: 8 };
 function perdidaDeCosecha(s, texto) {
   for (const a of humanos(s)) {
     if (P5(a, 'neuroticismo') > 0.5 && rng(s) < 0.6) { recuerdo(s, a, 'Lloró por la cosecha perdida', -14, 24); log(s, `${a.nombre} se puso a llorar: ${texto}.`, 'malo'); }
@@ -1027,7 +1235,7 @@ function elegirCultivo(s, a, invernadero = false, parcela = null) {
 }
 
 // ---------------------------------------------------------------- animales de granja (vaca, ovejas, gallinas, gallo)
-const VEL = { humano: 1.35, perro: 2.6, gato: 2.2, vaca: 0.55, oveja: 0.7, gallina: 0.9, gallo: 0.9, pollito: 0.75 };   // unidades por minuto de juego
+const VEL = { nino: 1.15, humano: 1.35, perro: 2.6, gato: 2.2, vaca: 0.55, oveja: 0.7, gallina: 0.9, gallo: 0.9, pollito: 0.75 };   // unidades por minuto de juego
 const HAMBRE_G = { vaca: 3.2, oveja: 2.6, gallina: 2.4, gallo: 2.4, pollito: 1.6 };
 function actualizarGranja(s, d) {
   const e = estacion(s), G = s.granja, R = s.rec, k = d / 60, h = hora(s);
@@ -1150,6 +1358,7 @@ const TASA = {
   humano: { comida: 2.2, agua: 4, energia: 4 },
   perro: { comida: 2.0, agua: 3.5, energia: 3 },
   gato: { comida: 1.6, agua: 2.5, energia: 2.5 },
+  nino: { comida: 2.4, agua: 3.6, energia: 4.2 },
 };
 function necesidades(s, a, d) {
   const T = TASA[a.tipo], n = a.n, k = d / 60, est = estres(s, a);
@@ -1172,7 +1381,9 @@ function necesidades(s, a, d) {
   const vejez = Math.max(0, (a.edad - LONGEVIDAD[a.tipo] * 0.7) / (LONGEVIDAD[a.tipo] * 0.3));
   if (n.comida > 40 && n.agua > 40 && n.energia > 15) dS += 0.6 * (1 - 0.7 * Math.min(1, vejez));
   n.salud = Math.min(100, Math.max(0, n.salud + dS * k));
+  if (a.embarazada && !durmiendo) n.energia = Math.max(0, n.energia - 0.9 * k);   // el embarazo cansa
   if (a.tipo === 'humano') calcularAnimo(s, a);
+  else if (a.tipo === 'nino') { const m = (n.comida + n.agua + n.energia + n.salud + n.social + n.diversion) / 6; a.animo += (m - a.animo) * Math.min(1, 0.05 * k); }
   if (n.salud <= 0) morir(s, a);
 }
 
@@ -1182,8 +1393,12 @@ function morir(s, a, causa) {
   soltarTarea(s, a);
   a.accion = 'Murió';
   log(s, `${a.nombre} murió ${a.causa}. 🕯️`, 'muerte');
-  for (const o of humanos(s)) { recuerdo(s, o, `Duelo por ${a.nombre}`, a.tipo === 'humano' ? -35 : -18, a.tipo === 'humano' ? 24 * 14 : 24 * 5); memoria(s, o, `La partida de ${a.nombre}`, a.tipo === 'humano' ? -5 : -3); }
+  const hijoX = a.tipo === 'nino';
+  for (const o of humanos(s)) { recuerdo(s, o, `Duelo por ${a.nombre}`, hijoX ? -50 : a.tipo === 'humano' ? -35 : -18, hijoX ? 24 * 24 : a.tipo === 'humano' ? 24 * 14 : 24 * 5); memoria(s, o, `La partida de ${a.nombre}`, hijoX ? -8 : a.tipo === 'humano' ? -5 : -3); }
+  if (a.embarazada && s.familia?.embarazo) { s.familia.embarazo = null; a.embarazada = false; }
+  if (s.agentes.filter((x) => x.tipo === 'humano').every((h) => !h.vivo) && heredar(s)) return;
   if (s.agentes.filter((x) => x.tipo === 'humano').every((h) => !h.vivo)) {
+    if (hijos(s).length) { log(s, `Los niños (${hijos(s).map((k) => k.nombre).join(', ')}) se fueron a vivir con sus tíos al pueblo.`, 'muerte'); for (const k of hijos(s)) { k.vivo = false; k.seFue = true; k.causa = 'se fue al pueblo'; k.accion = 'Se fue al pueblo'; } }
     s.fin = { t: s.t, dias: diasVividos(s) };
     log(s, `Fin de la generación ${s.generacion}: la granja quedó vacía tras ${s.fin.dias} días.`, 'muerte');
   }
@@ -1197,10 +1412,10 @@ function soltarTarea(s, a) {
   if (T.tipo === 'nadar' && a.nadando) { a.nadando = false; a.pos = { ...LUGAR.piscina }; }
   a.tarea = null;
 }
-const DENTRO = ['comer', 'beber', 'dormir', 'filtrar', 'cocinar', 'cenar', 'limpiarCasa', 'hacerConservas', 'hacerQueso', 'hornear', 'reposo'];
+const DENTRO = ['cuidarBebe', 'comer', 'beber', 'dormir', 'filtrar', 'cocinar', 'cenar', 'limpiarCasa', 'hacerConservas', 'hacerQueso', 'hornear', 'reposo'];
 const AFUERA_URGENTE = ['filtrar'];
 const DURACION = {
-  comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
+  cuidarBebe: 20, comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
   descansar: 40, leer: 60, tallar: 50, contemplar: 35, jugarGato: 25, pasearPerro: 0, conversar: 25, cocinar: 45, cenar: 35, limpiarCasa: 40, siesta: 50,
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
   reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
@@ -1300,6 +1515,7 @@ function elegirTarea(s, a) {
   if (n.agua < 25) return crearTarea(s, a, 'beberPiscina');   // sin agua guardada: de la piscina
   if (n.comida < (est === 'raciona' ? 25 : 40) && comidaTotal(s) >= 1) return crearTarea(s, a, 'comer');
   if (n.energia < 18) return crearTarea(s, a, 'dormir');
+  { const b = bebeQueNecesita(s); if (b && n.energia > 10 && !s.agentes.some((x) => x !== a && x.tarea?.tipo === 'cuidarBebe')) return crearTarea(s, a, 'cuidarBebe', { bebe: b.id }); }
   if (s.fuegos?.length && s.politica?.incendio !== 'dejar' && n.energia > 8 && n.agua > 25 && (R.cruda >= 55 || R.bebederoGanado >= 25)) return crearTarea(s, a, 'apagarFuego', { fuego: s.fuegos[0].id });
   if (s.fuegos?.some((F) => F.lugar === 'casa' && F.intensidad > 0.3)) { if (a.dentro || (a.tarea?.dentro)) return crearTarea(s, a, 'deambular', { trabajo: 30, destino: { x: LUGAR.banca.x, z: LUGAR.banca.z + 1.5 } }); }   // la casa arde: afuera
   if (s.lobos && s.politica?.lobos === 'guardia' && s.t >= s.lobos.llegan - 60 && n.energia > 10 && !yaHaceAlguien(s, a, 'guardia')) return crearTarea(s, a, 'guardia');
@@ -1344,7 +1560,7 @@ function elegirTarea(s, a) {
   if (animalesGranja && !yaHace('alimentarGanado') && ((R.pesebre < 3 && (e === 3 || s.granja.pasto < 25 || hambreGranja) && (R.heno >= 2 || (hambreGranja && R.raciones > reservaHumana))) || (R.bebederoGanado < 15 && R.cruda >= (sedGanado ? 5 : 20)) || (e === 3 && R.grano < 0.5 && R.raciones >= 1)))
     opciones.push([hambreGranja || (sedGanado && R.bebederoGanado < 15) ? 94 : 72, 'alimentarGanado']);
   { const p = s.parcelas.find((p) => p.estado === 'vacia' && libre(p) && (elegirCultivo(s, a) || (obra(s, 'invernadero') && p.id >= 9))); const c = p && elegirCultivo(s, a, obra(s, 'invernadero') && p.id >= 9, p); if (p && c) opciones.push([comidaTotal(s) > 300 ? 28 : 70, 'sembrar', { parcela: p.id, cultivo: c }]); }
-  if ((R.comedero < 0.5 || R.bebedero < 2) && (comidaTotal(s) >= 1 || R.cruda >= 3) && !yaHace('alimentar') && s.agentes.some((x) => x.tipo !== 'humano' && x.vivo)) opciones.push([65, 'alimentar']);
+  if ((R.comedero < 0.5 || R.bebedero < 2) && (comidaTotal(s) >= 1 || R.cruda >= 3) && !yaHace('alimentar') && s.agentes.some((x) => esMascota(x) && x.vivo)) opciones.push([65, 'alimentar']);
   { const p = s.parcelas.find((p) => p.estado === 'muerta' && libre(p)); if (p) opciones.push([60, 'limpiar', { parcela: p.id }]); }
   // sanidad vegetal: quien tiene mano verde ve la plaga antes
   { const ve = tiene(a, 'manoVerde') ? 0.12 : 0.3;
@@ -1510,6 +1726,7 @@ const VA_A = {
 
 const OCIO_LLENA = { entrenar: 0.8, hornear: 0.8, tomarVino: 0.9, fumar: 1.0, cuidarJardin: 0.7, esculpir: 0.6, leer: 0.7, tallar: 0.75, contemplar: 0.8, jugarGato: 1.1, descansar: 0.35, siesta: 0.3, tejer: 0.6, nadar: 1.1, recogerFlores: 0.8, jugarPerro: 1.2 };
 function comportamiento(s, a, d) {
+  if (a.tipo === 'nino') return comportamientoHijo(s, a, d);
   if (a.tipo !== 'humano') return comportamientoAnimal(s, a, d);
   const T0 = a.tarea;
   // lluvia: lo que se hace afuera se deja (salvo lo muy urgente) y corren a la casa
@@ -1549,6 +1766,9 @@ function comportamiento(s, a, d) {
     return;
   }
   if (T.tipo === 'dormir') {
+    // el bebé llora de noche: se levanta quien tenga el turno (una noche cada uno)
+    const llora = bebeLlora(s);
+    if (llora && turnoNoche(s) === a && !s.agentes.some((x) => x.tarea?.tipo === 'cuidarBebe')) { soltarTarea(s, a); crearTarea(s, a, 'cuidarBebe', { bebe: llora.id, desvelo: true }); return; }
     if (!horaDeDormir(s, a) && a.n.energia >= 95) { soltarTarea(s, a); despertar(s, a); }
     else if ((a.n.agua < 15 && s.rec.potable >= 1) || (a.n.comida < 15 && comidaTotal(s) >= 1)) soltarTarea(s, a);
     return;
@@ -1742,9 +1962,20 @@ function completar(s, a, T) {
         for (const k of ['raciones', 'secos', 'conservas', 'huevos', 'queso']) { const c = Math.min(falta, R[k] || 0); if (c > 0) { R[k] -= c; R.comedero += c; falta -= c; } if (falta <= 0) break; }
       }
       if (R.cruda >= 1 && R.bebedero < 6) { const l = Math.min(6 - R.bebedero, R.cruda); R.cruda -= l; R.bebedero += l; }
-      for (const m of s.agentes) if (m.vivo && m.tipo !== 'humano') vincular(s, m, a, 0.5);
+      for (const m of s.agentes) if (m.vivo && esMascota(m)) vincular(s, m, a, 0.5);
       break;
     case 'ordenar': { const v = vaca(s); if (v) { const l = Math.round(v.ubre * (mejora(s, 'ordenoExperto') ? 12 : 10)) / 10; R.leche += l; s.stats.leche += l; v.ubre = 0; v.quieta = 0; log(s, `${a.nombre} ordeñó a ${v.nombre}: ${l.toFixed(1)} L de leche.`, 'bueno'); } break; }
+    case 'cuidarBebe': {
+      const b = s.agentes.find((x) => x.id === T.bebe && x.vivo); if (!b) break;
+      // solo se gasta comida y agua si el bebé de verdad tiene hambre o sed (si no, son mimos)
+      if (b.n.comida < 75 && !consumirComida(s, b, 50)) log(s, `${a.nombre} no tuvo con qué alimentar a ${b.nombre}: no queda comida.`, 'aviso');
+      if (b.n.agua < 75) { if (R.potable >= 0.5) { R.potable -= 0.5; b.n.agua = Math.min(100, b.n.agua + 55); } else if (R.cruda >= 0.5) { R.cruda -= 0.5; b.n.agua = Math.min(100, b.n.agua + 45); } }
+      b.n.social = Math.min(100, b.n.social + 50); b.n.diversion = Math.min(100, b.n.diversion + 35);
+      a.xp.cuidado = (a.xp.cuidado || 0) + 10; a.n.social = Math.min(100, a.n.social + 10);
+      recuerdo(s, a, `Cuidó a ${b.nombre}`, 5, 8);
+      if (T.desvelo) { a.n.energia = Math.max(0, a.n.energia - 6); recuerdo(s, a, `Desvelo con ${b.nombre}`, -3, 10); }
+      break;
+    }
     case 'recogerHuevos': { const n = Math.floor(R.nido); R.huevos += n; R.nido -= n; s.stats.huevos += n; if (n) log(s, `${a.nombre} recogió ${n} huevo${n > 1 ? 's' : ''} del gallinero.`, 'info'); break; }
     case 'esquilar': { const o = s.ganado.find((g) => g.id === T.oveja); if (o) { const l = Math.round(o.lana / 25) + (mejora(s, 'esquilaFina') ? 1 : 0); R.lana += l; s.stats.lana += l; o.lana = 0; o.quieta = 0; log(s, `${a.nombre} esquiló a ${o.nombre}: +${l} de lana.`, 'bueno'); } break; }
     case 'segar': { const h = Math.min(16, s.granja.pasto / 4); R.heno += h; s.granja.pasto -= h * 1.3 / AREA_PASTO; log(s, `${a.nombre} segó pasto: +${Math.round(h)} de heno para el invierno.`, 'info'); break; }
@@ -2192,13 +2423,15 @@ export function setPrioridad(s, id, area, v) { (s.prioridades ||= {})[id] ||= {}
 // alertas tipo RimWorld: lo que necesita atención ahora
 export function alertas(s) {
   const L = [], R = s.rec, H = humanos(s);
-  const consumo = H.length * 1.4 + s.agentes.filter((a) => a.vivo && a.tipo !== 'humano').length * 0.5;
+  const consumo = H.length * 1.4 + hijos(s).length * 0.9 + s.agentes.filter((a) => a.vivo && esMascota(a)).length * 0.5;
   const diasComida = consumo ? comidaTotal(s) / consumo : 99;
   if (diasComida < 3) L.push(['rojo', `Comida para ${Math.max(0, Math.floor(diasComida))} días`]); else if (diasComida < 7) L.push(['amarillo', `Comida para ${Math.floor(diasComida)} días`]);
   if (R.potable + R.cruda < H.length * 10) L.push(['rojo', 'Casi sin agua']);
   for (const F of s.fuegos || []) L.push(['rojo', `🔥 Incendio en ${F.nombre}`]);
   if (s.lobos) L.push(['rojo', `🐺 ${s.lobos.n} lobos rondan el potrero`]);
   if (s.ladron) L.push(['amarillo', '🕵️ Un extraño ronda la granja']);
+  for (const k of hijos(s)) { if (k.n.comida < 25 || k.n.agua < 25) L.push(['rojo', `👶 ${k.nombre} tiene ${k.n.comida < k.n.agua ? 'hambre' : 'sed'}`]); else if (k.n.salud < 50) L.push(['rojo', `👶 ${k.nombre} está débil`]); }
+  if (s.familia?.embarazo) { const dd = Math.ceil((s.familia.embarazo.fin - s.t) / MIN_DIA); if (dd <= 3) L.push(['amarillo', `🤰 El bebé llega en ${dd} día${dd === 1 ? '' : 's'}`]); }
   if (s.pozoRoto) L.push(['amarillo', '🚱 El pozo está roto']);
   if (s.comercio?.visita?.llego) L.push(['amarillo', `🛒 ${COMERCIANTE} está en la granja hasta las 5`]);
   for (const a of s.agentes.filter((x) => x.vivo)) {
@@ -2257,6 +2490,10 @@ function resolver(s, d, k, jugador) {
   } else log(s, `${pre}: ${d.titulo.toLowerCase()} → ${op.txt.toLowerCase()}.`, 'decision');
   switch (d.tipo) {
     case 'crias': P.crias = k; break;
+    case 'hijo': s.familia.plan = k; if (k === 'esperar') s.familia.planHasta = dia(s) + 28; break;
+    case 'parto': { const F = s.familia; if (k === 'partera' && s.comercio.monedas >= 80) { s.comercio.monedas -= 80; F.parto = 'partera'; log(s, '🧑‍⚕️ La partera del pueblo vendrá para el parto (80 monedas).', 'info'); } else { F.parto = 'casa'; if (k === 'partera') log(s, 'No alcanzó el dinero para la partera: el parto será en casa.', 'aviso'); } break; }
+    case 'nombre': { const h = s.agentes.find((x) => x.id === d.datos.hijo); if (h && h.nombre !== k) { log(s, `Le pusieron ${k} (antes le decían ${h.nombre}).`, 'info'); h.nombre = k; } break; }
+    case 'mayoria': { const h = s.agentes.find((x) => x.id === d.datos.hijo && x.vivo); if (h && k === 'estudiar') irseAlPueblo(s, h); break; }
     case 'incendio': case 'lobos': case 'ladron': case 'fiebre': case 'forastero': case 'pozo': case 'langostas': case 'tratamiento': resolverCrisis(s, d, k); break;
     case 'estilo': s.casa.estilo = k; s.casa.diaEstilo = dia(s); empezarMejora(s, 'fachada'); break;
     case 'reforma': if (k !== 'no' && s.comercio.monedas >= 300) { s.comercio.monedas -= 300; s.casa.obra = { id: 'reforma', progreso: 0, estilo: k }; s.casa.diaEstilo = dia(s); log(s, `🎨 Empieza la reforma a estilo ${ESTILOS[k].nombre.toLowerCase()} (300 monedas).`, 'logro'); } break;
@@ -2444,7 +2681,7 @@ export function actuar(s, id, accion) {
 
 // ---------------------------------------------------------------- salud con heridas (estilo RimWorld)
 // cada herida: tipo, parte del cuerpo, severidad (0 a 1), si ya se curó/vendó, e infección que crece si no se trata
-const NOMBRE_HERIDA = { corte: 'un corte', quemadura: 'una quemadura', mordida: 'una mordida', golpe: 'un golpe', fractura: 'una fractura', fiebre: 'fiebre alta', intoxicacion: 'una intoxicación' };
+const NOMBRE_HERIDA = { parto: 'complicaciones en el parto', corte: 'un corte', quemadura: 'una quemadura', mordida: 'una mordida', golpe: 'un golpe', fractura: 'una fractura', fiebre: 'fiebre alta', intoxicacion: 'una intoxicación' };
 export function herir(s, a, tipo, sev, parte, causa) {
   if (!a || !a.vivo) return;
   a.heridas ||= [];
@@ -2840,6 +3077,7 @@ function encuentros(s) {
     const prob = 0.06 + (s.pareja.afinidad - 60) / 260 + (s.pareja.recetaNueva ? 0.05 : 0) + Math.min(0.1, (dia(s) - (s.pareja.diaIntimo ?? -99)) / 100) + ([a, b].some((x) => tiene(x, 'romantico')) ? 0.025 : 0) - (s.pareja.tension || 0) / 300
       + ((a.deseoSex || 0) + (b.deseoSex || 0)) / 500 + ([a, b].some((x) => s.t - (x.vinoT || -1e9) < 300 && !(x.borrachoHasta > s.t)) ? 0.08 : 0);
     if (rng(s) > prob) return;
+    concebir(s);
     const iniciativa = [a, b].sort((x, y) => (P5(y, 'extraversion') - P5(y, 'neuroticismo')) - (P5(x, 'extraversion') - P5(x, 'neuroticismo')))[0];
     const gato = s.agentes.find((x) => x.tipo === 'gato' && x.vivo && x.dentro);
     if (gato && rng(s) < 0.4) {
@@ -2875,8 +3113,8 @@ function comportamientoAnimal(s, a, d) {
     else if (n.comida < 45 && R.comedero >= 0.3) a.tarea = { tipo: 'comer', fase: 'camino', destino: { x: LUGAR.comedero.x + 0.3, z: LUGAR.comedero.z + 0.6 }, trabajo: 10 };
     else if (gato && cocinando && rng(s) < 0.02) a.tarea = { tipo: 'pedir', fase: 'camino', destino: { ...LUGAR.puerta }, trabajo: 30, dentro: true };
     // juegan entre ellos: el perro persigue al gato (de día, si los dos están libres)
-    else if (!esNoche(s) && n.energia > 30 && rng(s) < 0.05 && (() => { const o = s.agentes.find((x) => x !== a && x.vivo && x.tipo !== 'humano'); return o && (!o.tarea || ['siesta', 'seguir', 'explorar'].includes(o.tarea.tipo)) && !o.dentro && !a.dentro; })()) {
-      const o = s.agentes.find((x) => x !== a && x.vivo && x.tipo !== 'humano');
+    else if (!esNoche(s) && n.energia > 30 && rng(s) < 0.05 && (() => { const o = s.agentes.find((x) => x !== a && x.vivo && esMascota(x)); return o && (!o.tarea || ['siesta', 'seguir', 'explorar'].includes(o.tarea.tipo)) && !o.dentro && !a.dentro; })()) {
+      const o = s.agentes.find((x) => x !== a && x.vivo && esMascota(x));
       const lugar = { x: 8 + (rng(s) - 0.5) * 14, z: 22 + (rng(s) - 0.5) * 8 };
       a.tarea = { tipo: 'jugarJuntos', fase: 'camino', destino: { ...lugar }, trabajo: 15 + rng(s) * 20, centro: lugar, con: o.id };
       o.tarea = { tipo: 'jugarJuntos', fase: 'camino', destino: { x: lugar.x + 1.5, z: lugar.z }, trabajo: a.tarea.trabajo, centro: lugar, con: a.id };
@@ -3137,7 +3375,7 @@ function migrar(s) {
       const p = PERSONAJES.find((x) => x.id === a.id);
       if (p) { a.nombre = p.nombre; a.rasgos = [...p.rasgos]; }   // nombres y rasgos salen siempre de las fichas
       a.memorias ??= []; a.xp.carpinteria ??= 0;
-      if (a.tipo !== 'humano') a.vinculo ??= Object.fromEntries(PERSONAJES.filter((h) => h.tipo === 'humano').map((h) => [h.id, Math.round((h.habitos?.animales?.[a.id] ?? 0.5) * 100)]));
+      if (esMascota(a)) a.vinculo ??= Object.fromEntries(PERSONAJES.filter((h) => h.tipo === 'humano').map((h) => [h.id, Math.round((h.habitos?.animales?.[a.id] ?? 0.5) * 100)]));
     }
     for (let i = s.parcelas.length; i < PARCELAS.length; i++) s.parcelas.push({ id: i, x: PARCELAS[i].x, z: PARCELAS[i].z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null });
     for (const p of s.parcelas) for (const [k, v] of Object.entries(sueloNuevo())) p[k] ??= v;
@@ -3150,7 +3388,7 @@ function migrar(s) {
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
     if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
-    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {};
+    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva();
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
     if (!s.jugador) Object.assign(s, jugadorNuevo());

@@ -13,7 +13,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM, etapaDe } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -386,15 +386,70 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     // escalera (de la sala al dormitorio)
     for (let k = 0; k < 12; k++) { const u = (k + 0.5) / 12; bx(1.0, 0.18, 0.42, madera, -4.75, y0 + u * (y1 - y0) - 0.09, 4.7 - u * 3.8); }
     // planta alta: dormitorio y estudio
-    bx(2.2, 0.45, 2.6, madera, 0.2, y1 + 0.22, -4.2);
-    bx(2.1, 0.12, 2.4, M(0x7a9cc6, { roughness: 1 }), 0.2, y1 + 0.5, -4.0);         // cobija
-    for (const dx of [-0.5, 0.5]) bx(0.8, 0.14, 0.45, blanco, 0.2 + dx, y1 + 0.58, -5.2);   // almohadas
-    bx(2.2, 1.1, 0.12, madera, 0.2, y1 + 0.6, -5.5);                              // cabecera
-    for (const sx of [-1, 1]) bx(0.5, 0.55, 0.45, madera, 0.2 + sx * 1.5, y1 + 0.28, -5.3);
+    bx(2.8, 0.45, 3.3, madera, 0.2, y1 + 0.22, -3.85);
+    bx(2.7, 0.12, 3.0, M(0x7a9cc6, { roughness: 1 }), 0.2, y1 + 0.5, -3.6);         // cobija
+    for (const dx of [-0.65, 0.65]) bx(0.9, 0.14, 0.45, blanco, 0.2 + dx, y1 + 0.58, -5.2);   // almohadas
+    bx(2.8, 1.1, 0.12, madera, 0.2, y1 + 0.6, -5.5);                              // cabecera
+    for (const sx of [-1, 1]) bx(0.5, 0.55, 0.45, madera, 0.2 + sx * 1.75, y1 + 0.28, -5.3);
     bx(2.0, 2.2, 0.4, madera, 3.5, y1 + 1.1, -5.6);                               // biblioteca
     const libros = [0xc0392b, 0x2e6da4, 0xe2b33c, 0x3e8e5b, 0x8e44ad];
     for (let r = 0; r < 4; r++) for (let k = 0; k < 9; k++) bx(0.16, 0.38, 0.28, M(libros[(r * 3 + k) % 5]), 2.7 + k * 0.2, y1 + 0.35 + r * 0.52, -5.5);
     bx(1.0, 0.45, 0.9, M(0x6f8f5a, { roughness: 0.95 }), 4.6, y1 + 0.3, 3.4); bx(0.25, 0.7, 0.9, M(0x6f8f5a), 5.1, y1 + 0.75, 3.4);
+  }
+  // cuarto de los niños: cuna y dos camitas (aparecen cuando hay hijos)
+  const cuartoNinos = new THREE.Group(); cuartoNinos.visible = false; root.add(cuartoNinos);
+  const CUNA = { x: -2.4, z: -4.7 };
+  {
+    const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...o });
+    const add = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; cuartoNinos.add(o); return o; };
+    const y1 = PISO[1], blanco = M(0xf6f1e6), madera = M(0xc89b6a), celeste = M(0x9cc7e8), rosa = M(0xe8a8b8);
+    add(0.72, 0.06, 1.12, madera, CUNA.x, y1 + 0.45, CUNA.z); add(0.66, 0.08, 1.06, blanco, CUNA.x, y1 + 0.52, CUNA.z);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(0.05, 0.95, 0.05, madera, CUNA.x + sx * 0.34, y1 + 0.47, CUNA.z + sz * 0.54);
+    for (const sx of [-1, 1]) { add(0.03, 0.03, 1.1, madera, CUNA.x + sx * 0.34, y1 + 0.92, CUNA.z); for (let k = -4; k <= 4; k++) add(0.02, 0.38, 0.02, madera, CUNA.x + sx * 0.34, y1 + 0.72, CUNA.z + k * 0.12); }
+    for (const sz of [-1, 1]) add(0.7, 0.03, 0.03, madera, CUNA.x, y1 + 0.92, CUNA.z + sz * 0.54);
+    [[-3.0, celeste], [-2.0, rosa]].forEach(([x, cob]) => {
+      add(0.9, 0.3, 2.9, madera, x, y1 + 0.16, -2.2); add(0.84, 0.1, 2.8, blanco, x, y1 + 0.36, -2.2); add(0.86, 0.06, 2.0, cob, x, y1 + 0.43, -1.8);
+      add(0.55, 0.1, 0.32, blanco, x, y1 + 0.45, -3.38); add(0.9, 0.7, 0.08, madera, x, y1 + 0.36, -3.66);
+    });
+  }
+  // obstáculos de la casa por piso [piso, x0, x1, z0, z1, (condición)]: para caminar rodeando los muebles
+  const OBST = [
+    [0, -4.3, -1.0, -5.9, -5.1], [0, -5.45, -4.55, -5.5, -4.7], [0, -2.3, -0.1, -2.2, -1.0],
+    [0, -2.15, -1.65, -2.9, -2.4], [0, -0.75, -0.25, -2.9, -2.4], [0, -2.15, -1.65, -0.8, -0.3], [0, -0.75, -0.25, -0.8, -0.3],
+    [0, 0.95, 4.25, 4.15, 5.2], [0, 4.25, 5.4, 0.15, 1.05], [0, 2.0, 3.2, 2.15, 2.85], [0, 0.4, 2.0, -5.9, -5.3], [0, -5.25, -4.25, 0.9, 4.4],
+    [0, -3.7, -1.5, -4.2, -3.3, () => cocinaModerna.visible],
+    [1, -1.2, 1.6, -5.6, -2.2], [1, -1.8, -1.3, -5.55, -5.05], [1, 1.7, 2.2, -5.55, -5.05], [1, 2.5, 4.5, -5.8, -5.4], [1, 4.1, 5.3, 2.95, 3.85], [1, -5.3, -4.2, 1.1, 4.8],
+    [1, 3.3, 5.4, -3.2, -1.6, () => banoG.visible], [1, 5.15, 5.65, -4.45, -3.95, () => banoG.visible],
+    [1, -2.8, -2.0, -5.3, -4.1, () => cuartoNinos.visible], [1, -3.45, -2.55, -3.7, -0.75, () => cuartoNinos.visible], [1, -2.45, -1.55, -3.7, -0.75, () => cuartoNinos.visible],
+  ];
+  const MARGEN_NAV = 0.3;
+  const dentroR = (p, r) => p.x > r[0] && p.x < r[1] && p.z > r[2] && p.z < r[3];
+  function cruzaR(a, b, r) {   // ¿el tramo a→b atraviesa el rectángulo? (Liang–Barsky)
+    let t0 = 0, t1 = 1; const dx = b.x - a.x, dz = b.z - a.z;
+    for (const [pp, q] of [[-dx, a.x - r[0]], [dx, r[1] - a.x], [-dz, a.z - r[2]], [dz, r[3] - a.z]]) {
+      if (Math.abs(pp) < 1e-9) { if (q < 0) return false; continue; }
+      const u = q / pp; if (pp < 0) { if (u > t1) return false; if (u > t0) t0 = u; } else { if (u < t0) return false; if (u < t1) t1 = u; }
+    }
+    return t0 < t1;
+  }
+  // camino más corto rodeando los muebles (grafo de visibilidad entre las esquinas)
+  function rutaInterior(desde, hasta, piso) {
+    const y = PISO[piso];
+    const rs = OBST.filter((o) => o[0] === piso && (!o[5] || o[5]())).map((o) => [o[1] - MARGEN_NAV, o[2] + MARGEN_NAV, o[3] - MARGEN_NAV, o[4] + MARGEN_NAV])
+      .filter((r) => !dentroR(desde, r) && !dentroR(hasta, r));   // si empieza o termina dentro (una silla), ese mueble no estorba
+    const libre = (a, b) => !rs.some((r) => cruzaR(a, b, r));
+    if (libre(desde, hasta)) return [V(hasta.x, y, hasta.z)];
+    const nodos = [desde, hasta];
+    for (const r of rs) for (const [x, z] of [[r[0] - 0.02, r[2] - 0.02], [r[1] + 0.02, r[2] - 0.02], [r[0] - 0.02, r[3] + 0.02], [r[1] + 0.02, r[3] + 0.02]]) { const q = { x, z }; if (!rs.some((o) => dentroR(q, o))) nodos.push(q); }
+    const N = nodos.length, dist = new Array(N).fill(Infinity), prev = new Array(N).fill(-1), hecho = new Array(N).fill(false); dist[0] = 0;
+    for (;;) {
+      let u = -1; for (let i = 0; i < N; i++) if (!hecho[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+      if (u < 0 || u === 1) break; hecho[u] = true;
+      for (let v2 = 0; v2 < N; v2++) if (!hecho[v2] && libre(nodos[u], nodos[v2])) { const d = dist[u] + Math.hypot(nodos[u].x - nodos[v2].x, nodos[u].z - nodos[v2].z); if (d < dist[v2]) { dist[v2] = d; prev[v2] = u; } }
+    }
+    if (prev[1] < 0) return [V(hasta.x, y, hasta.z)];
+    const camino = []; for (let i = 1; i > 0; i = prev[i]) camino.unshift(V(nodos[i].x, y, nodos[i].z));
+    return camino;
   }
   // mejoras del interior (se muestran cuando se construyen)
   const cocinaModerna = new THREE.Group(), banoG = new THREE.Group(); root.add(cocinaModerna, banoG);
@@ -418,7 +473,10 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     sofa0: [0, 2.0, 4.45, 2.0, 0, 'sentado'], sofa1: [0, 3.2, 4.45, 3.2, 0, 'sentado'],
     sillon: [0, 4.65, 0.6, 0, 0.6, 'sentado'], tapete: [0, 2.6, 2.3, 2.6, 0, 'quieto'],
     sala0: [0, 0.8, 2.0, 2.6, 2.3, 'quieto'], sala1: [0, 1.6, 0.6, 2.6, 2.3, 'quieto'],
-    cama0: [1, -0.3, -4.0, -0.3, -6, 'acostado'], cama1: [1, 0.7, -4.0, 0.7, -6, 'acostado'],
+    cama0: [1, -0.45, -3.6, -0.45, -6, 'acostado'], cama1: [1, 0.85, -3.6, 0.85, -6, 'acostado'],
+    silla2: [0, -0.5, -2.65, -0.5, 0, 'sentado'], silla3: [0, -1.9, -0.55, -1.9, -3, 'sentado'],
+    cuna: [1, -2.4, -3.85, -2.4, -6, 'trabajo'], camaNino0: [1, -3.0, -2.2, -3.0, -6, 'acostado'], camaNino1: [1, -2.0, -2.2, -2.0, -6, 'acostado'],
+    juegoNino0: [0, 2.0, 1.7, 2.6, 2.3, 'quieto'], juegoNino1: [0, 3.3, 1.8, 2.6, 2.3, 'quieto'],
     pieCama: [1, 0.2, -3.1, 0.2, 0, 'acostado'], sillonAlto: [1, 4.5, 3.4, 0, 3.4, 'sentado'], biblioteca: [1, 3.5, -4.7, 3.5, -6, 'quieto'],
   };
   const LIMPIAR = ['sala0', 'fregadero', 'tapete', 'biblioteca', 'sillon'];
@@ -1258,6 +1316,62 @@ uniform float uRafaga;
     const h = rayoT.intersectObjects(mallas, false).find((i) => i.point.y < 10);
     return (altoSitio[k] = h ? Math.max(a.trepado.alto * 0.7, h.point.y - 0.06) : a.trepado.alto);
   }
+  let plantillas = null;   // cuerpos y animaciones cargados (para los hijos que nacen después)
+  const COLOR_HIJO = { h: 0x4f8f5a, m: 0xd46a8c };
+  function crearVisHijo(a) {
+    const v = makePerson({ top: COLOR_HIJO[a.sexo] || 0x6a8f4e, bottom: 0x3a4a6a, skin: 0xe6b490, hair: 0x6b4a2b, h: 1.47 });
+    v.g.children.forEach((c) => { c.visible = false; });
+    v.esHijo = true; v.g.userData.agente = true;
+    Object.assign(v, { last: V(0, 0, 0), yaw: 0, moving: 0, ready: false, walkPh: 0 });
+    const tomb = new THREE.Mesh(new RoundedBoxGeometry(0.6, 0.75, 0.2, 2, 0.1), tombMat); tomb.position.set(-5.4 + Object.keys(vis).length * 0.9, 0.38, 19.4); tomb.visible = false; tomb.castShadow = true; root.add(tomb);
+    v.tomb = tomb;
+    // el bebé: un bultito envuelto en su manta
+    const bulto = new THREE.Group(); bulto.visible = false;
+    const manta = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.26, 4, 10), new THREE.MeshStandardMaterial({ color: a.sexo === 'm' ? 0xf2c4d0 : 0xbcd8ef, roughness: 0.9 }));
+    manta.rotation.z = Math.PI / 2; manta.castShadow = true; bulto.add(manta);
+    const cara = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 10), new THREE.MeshStandardMaterial({ color: 0xf0c4a0, roughness: 0.7 })); cara.position.set(0.24, 0.03, 0); bulto.add(cara);
+    bulto.scale.setScalar(1 / 1.47); v.g.add(bulto); v.bulto = bulto;
+    vis[a.id] = v;
+    if (plantillas) cuerpoHijo(v, a);
+    return v;
+  }
+  function cuerpoHijo(v, a) {
+    // los niños usan el cuerpo de Andrés (sin barba); de grandes, las niñas el de María
+    const deMaria = a.sexo === 'm' && ['joven', 'adulto'].includes(a.etapa);
+    const base = deMaria ? plantillas.lucia : plantillas.tomas, alto = MODELOS[deMaria ? 'lucia' : 'tomas'][1];
+    const m = SkeletonUtils.clone(base.scene), k = v.h * ESCALA_PERSONA / alto;
+    m.scale.setScalar(k); m.quaternion.copy(qDePie);
+    const tinte = { andres_camiseta: COLOR_HIJO[a.sexo], maria_polera: COLOR_HIJO[a.sexo] };
+    m.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+      if (/Beard/i.test(o.name)) o.visible = false;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      o.material = mats.map((mt) => {
+        if (!mt) return mt; const c = mt.clone();
+        if (/pelo|Hair/i.test(mt.name)) c.color.setHex(0x8a6038);   // pelo castaño: mitad rubio, mitad negro
+        if (tinte[mt.name] != null) c.color.setHex(tinte[mt.name]);
+        return c;
+      });
+      if (o.material.length === 1) o.material = o.material[0];
+    });
+    if (v.modelo) v.g.remove(v.modelo);
+    v.g.add(m); m.updateMatrixWorld(true);
+    Object.assign(v, { modelo: m, k0: k, k, mixer: new THREE.AnimationMixer(m), acciones: {}, clip: null, wPrev: null, uti: montarUtileria(m), femenino: deMaria ? montarFemenino(m) : null, etapaVis: null, cuerpoDe: deMaria ? 'lucia' : 'tomas' });
+    v.huesoCabeza = m.getObjectByName('Head');
+    for (const c of plantillas.anim.animations) v.acciones[c.name] = v.mixer.clipAction(c);
+    animar(v, 'Idle_Loop');
+  }
+  function asegurarHijos(s) {
+    let hay = false;
+    for (const a of s.agentes) {
+      if (a.tipo !== 'nino' && !vis[a.id]?.esHijo) continue;
+      if (a.vivo && !a.seFue) hay = true;
+      const v = vis[a.id] || crearVisHijo(a);
+      if (plantillas && (!v.modelo || (v.cuerpoDe === 'tomas' && a.sexo === 'm' && ['joven', 'adulto'].includes(etapaDe(s, a))))) { a.etapa = etapaDe(s, a); cuerpoHijo(v, a); }
+    }
+    cuartoNinos.visible = hay;
+  }
   for (const p of PERSONAJES) {
     if (p.tipo === 'humano') vis[p.id] = makePerson({ ...(LOOK[p.id] || { top: 0x6a8f4e, bottom: 0x3a3a40, skin: 0xe0b08a, hair: 0x2b2018, h: 1.45 }), detalles: p.fisico?.detalles || [] });
     else if (p.tipo === 'perro') vis[p.id] = makeDog();
@@ -1274,6 +1388,14 @@ uniform float uRafaga;
 
   function sitioDe(a, s, t) {
     const T = a.tarea, tp = T?.tipo, i = a.id === 'tomas' ? 0 : 1;
+    if (a.tipo === 'nino') {
+      const k = Math.max(0, s.agentes.filter((x) => x.tipo === 'nino' && x.vivo).sort((x, y) => x.nacio - y.nacio).indexOf(a));
+      if (tp === 'dormir') return SITIO['camaNino' + (k % 2)];
+      if (tp === 'comer') return SITIO['silla' + (2 + (k % 2))];
+      if (tp === 'beber') return SITIO.fregadero;
+      return SITIO['juegoNino' + (k % 2)];
+    }
+    if (a.tipo === 'humano' && tp === 'cuidarBebe') return SITIO.cuna;
     if (a.tipo === 'humano') {
       if (tp === 'dormir' || tp === 'reposo') return SITIO['cama' + i];
       if (tp === 'cocinar' || tp === 'hacerConservas' || tp === 'hornear') return SITIO.estufa;
@@ -1306,7 +1428,7 @@ uniform float uRafaga;
     if (key !== v.sitioKey) {
       v.sitioKey = key;
       const actual = v.ip.y > 2 ? 1 : 0;
-      v.ruta = actual === piso ? [destino] : [ESCALERA[actual].clone(), ESCALERA[piso].clone(), destino];
+      v.ruta = actual === piso ? rutaInterior(v.ip, destino, piso) : [...rutaInterior(v.ip, ESCALERA[actual], actual), ESCALERA[piso].clone(), ...rutaInterior(ESCALERA[piso], destino, piso)];
     } else if (v.ruta.length) v.ruta[v.ruta.length - 1] = destino;
     let paso = dt * (v.kind === 'humano' ? 2.3 : 3.0), mov = 0;
     while (v.ruta.length && paso > 1e-4) {
@@ -1333,9 +1455,13 @@ uniform float uRafaga;
       v.upper.rotation.set(0, 0, 0); v.head.rotation.set(0, 0, 0);
       if (pose === 'acostado' || pose === 'siesta') {
         // tendido: en la cama con la cabeza hacia la cabecera; la siesta, a lo largo del sofá
-        const cama = pose === 'acostado';
-        const yaw = cama ? Math.PI / 2 : 0, fwd = cama ? V(0, 0, -1) : V(1, 0, 0);
-        v.g.position.set(cama ? v.ip.x : 1.35, PISO[piso] + (cama ? 0.66 : 0.62), cama ? -5.15 + v.h : 4.5).addScaledVector(fwd, cama ? 0 : 0);
+        const cama = pose === 'acostado', camita = cama && sp[1] < -1.5;
+        const yaw = cama ? Math.PI / 2 : 0;
+        // lecho: altura de la superficie y dónde va la cabeza (las camas, hacia la cabecera; el sofá, hacia el brazo de la derecha)
+        v.lecho = cama ? { arriba: PISO[piso] + (camita ? 0.47 : 0.57), eje: 'z', cabeza: camita ? -3.45 : -5.15 } : { arriba: PISO[piso] + 0.53, eje: 'x', cabeza: 3.95 };
+        v.g.position.set(cama ? v.ip.x : 1.35, PISO[piso] + 0.7, cama ? (camita ? -2.2 : -3.6) : 4.55);
+        if (v.ajusteLecho && v.ajusteLecho.clave === `${pose}${sp[1]}`) { v.g.position.x += v.ajusteLecho.dx; v.g.position.y += v.ajusteLecho.dy; v.g.position.z += v.ajusteLecho.dz; }
+        else v.medirLecho = `${pose}${sp[1]}`;
         v.g.rotation.set(0, yaw, -Math.PI / 2);
         v.legs.forEach((l) => { l.hip.rotation.z = 0; l.knee.rotation.z = 0; });
         v.arms.forEach((arm, j) => arm.rotation.set(0, 0, 0.15));
@@ -1785,6 +1911,7 @@ uniform float uRafaga;
     const cocinando = s.agentes.some((x) => x.tarea?.tipo === 'cocinar' && x.dentro);
     if (hornillas) hornillas.emissiveIntensity = cocinando ? 1.6 + Math.sin(t * 9) * 0.3 : 0;
     if (fuego) fuego.emissiveIntensity = (night > 0.4 || s.clima.lluvia || (s.t / MIN_DIA / 28 | 0) % 4 === 3) ? 1.8 + Math.sin(t * 7) * 0.4 + Math.sin(t * 13) * 0.2 : 0;
+    asegurarHijos(s);
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     crisisVis(s, t, dt);
     efectos(s, dt);
@@ -1884,6 +2011,7 @@ uniform float uRafaga;
     const L = new GLTFLoader();
     const cargar = (u) => new Promise((ok, mal) => L.load(u, ok, undefined, mal));
     Promise.all([cargar('modelo/animaciones.glb'), ...Object.values(MODELOS).map(([u]) => cargar(u))]).then(([anim, ...gs]) => {
+      plantillas = { anim, tomas: gs[0], lucia: gs[1] };
       Object.keys(MODELOS).forEach((id, i) => {
         const v = vis[id]; if (!v) return;
         const m = gs[i].scene, k = v.h * ESCALA_PERSONA / MODELOS[id][1];   // más altos que el muñeco viejo: en proporción con los animales y la casa
@@ -1926,7 +2054,68 @@ uniform float uRafaga;
   const CARGA = ['apagarFuego', 'sacarAgua', 'alimentarGanado', 'segar', 'alimentar', 'recogerFruta', 'voltearCompost', 'secar'];
   const SENTADO_FUERA = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir', 'tomarVino', 'fumar'];
   const CHARLA = ['conversar', 'reconciliar', 'tomarVino', 'fumar', 'cenar'];
+  const _p = new THREE.Vector3(), _q = new THREE.Vector3(), _qa = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qr = new THREE.Quaternion();
+  function enderezarPiernas(v) {
+    v.modelo.updateMatrixWorld(true);
+    for (const lado of ['l', 'r']) {
+      const th = v.modelo.getObjectByName('thigh_' + lado), pie = v.modelo.getObjectByName('foot_' + lado);
+      if (!th || !pie) continue;
+      th.getWorldPosition(_p); pie.getWorldPosition(_q);
+      const dir = _q.sub(_p), largo = dir.length(); if (largo < 1e-4) continue;
+      const hor = Math.hypot(dir.x, dir.z); if (hor < 1e-4) continue;
+      const meta = new THREE.Vector3(dir.x / hor, -0.06, dir.z / hor).normalize();   // casi horizontal, apenas hacia abajo
+      _qr.setFromUnitVectors(dir.normalize(), meta);
+      th.parent.getWorldQuaternion(_qp);
+      th.quaternion.premultiply(_qa.copy(_qp).invert().multiply(_qr).multiply(_qp));
+      th.updateMatrixWorld(true);
+    }
+  }
+  function medirLecho(v) {
+    const clave = v.medirLecho; v.medirLecho = null;
+    v.modelo.updateMatrixWorld(true);
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, z0 = 1e9, z1 = -1e9;
+    v.modelo.traverse((o) => {
+      if (!o.isSkinnedMesh || !o.visible) return; const P = o.geometry.attributes.position;
+      for (let i = 0; i < P.count; i += 9) { o.getVertexPosition(i, _p); o.localToWorld(_p); x0 = Math.min(x0, _p.x); x1 = Math.max(x1, _p.x); y0 = Math.min(y0, _p.y); z0 = Math.min(z0, _p.z); z1 = Math.max(z1, _p.z); }
+    });
+    if (x0 > x1) return;
+    const L = v.lecho, pel = v.modelo.getObjectByName('pelvis');
+    let dy = L.arriba + 0.02 - y0;
+    if (pel) {
+      pel.getWorldPosition(_p); const py = _p.y, pz = _p.z, px = _p.x;
+      // en la cama: tapado con la cobija (la cadera a la altura de la cobija); en el sofá: la espalda apoyada
+      if (L.eje === 'z') dy = L.arriba + 0.04 - py;
+      else { let ym = 1e9; v.modelo.traverse((o) => { if (!o.isSkinnedMesh || !o.visible) return; const P = o.geometry.attributes.position; for (let i = 0; i < P.count; i += 9) { o.getVertexPosition(i, _p); o.localToWorld(_p); if (Math.abs(_p.x - px) < 0.6 && _p.y < ym) ym = _p.y; } }); if (ym < 1e9) dy = L.arriba + 0.02 - ym; }
+    }
+    const dz = L.eje === 'z' ? L.cabeza - z0 : 0, dx = L.eje === 'x' ? L.cabeza - x1 : 0;   // la cabeza justo en la almohada (o en el brazo del sofá)
+    v.ajusteLecho = { clave, dx, dy, dz };
+  }
+  // hijos: cuerpo según la edad (bebé en la cuna; después, cada vez más grande)
+  const ESCALA_ETAPA = { bebe: 0.3, nino: 0.56, joven: 0.82, adulto: 0.96 }, CABEZA_ETAPA = { nino: 1.32, joven: 1.1 };
+  function ajustarEdad(a, v, s) {
+    const et = etapaDe(s, a);
+    if (v.etapaVis === et || !v.modelo) return et;
+    v.etapaVis = et; const f = ESCALA_ETAPA[et];
+    v.modelo.scale.setScalar(v.k0 * f); v.k = v.k0 * f; v.cabeza = CABEZA_ETAPA[et] || 1; v.ajusteLecho = null;
+    if (v.huesoCabeza && !CABEZA_ETAPA[et]) v.huesoCabeza.scale.setScalar(1);
+    return et;
+  }
+  function poseBebe(a, v, s, t) {
+    v.tomb.visible = false; v.g.visible = true;
+    if (v.modelo) v.modelo.visible = false;
+    v.bulto.visible = true;
+    v.g.position.set(CUNA.x, PISO[1] + 0.56, CUNA.z); v.g.rotation.set(0, 0, 0);
+    const llora = a.accion.startsWith('Llorando');
+    v.bulto.rotation.set(0, Math.PI / 2, llora ? Math.sin(t * 11) * 0.12 : Math.sin(t * 0.8) * 0.02);
+  }
   function poseAgente(a, v, s, t, dt) {
+    if (!v) return;
+    if (a.tipo === 'nino' || v.esHijo) {
+      if (a.seFue) { v.g.visible = false; v.tomb.visible = false; return; }
+      const et = a.vivo ? ajustarEdad(a, v, s) : null;
+      if (et === 'bebe') { poseBebe(a, v, s, t); return; }
+      v.bulto.visible = false; if (v.modelo) v.modelo.visible = true;
+    }
     poseAgenteBase(a, v, s, t, dt);
     if (v.mascota) {
       // la pose de la mascota según lo que hace
@@ -1952,14 +2141,14 @@ uniform float uRafaga;
     const w = v.g.getWorldPosition(new THREE.Vector3());
     const rap = v.wPrev && dt > 0 ? Math.hypot(w.x - v.wPrev.x, w.z - v.wPrev.z) / dt : 0; v.wPrev = w;
     v.rap = (v.rap ?? 0) + (Math.min(rap, 12) - (v.rap ?? 0)) * Math.min(1, dt * 6);
-    m.quaternion.copy(qDePie); m.position.set(0, 0, 0);
+    m.quaternion.copy(qDePie); m.position.set(0, 0, 0); v.acostadoAhora = false;
     if (!a.vivo || Math.abs(v.g.rotation.z) > 0.5) {
       // acostado (cama, sofá o tumba): se endereza el grupo y se acuesta el cuerpo boca arriba
-      const yaw = v.g.rotation.y; v.g.rotation.set(0, yaw, 0); m.quaternion.copy(qAcostado);
+      const yaw = v.g.rotation.y; v.g.rotation.set(0, yaw, 0); m.quaternion.copy(qAcostado); v.acostadoAhora = true;
       m.position.y = a.vivo ? -0.05 : -0.2;
       animar(v, 'Idle_Loop', a.vivo ? 0.25 : 0);
     } else if (a.nadando) {
-      v.g.rotation.set(0, v.g.rotation.y, 0); m.position.y = -0.62 - v.g.position.y;
+      v.g.rotation.set(0, v.g.rotation.y, 0); m.position.y = (-0.62 - v.g.position.y) / v.g.scale.y;
       animar(v, (T && T.tipo === 'nadar' && v.rap > 0.3) ? 'Swim_Fwd_Loop' : 'Swim_Idle_Loop');
     } else {
       v.g.rotation.x = 0;
@@ -1971,7 +2160,7 @@ uniform float uRafaga;
       else if (dentro ? pose === 'sentado' : SENTADO_FUERA.includes(tipo)) {
         clip = CHARLA.includes(tipo) ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop';
         const asiento = dentro ? suelo + 0.52 : tipo === 'tallar' || tipo === 'esculpir' ? 0.51 : 0.84;   // silla y sofá, tronco del taller, banca
-        base = asiento - 0.46 * v.k;
+        base = asiento - 0.46 * v.k * v.g.scale.y;   // 0,46 = de los pies a la cola al sentarse (medido), en la escala del mundo
       }
       else if (pose === 'entrenar' || tipo === 'entrenar') { clip = ['Punch_Jab', 'Jump_Loop', 'Punch_Cross'][Math.floor(t / 5 + a.id.length) % 3]; }
       else if (dentro && (pose === 'trabajo' || pose === 'limpiar')) clip = pose === 'limpiar' ? 'PickUp_Table' : 'Interact';
@@ -1980,12 +2169,15 @@ uniform float uRafaga;
       else if (CARGA.includes(tipo)) clip = 'PickUp_Table';
       else if (tipo === 'pisarUva') clip = 'Dance_Loop';
       else if (CHARLA.includes(tipo) || tipo === 'comerciar') clip = 'Idle_Talking_Loop';
-      m.position.y = base - v.g.position.y;
+      m.position.y = (base - v.g.position.y) / v.g.scale.y;
       animar(v, clip, ts);
     }
     // utilería en la mano según la tarea (también adentro: sartén, libro, agujas, copa…)
     v.uti.mostrar(a.vivo && !a.nadando && T && T.fase === 'trabajo' ? T.tipo : null);
     v.mixer.update(dt);
+    if (v.cabeza && v.huesoCabeza) v.huesoCabeza.scale.setScalar(v.cabeza);   // los niños: cabeza más grande en proporción
+    if (v.acostadoAhora) enderezarPiernas(v);   // acostado: las piernas apoyadas (la pose de pie trae la cadera flexionada)
+    if (v.medirLecho && a.vivo && v.lecho && a.dentro) medirLecho(v);
     if (v.femenino) {   // María: cadera que se mece, hombros que contrarrestan, brazos pegados al cuerpo
       const w = v.acciones.Walk_Loop, anda = v.clip === 'Walk_Loop' && w ? Math.min(1, w.getEffectiveWeight()) : 0;
       const fase = w ? (w.time / w.getClip().duration) * Math.PI * 2 : 0;
@@ -2033,7 +2225,7 @@ uniform float uRafaga;
     seleccionar(i) { seleccion = i; },
     _vis: vis,   // (depuración)
     _fuegos: fuegosVis,
-    _renderer: renderer, _scene: scene, _lotes: lotes,
+    _renderer: renderer, _scene: scene, _lotes: lotes, _camara: camera, _controles: controls,
     // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
     proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,

@@ -258,17 +258,24 @@ crearTarjetas();
 function pintarDatos() {
   if (!datos) return;
   const s = estado, R = s.rec;
+  if (s.agentes.some((a) => !tarjetas[a.id])) crearTarjetas();   // nació alguien: su tarjeta
   for (const a of s.agentes) {
     const c = tarjetas[a.id]; if (!c) continue;
     c.classList.toggle('muerto', !a.vivo);
-    c.querySelector('.cara').textContent = a.tipo === 'humano' && a.vivo ? Sim.caraAnimo(a.animo) : EMO[a.id] || '•';
+    const etapa = a.tipo === 'nino' ? Sim.etapaDe(s, a) : null;
+    c.querySelector('.cara').textContent = a.tipo === 'humano' && a.vivo ? Sim.caraAnimo(a.animo) : etapa ? { bebe: '👶', nino: a.sexo === 'm' ? '👧' : '👦', joven: '🧑', adulto: '🧑' }[etapa] : EMO[a.id] || '•';
     c.querySelector('b').textContent = (a.vivo ? '' : '† ') + a.nombre + (a.enfermo > 0 ? ' 🤒' : '');
-    c.querySelector('.act').textContent = a.vivo ? (a.dentro ? `En casa · ${a.accion.toLowerCase()}` : a.accion) : `Murió ${a.causa || ''}`;
+    c.querySelector('.act').textContent = a.vivo ? (a.dentro ? `En casa · ${a.accion.toLowerCase()}` : a.accion) : a.seFue ? a.accion : `Murió ${a.causa || ''}`;
     c.querySelector('.bars').style.display = a.vivo ? '' : 'none';
     // rasgos, deseo, oficios y vínculo
     const rasgos = a.rasgos.map((r) => Sim.RASGOS[r]?.nombre).filter(Boolean).join(' · ');
     let extra = `<div title="${a.rasgos.map((r) => Sim.RASGOS[r]?.desc).join(' · ')}">${rasgos}</div>`;
-    if (a.vivo && a.tipo === 'humano') {
+    if (a.vivo && etapa) {   // hijo: etapa, días de vida y lo que aprendió mirando a sus padres
+      extra += `<div class="deseo">${Sim.ETAPA_NOMBRE[etapa]} · ${Sim.diasDeVida(s, a)} días${a.padres?.length ? '' : ''}</div>`;
+      const ofi = Object.entries(a.xp || {}).map(([k, v]) => [k, Sim.nivel(v)]).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1]).slice(0, 4);
+      if (ofi.length) extra += `<div class="ofi" title="Lo que aprendió (nivel)">${ofi.map(([k, n]) => `${OFI[k] || ''}${n}`).join('  ')}</div>`;
+    } else if (a.vivo && a.tipo === 'humano') {
+      if (a.embarazada && s.familia?.embarazo) extra += `<div class="deseo">🤰 Embarazada · el bebé llega en ${Math.max(0, Math.ceil((s.familia.embarazo.fin - s.t) / Sim.MIN_DIA))} días</div>`;
       if (a.deseo) extra += `<div class="deseo">✨ ${a.deseo.texto}</div>`;
       const ofi = Object.entries(a.xp || {}).map(([k, v]) => [k, Sim.nivel(v)]).filter(([, n]) => n > 0).sort((x, y) => y[1] - x[1]).slice(0, 4);
       if (ofi.length) extra += `<div class="ofi" title="Oficios (nivel)">${ofi.map(([k, n]) => `${OFI[k] || ''}${n}`).join('  ')}</div>`;
