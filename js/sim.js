@@ -109,16 +109,20 @@ export const MATAS_BASE = 6;
 export const MERCADO = {
   raciones: { nombre: 'raciones', base: 1, est: [1.1, 1, 0.7, 1.4] },
   conservas: { nombre: 'conservas', base: 3, est: [1, 0.9, 0.9, 1.3] },
-  queso: { nombre: 'quesos', base: 6, est: [1, 1, 1, 1.15] },
+  queso: { nombre: 'quesos', base: 7, est: [1, 1, 1, 1.15] },
   secos: { nombre: 'secos', base: 2, est: [1, 1, 0.9, 1.3] },
   huevos: { nombre: 'huevos', base: 0.5, est: [0.9, 1, 1, 1.3] },
   lana: { nombre: 'lana', base: 4, est: [0.8, 0.7, 1.2, 1.6] },
-  abrigos: { nombre: 'abrigos', base: 18, est: [0.8, 0.6, 1.3, 1.7] },
-  vino: { nombre: 'botellas de vino', base: 10, est: [1, 1.1, 0.85, 1.35] },
-  hierba: { nombre: 'porciones de hierba', base: 9, est: [1.25, 1.2, 0.75, 1.1] },
-  pescado: { nombre: 'pescados', base: 2, est: [1, 1.1, 1, 1.4] },
-  arte: { nombre: 'esculturas', base: 26, est: [1, 1, 1, 1] },
+  abrigos: { nombre: 'abrigos', base: 24, est: [0.8, 0.6, 1.3, 1.7] },
+  vino: { nombre: 'botellas de vino', base: 13, est: [1, 1.1, 0.85, 1.35] },
+  hierba: { nombre: 'porciones de hierba', base: 13, est: [1.25, 1.2, 0.75, 1.1] },
+  pescado: { nombre: 'pescados', base: 3, est: [1, 1.1, 1, 1.4] },
+  arte: { nombre: 'esculturas', base: 34, est: [1, 1, 1, 1] },
+  leche: { nombre: 'litros de leche', base: 1.2, est: [1, 1, 1.1, 1.3] },
+  uvas: { nombre: 'canastos de uvas', base: 0.8, est: [1.2, 1.1, 0.8, 1.4] },
 };
+// lo que paga por un animal (adulto y sano); las crías y los viejos valen menos
+export const PRECIO_ANIMAL = { vaca: 40, oveja: 20, cabra: 18, cerdo: 26, gallina: 5, gallo: 6, pato: 6, caballo: 60, burro: 30 };
 export const TIENDA = {
   semilla: 2, medicina: 10, libro: 6, vaca: 45, oveja: 22, gallina: 6, gallo: 8,
   azada: 25, sierra: 25, cubo: 25, tijeras: 25, regalo: 14, materiales: 22, golosinas: 4, juguete: 8,
@@ -180,7 +184,7 @@ function aplicarProyectos(s) {
 // lujos que se compran ahorrando (una vez cada uno): embellecen la casa y quedan en la memoria
 export const LUJOS = [['vajilla', 'una vajilla bonita', 60], ['bicicleta', 'una bicicleta', 90], ['estufa', 'una estufa de hierro', 130], ['tocadiscos', 'un tocadiscos con discos', 180], ['telescopio', 'un telescopio', 240]];
 // lo máximo que el comerciante se lleva de cada cosa por visita (su carreta tiene límite)
-const TOPE = { pescado: 12, arte: 3, raciones: 30, conservas: 10, queso: 4, secos: 10, huevos: 24, lana: 8, abrigos: 2, vino: 14, hierba: 10 };
+const TOPE = { pescado: 40, arte: 6, raciones: 80, conservas: 30, queso: 12, secos: 30, huevos: 60, lana: 24, abrigos: 6, vino: 45, hierba: 30, leche: 40, uvas: 40 };   // lo que compra por visita (antes era muy poco: no había cómo juntar plata)
 // herramientas que trae el comerciante: cada una acelera un oficio un 12 %
 export const HERRAMIENTAS = { azada: ['huerto', 'una azada de acero'], cubo: ['agua', 'baldes reforzados'], sierra: ['carpinteria', 'una sierra buena'], tijeras: ['granja', 'tijeras de esquilar'] };
 export const PASEO = [{ x: -8.4, z: 8.6 }, { x: -8.4, z: 37.0 }, { x: 34.0, z: 37.0 }, { x: 34.0, z: 19.5 }, { x: 12.8, z: 19.0 }, { x: 12.8, z: 8.6 }, { x: 1.0, z: 8.6 }];
@@ -1338,6 +1342,7 @@ function nuevoDia(s) {
   dilemasDelDia(s);
   familiaDelDia(s);
   faunaDelDia(s);
+  siguienteObra(s);
   cronica(s);
   for (const a of humanos(s)) { if ((a.metas || []).length < 2 && rng(s) < 0.35) nuevaMeta(s, a); revisarMetas(s, a); if (a.metas) a.metas = a.metas.filter((m) => s.t - m.desde < 40 * MIN_DIA); }
   narradorDelDia(s);
@@ -2028,12 +2033,12 @@ function elegirTarea(s, a) {
   if (n.agua < 40 && (R.potable >= 1 || R.cruda >= 1)) return crearTarea(s, a, 'beber');
   if (n.agua < 25) return crearTarea(s, a, 'beberPiscina');   // sin agua guardada: de la piscina
   if (n.comida < (est === 'raciona' ? 25 : 40) && comidaTotal(s) >= 1) return crearTarea(s, a, 'comer');
-  if (n.energia < 18) return crearTarea(s, a, 'dormir');
+  if (n.energia < (a.sueno?.modo === 'desvelo' ? 4 : 18)) return crearTarea(s, a, 'dormir');
   { const b = bebeQueNecesita(s); if (b && n.energia > 10 && !s.agentes.some((x) => x !== a && x.tarea?.tipo === 'cuidarBebe')) return crearTarea(s, a, 'cuidarBebe', { bebe: b.id }); }
   if (s.fuegos?.length && s.politica?.incendio !== 'dejar' && n.energia > 8 && n.agua > 25 && (R.cruda >= 55 || R.bebederoGanado >= 25)) return crearTarea(s, a, 'apagarFuego', { fuego: s.fuegos[0].id });
   if (s.fuegos?.some((F) => F.lugar === 'casa' && F.intensidad > 0.3)) { if (a.dentro || (a.tarea?.dentro)) return crearTarea(s, a, 'deambular', { trabajo: 30, destino: { x: LUGAR.banca.x, z: LUGAR.banca.z + 1.5 } }); }   // la casa arde: afuera
   if (s.lobos && s.politica?.lobos === 'guardia' && s.t >= s.lobos.llegan - 60 && n.energia > 10 && !yaHaceAlguien(s, a, 'guardia')) return crearTarea(s, a, 'guardia');
-  if (horaDeDormir(s, a) && n.energia < 92) return crearTarea(s, a, 'dormir');
+  if (horaDeDormir(s, a) && n.energia < 92 && a.sueno?.modo !== 'desvelo') return crearTarea(s, a, 'dormir');
   // herido grave: reposo (si no hay quien lo cure, se cura solo como pueda)
   if (severidad(a) > 0.6 && !(a.heridas || []).some((h) => h.sev > 0.5 && !h.tratada && !otro)) return crearTarea(s, a, 'reposo', { trabajo: 90 });
 
@@ -2102,7 +2107,7 @@ function elegirTarea(s, a) {
   if (R.raciones > 70 && (e === 2 || R.raciones > 140) && (R.conservas || 0) < CAPACIDAD.conservas && !yaHace('hacerConservas')) opciones.push([44 + (e === 2 ? 10 : 0), 'hacerConservas']);
   if (obra(s, 'secadero') && R.raciones > 50 && (R.secos || 0) < CAPACIDAD.secos && e !== 3 && !llueve && h > 8 && h < 16 && !yaHace('secar')) opciones.push([36, 'secar']);
   // la obra de la casa: la hace quien sepa (con ayuda de quien esté libre)
-  if (s.casa.obra && !yaHace('renovar')) opciones.push([46 + (tiene(a, 'manitas') ? 16 : 0), 'renovar']);
+  if (s.casa.obra && !yaHace('renovar') && !(llueve && esAfuera({ tipo: 'renovar' }))) opciones.push([(s.casa.obra.encargo ? 66 : 46) + (tiene(a, 'manitas') ? 16 : 0), 'renovar']);
   // obras de Andrés (o de quien tenga el oficio)
   { const o = (s.obras || []).find((x) => x.id === s.politica?.obra && x.progreso < 1) || (s.obras || []).find((x) => x.progreso < 1);
     if (o && !yaHace('construir') && (tiene(a, 'manitas') || nivel(a.xp.carpinteria) >= 3)) opciones.push([34 + (tiene(a, 'manitas') ? 14 : 0) + (o.id === 'bodega' && R.raciones > 120 ? 10 : 0), 'construir', { obra: o.id }]); }
@@ -2233,6 +2238,7 @@ function iniciarOcio(s, a, tipo) {
 }
 
 export const ACCION = {
+  pueblo: 'En el pueblo vendiendo',
   comer: 'Comiendo', beber: 'Bebiendo', dormir: 'Durmiendo', filtrar: 'Filtrando agua', sacarAgua: 'Sacando agua del pozo',
   regar: 'Regando', sembrar: 'Sembrando', cosechar: 'Cosechando', limpiar: 'Limpiando una parcela', alimentar: 'Alimentando al perro y al gato', descansar: 'Descansando en la banca',
   leer: 'Leyendo', tallar: 'Tallando madera', contemplar: 'Contemplando el paisaje', jugarGato: 'Jugando con el gato', pasearPerro: 'Paseando al perro',
@@ -2255,6 +2261,8 @@ const OCIO_LLENA = { pescar: 0.75, jugarMesa: 0.9, patinar: 1.25, entrenar: 0.8,
 function comportamiento(s, a, d) {
   if (a.tipo === 'nino') return comportamientoHijo(s, a, d);
   if (a.tipo !== 'humano') return comportamientoAnimal(s, a, d);
+  if (a.enPueblo) { if (s.t >= a.enPueblo.hasta) volverDelPueblo(s, a); else { a.n.energia = Math.max(0, a.n.energia - 0.02 * d); a.n.diversion = Math.min(100, a.n.diversion + 0.05 * d); a.accion = 'En el pueblo vendiendo'; return; } }
+  revisarSueno(s, a);
   const T0 = a.tarea;
   // lluvia: lo que se hace afuera se deja (salvo lo muy urgente) y corren a la casa
   if (T0 && lloviendo(s) && esAfuera(T0) && !(T0.tipo === 'alimentarGanado' && s.ganado.some((g) => g.vivo && g.hambre < 25))) {
@@ -2320,7 +2328,7 @@ function comportamiento(s, a, d) {
   }
   const area = AREA[T.tipo], areaXp = area || XP_OCIO[T.tipo];
   const animoVel = a.animo < 30 ? 0.8 : a.animo > 70 ? 1.1 : 1;
-  const vel = area ? mod(a, area) * (1 + 0.06 * nivel(a.xp[area])) * (estres(s, a) === 'trabaja' ? 1.2 : 1) * (a.enfermo > 0 ? 0.6 : 1) * animoVel * (a.animo_buff > s.t ? 1.15 : 1)
+  const vel = area ? (a.desveladoHasta > s.t ? 0.75 : 1) * mod(a, area) * (1 + 0.06 * nivel(a.xp[area])) * (estres(s, a) === 'trabaja' ? 1.2 : 1) * (a.enfermo > 0 ? 0.6 : 1) * animoVel * (a.animo_buff > s.t ? 1.15 : 1)
     * (T.tipo === 'tejer' ? mod(a, 'tejer') : 1) * (1 - Math.min(0.6, severidad(a) * 0.6)) * (a.resacaHasta > s.t ? 0.7 : 1) * (a.colocadoHasta > s.t ? 0.8 : 1) * (herramienta(s, area) ? 1.12 : 1) * (0.92 + (a.forma ?? 40) / 600) : 1;
   const pas = PASA[T.tipo];
   if (pas) {
@@ -2786,7 +2794,7 @@ function completar(s, a, T) {
         if (O.id === 'huertaGrande') for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push({ id: i, ...MATAS[i], crec: 0, estado: casaTiene(s, 'cultivoCaseta') || estacion(s) <= 1 ? 'creciendo' : 'vacia' });
         if (O.id === 'cultivoCaseta') s.matas.forEach((m) => { if (m.estado === 'vacia') { m.estado = 'creciendo'; m.crec = 0; } });
         if (O.id === 'reforma' && O.estilo) { s.casa.estilo = O.estilo; log(s, `🎨 La granja ahora es de estilo ${ESTILOS[O.estilo].nombre.toLowerCase()}.`, 'logro'); }
-        aplicarProyectos(s);
+        aplicarProyectos(s); siguienteObra(s);
         log(s, `🏠 Terminaron ${M[1]}: ${M[4]}.${DE_CASA.includes(O.id) ? ` La casa va en la etapa ${etapaCasa(s)} de 4.` : ''}`, 'logro');
         for (const h of humanos(s)) { recuerdo(s, h, `Estrenaron ${M[1]}`, 10, 48); memoria(s, h, `Construyeron ${M[1]}`, 0.5); }
       }
@@ -2909,7 +2917,7 @@ function comercioDelDia(s) {
   for (const k of Object.keys(C.vendido)) C.vendido[k] *= 0.6;
   const precios = {};
   for (const [k, m] of Object.entries(MERCADO)) precios[k] = Math.round(m.base * m.est[e] / (1 + (C.vendido[k] || 0) / 25) * (0.8 + rng(s) * 0.4) * 100) / 100;
-  C.visita = { dia: d, llega: d * MIN_DIA + 8 * 60, sale: d * MIN_DIA + 17 * 60, precios, hecho: false, bolsa: Math.round(90 + rng(s) * 80) }; C.visitas += 1;
+  C.visita = { dia: d, llega: d * MIN_DIA + 8 * 60, sale: d * MIN_DIA + 17 * 60, precios, hecho: false, bolsa: Math.round((260 + rng(s) * 200) * (1 + Math.min(1, C.visitas / 30))) }; C.visitas += 1;   // trae más plata a medida que la granja se vuelve conocida
   const caro = Object.entries(precios).sort((x, y) => y[1] / MERCADO[y[0]].base - x[1] / MERCADO[x[0]].base)[0][0];
   C.visita.caro = caro;
 }
@@ -2951,7 +2959,7 @@ function comerciar(s, a) {
   if (Pol.venderPlacer) { reserva[Pol.venderPlacer] = 0; Pol.venderPlacer = null; }
   reserva.arte = 0; reserva.pescado = 4 + vivos * 2;
   for (const k of ['arte', 'vino', 'hierba', 'queso', 'abrigos', 'lana', 'conservas', 'secos', 'pescado', 'huevos', 'raciones']) {   // primero lo que más deja
-    if (modo === 'guardar' || (modo === 'renta' && k !== 'vino' && k !== 'hierba')) continue;
+    if (V.manual || modo === 'guardar' || (modo === 'renta' && k !== 'vino' && k !== 'hierba')) continue;
     const precio = (V.precios[k] ?? MERCADO[k].base) * regatea * (k === 'vino' && casaTiene(s, 'bodegaVino') ? 1.25 : 1) * (k === 'arte' ? 1 + (s.calidadArte || 0) * 0.15 : 1);
     const sobra = Math.min(TOPE[k], Math.floor(((R[k] || 0) - reserva[k]) * (k === 'raciones' ? 0.5 : 0.7)), Math.floor((V.bolsa - ganado) / precio));
     if (sobra < (k === 'raciones' || k === 'huevos' ? 6 : 1)) continue;
@@ -2962,7 +2970,7 @@ function comerciar(s, a) {
   // animales: si el corral está lleno se vende el más consanguíneo (sin dejar el rebaño sin macho)
   for (const tipo of ['vaca', 'oveja']) {
     const corral = enCorral(s), del = s.ganado.filter((g) => g.vivo && g.tipo === tipo && g.crec >= 1);
-    if ((corral < CUPO.corral - 1 && !Pol.venderEstresados) || modo === 'guardar' || del.length < 4 || V.bolsa - ganado < TIENDA[tipo] * 0.7) continue;
+    if (V.manual || (corral < CUPO.corral - 1 && !Pol.venderEstresados) || modo === 'guardar' || del.length < 4 || V.bolsa - ganado < TIENDA[tipo] * 0.7) continue;
     const machos = del.filter((g) => g.sexo === 'm').length;
     const g = del.filter((x) => x.sexo === 'h' || machos > 1).sort((x, y) => Pol.venderEstresados ? (y.estres || 0) - (x.estres || 0) : (y.consang || 0) - (x.consang || 0) || y.edad - x.edad)[0];
     if (!g) continue;
@@ -3225,6 +3233,7 @@ function dilemasCasa(s) {
     const ops = Object.entries(ESTILOS).filter(([k]) => k !== K.estilo).map(([k, E]) => ({ k, txt: `Reformar a ${E.nombre.toLowerCase()} · 300`, pista: E.pista }));
     if (proponer(s, 'reforma', '¿Cambiar el estilo de la granja?', `Llevan tiempo con el estilo ${ESTILOS[K.estilo].nombre.toLowerCase()}. Una reforma cambia la casa y todas las construcciones.`, [...ops, { k: 'no', txt: 'Nos gusta como está', pista: '' }], 'no', {}, 16, 60)) return;
   }
+  if ((K.cola || []).length) return;   // ya les dijiste qué construir
   const disp = MEJORAS_CASA.filter(([id, , costo, , , req]) => !casaTiene(s, id) && req.every((r) => casaTiene(s, r)) && costo + 20 <= plata);
   if (!disp.length) return;
   const vivos = humanos(s); if (!vivos.length) return;
@@ -3257,6 +3266,158 @@ function empezarMejora(s, id) {
   s.casa.turno = (s.casa.turno || 0) + 1;
   log(s, `🏠 Encargaron materiales a ${COMERCIANTE} para ${M[1]} (${M[2]} monedas). Empieza la obra.`, 'logro');
 }
+// ---------------------------------------------------------------- comerciar a mano (cuando Don Ramiro está en la granja, o en el pueblo)
+const reservaMin = (s) => ({ raciones: 20 + humanos(s).length * 14, pescado: 0 });
+// ¿hay con quién comerciar ahora mismo? (la carreta en la granja entre las 8 y las 5)
+export function puedeComerciar(s) { const V = s.comercio?.visita; return !!(V && V.llego && s.t < V.sale); }
+// precio de una unidad hoy (baja un poco con cada una que se le vende en la misma visita)
+export function precioHoy(s, k) {
+  const V = s.comercio.visita; if (!V || !MERCADO[k]) return 0;
+  const base = (V.precios[k] ?? MERCADO[k].base) * (k === 'vino' && casaTiene(s, 'bodegaVino') ? 1.25 : 1) * (k === 'arte' ? 1 + (s.calidadArte || 0) * 0.15 : 1);
+  return Math.max(0.1, Math.round(base * Math.pow(0.985, (V.vendidoHoy?.[k] || 0)) * 100) / 100);
+}
+export function venderCosa(s, k, n) {
+  const C = s.comercio, V = C.visita, R = s.rec;
+  if (!puedeComerciar(s)) return { ok: false, msg: `${COMERCIANTE} no está en la granja.` };
+  n = Math.min(Math.floor(R[k] || 0), n, (TOPE[k] ?? 20) - (V.vendidoHoy?.[k] || 0));
+  if (n <= 0) return { ok: false, msg: (V.vendidoHoy?.[k] || 0) >= (TOPE[k] ?? 20) ? `Hoy no compra más ${MERCADO[k].nombre}.` : `No hay ${MERCADO[k].nombre} para vender.` };
+  let monto = 0, i = 0;
+  for (; i < n; i++) { const p = precioHoy(s, k); if ((V.pagado || 0) + monto + p > V.bolsa) break; monto += p; (V.vendidoHoy ||= {})[k] = (V.vendidoHoy[k] || 0) + 1; }
+  if (!i) return { ok: false, msg: `A ${COMERCIANTE} ya no le alcanza la plata hoy.` };
+  monto = Math.round(monto * 10) / 10; R[k] -= i; C.vendido[k] = (C.vendido[k] || 0) + i; V.pagado = (V.pagado || 0) + monto; V.manual = true;
+  C.monedas = Math.round((C.monedas + monto) * 10) / 10; (C.ganancias ||= {})[k] = Math.round(((C.ganancias[k] || 0) + monto) * 10) / 10;
+  log(s, `💰 Le vendiste a ${COMERCIANTE} ${i} ${MERCADO[k].nombre} por ${monto} monedas.`, 'bueno');
+  return { ok: true, msg: `+${monto} monedas`, n: i, monto };
+}
+// cuánto vale un animal: edad, salud y ánimo
+export function valorAnimal(s, g) {
+  const base = PRECIO_ANIMAL[g.tipo] ?? 10, joven = (g.crec ?? 1) < 1 ? 0.5 : 1, viejo = (g.edad || 0) > 8 ? 0.6 : 1;
+  return Math.round(base * joven * viejo * (0.6 + 0.4 * ((g.salud ?? 100) / 100)) * 10) / 10;
+}
+export function venderAnimal(s, id) {
+  const C = s.comercio, V = C.visita, g = s.ganado.find((x) => x.id === id && x.vivo);
+  if (!puedeComerciar(s)) return { ok: false, msg: `${COMERCIANTE} no está en la granja.` };
+  if (!g) return { ok: false, msg: 'Ese animal ya no está.' };
+  const p = valorAnimal(s, g);
+  if ((V.pagado || 0) + p > V.bolsa) return { ok: false, msg: `A ${COMERCIANTE} no le alcanza para ${g.nombre}.` };
+  s.ganado.splice(s.ganado.indexOf(g), 1); V.pagado = (V.pagado || 0) + p; V.manual = true;
+  C.monedas = Math.round((C.monedas + p) * 10) / 10; (C.ganancias ||= {}).animales = Math.round(((C.ganancias.animales || 0) + p) * 10) / 10;
+  log(s, `🐄 Vendiste a ${g.nombre} (${g.tipo}) por ${p} monedas.`, 'info');
+  for (const h of humanos(s)) if (g.vinculo?.[h.id] > 60 || tiene(h, 'manoVerde')) recuerdo(s, h, `Vendieron a ${g.nombre}`, -3, 24);
+  return { ok: true, msg: `+${p} monedas` };
+}
+// lo que se le puede comprar (lo de la tienda que tiene sentido comprar a mano)
+export const COMPRAS = {
+  semilla: { nombre: 'Semillas de todo', precio: 6, desc: '+3 semillas de cada cultivo' },
+  medicina: { nombre: 'Medicina', precio: TIENDA.medicina, desc: 'cura heridas y fiebres' },
+  libro: { nombre: 'Un libro', precio: TIENDA.libro, desc: 'leer sube el criterio' },
+  materiales: { nombre: 'Tejas y tablas', precio: TIENDA.materiales, desc: 'repara la casa (+25)' },
+  regalo: { nombre: 'Un regalo para la pareja', precio: TIENDA.regalo, desc: 'sube la afinidad' },
+  gallina: { nombre: 'Una gallina', precio: TIENDA.gallina, desc: 'más huevos' },
+  oveja: { nombre: 'Una oveja', precio: TIENDA.oveja, desc: 'lana para abrigos' },
+  vaca: { nombre: 'Una vaca', precio: TIENDA.vaca, desc: 'leche y queso' },
+};
+export function comprarCosa(s, k) {
+  const C = s.comercio, R = s.rec, X = COMPRAS[k];
+  if (!puedeComerciar(s)) return { ok: false, msg: `${COMERCIANTE} no está en la granja.` };
+  if (!X) return { ok: false, msg: '' };
+  if (C.monedas < X.precio) return { ok: false, msg: `Faltan monedas (cuesta ${X.precio}).` };
+  if ((k === 'gallina' && s.ganado.filter((g) => g.vivo && esAve(g.tipo)).length >= CUPO.gallinero) || ((k === 'vaca' || k === 'oveja') && enCorral(s) >= CUPO.corral)) return { ok: false, msg: 'No cabe: amplía el corral o el gallinero.' };
+  C.monedas = Math.round((C.monedas - X.precio) * 10) / 10;
+  if (k === 'semilla') for (const c of Object.keys(R.semillas)) R.semillas[c] += 3;
+  if (k === 'medicina') R.medicina += 1;
+  if (k === 'libro') R.libros += 1;
+  if (k === 'materiales') s.casa.estado = Math.min(100, (s.casa.estado ?? 100) + 25);
+  if (k === 'regalo') { const [a, b] = humanos(s); if (b) { recuerdo(s, b, `Un regalo de ${a.nombre}`, 10, 48); s.pareja.afinidad = Math.min(100, s.pareja.afinidad + 3); } }
+  if (k === 'gallina' || k === 'oveja' || k === 'vaca') animalDeFuera(s, k, 'h');
+  log(s, `🛒 Le compraste a ${COMERCIANTE}: ${X.nombre.toLowerCase()} (${X.precio}).`, 'info');
+  return { ok: true, msg: `-${X.precio} monedas` };
+}
+// llevar la carreta al pueblo: se va medio día (no trabaja en la granja) y vende al precio del mercado, que paga algo menos
+export function irAlPueblo(s, id) {
+  const a = s.agentes.find((x) => x.id === id && x.vivo && x.tipo === 'humano');
+  if (!a) return { ok: false, msg: '' };
+  if (a.enPueblo) return { ok: false, msg: `${a.nombre} ya está en el pueblo.` };
+  const h = hora(s); if (h < 6 || h > 13) return { ok: false, msg: 'Al pueblo se sale temprano (entre las 6 y la 1): el viaje es largo.' };
+  if (estacion(s) === 3 && s.clima.temp < -2) return { ok: false, msg: 'El camino está helado: hoy no se puede ir.' };
+  if (severidad(a) > 0.4 || a.n.energia < 30) return { ok: false, msg: `${a.nombre} no está para un viaje así.` };
+  soltarTarea(s, a); a.dentro = false; a.pos = { ...LUGAR.carreta };
+  a.tarea = { tipo: 'pueblo', fase: 'trabajo', trabajo: 1e9, inicio: s.t };
+  a.enPueblo = { hasta: s.t + 330 + Math.floor(rng(s) * 60) };
+  log(s, `🛻 ${a.nombre} cargó la carreta y salió al pueblo a vender. Vuelve en la tarde.`, 'info');
+  return { ok: true, msg: `${a.nombre} salió al pueblo` };
+}
+function volverDelPueblo(s, a) {
+  const C = s.comercio, e = estacion(s), prev = C.visita;
+  const precios = {}; for (const [k, m] of Object.entries(MERCADO)) precios[k] = Math.round(m.base * m.est[e] * 0.85 / (1 + (C.vendido[k] || 0) / 40) * (0.85 + rng(s) * 0.3) * 100) / 100;
+  C.visita = { dia: dia(s), precios, hecho: false, bolsa: 900, modo: 'todo', pueblo: true };
+  const antes = C.monedas; comerciar(s, a); C.visita = prev;
+  a.enPueblo = null; a.tarea = null; a.pos = { ...LUGAR.carreta }; a.n.energia = Math.max(5, a.n.energia - 18);
+  recuerdo(s, a, 'Un día en el pueblo', 5, 24); s.stats.viajes = (s.stats.viajes || 0) + 1;
+  log(s, `🛻 ${a.nombre} volvió del pueblo: ${Math.round(C.monedas - antes) >= 0 ? '+' : ''}${Math.round((C.monedas - antes) * 10) / 10} monedas.`, 'bueno');
+}
+// ---------------------------------------------------------------- obras que pides tú: se hacen en orden (cola) y van primero
+export function encargarObra(s, id) {
+  const M = MEJORAS_CASA.find((x) => x[0] === id), K = s.casa; if (!M) return { ok: false, msg: '' };
+  if (casaTiene(s, id)) return { ok: false, msg: 'Ya está hecha.' };
+  if (K.obra?.id === id || (K.cola || []).includes(id)) return { ok: false, msg: 'Ya está encargada.' };
+  const falta = M[5].filter((r) => !casaTiene(s, r) && K.obra?.id !== r && !(K.cola || []).includes(r));
+  if (falta.length) return { ok: false, msg: `Primero hace falta: ${falta.map((r) => MEJORAS_CASA.find((x) => x[0] === r)?.[1]).join(', ')}.` };
+  if (!K.obra && M[5].every((r) => casaTiene(s, r))) {
+    if (s.comercio.monedas < M[2]) return { ok: false, msg: `Faltan ${Math.ceil(M[2] - s.comercio.monedas)} monedas.` };
+    empezarMejora(s, id); K.obra.encargo = true; return { ok: true, msg: `Empieza la obra: ${M[1]}.` };
+  }
+  (K.cola ||= []).push(id); log(s, `📋 Encargaste ${M[1]}: queda en la fila de obras (${K.cola.length}).`, 'info');
+  return { ok: true, msg: `En la fila (${K.cola.length}). Se empieza cuando termine lo de antes y haya plata.` };
+}
+export function quitarDeCola(s, id) { s.casa.cola = (s.casa.cola || []).filter((x) => x !== id); }
+export function cancelarObra(s) {
+  const O = s.casa.obra; if (!O || O.id === 'reforma') return { ok: false, msg: '' };
+  const M = MEJORAS_CASA.find((x) => x[0] === O.id), vuelve = Math.round(M[2] * 0.6 * (1 - O.progreso));
+  s.comercio.monedas += vuelve; s.casa.obra = null; log(s, `Se canceló ${M[1]}: devolvieron materiales por ${vuelve} monedas.`, 'aviso');
+  return { ok: true, msg: `+${vuelve} monedas` };
+}
+function siguienteObra(s) {
+  const K = s.casa; if (K.obra || !(K.cola || []).length) return;
+  const id = K.cola[0], M = MEJORAS_CASA.find((x) => x[0] === id);
+  if (!M || casaTiene(s, id)) { K.cola.shift(); return; }
+  if (!M[5].every((r) => casaTiene(s, r))) return;
+  if (s.comercio.monedas < M[2]) { if (!K.avisoCola || dia(s) - K.avisoCola > 6) { K.avisoCola = dia(s); log(s, `📋 La próxima obra (${M[1]}) espera: faltan ${Math.ceil(M[2] - s.comercio.monedas)} monedas.`, 'aviso'); } return; }
+  K.cola.shift(); empezarMejora(s, id); K.obra.encargo = true;
+}
+// ---------------------------------------------------------------- dormir o quedarse despierto (decisión tuya, con consecuencias)
+export function ordenarSueno(s, id, modo) {
+  const a = s.agentes.find((x) => x.id === id && x.vivo && x.tipo === 'humano'); if (!a) return { ok: false, msg: '' };
+  if (a.enPueblo) return { ok: false, msg: `${a.nombre} está en el pueblo.` };
+  if (modo === 'dormir') {
+    a.sueno = { modo: 'dormir' }; soltarTarea(s, a); crearTarea(s, a, 'dormir');
+    log(s, `😴 ${a.nombre} se fue a dormir${horaDeDormir(s, a) ? '' : ' (una siesta larga en pleno día)'}.`, 'info');
+    return { ok: true, msg: `${a.nombre} se va a dormir` };
+  }
+  if (modo === 'desvelo') {
+    a.sueno = { modo: 'desvelo', hasta: proximaManana(s, a) }; if (a.tarea?.tipo === 'dormir') soltarTarea(s, a);
+    log(s, `🌙 ${a.nombre} se queda despierto esta noche. Mañana lo va a sentir.`, 'aviso');
+    return { ok: true, msg: `${a.nombre} se queda despierto` };
+  }
+  a.sueno = null; return { ok: true, msg: `${a.nombre} duerme a su hora` };
+}
+function proximaManana(s, a) { const [desp] = horario(a), d0 = dia(s) * MIN_DIA, m = d0 + desp * 60; return s.t < m - 120 ? m : m + MIN_DIA; }
+function revisarSueno(s, a) {
+  const Z = a.sueno; if (!Z) return;
+  if (Z.modo === 'dormir') { if (a.tarea?.tipo !== 'dormir') a.sueno = null; return; }
+  if (Z.modo === 'desvelo') {
+    if (a.n.energia < 4) {   // el cuerpo no da más: se queda dormido donde esté
+      a.sueno = null; a.desveladoHasta = s.t + 12 * 60; soltarTarea(s, a); crearTarea(s, a, 'dormir');
+      log(s, `💤 ${a.nombre} no aguantó más y se quedó dormido donde estaba.`, 'aviso'); recuerdo(s, a, 'Se quedó dormido rendido', -4, 12); return;
+    }
+    if (s.t >= Z.hasta) {
+      a.sueno = null; a.desveladoHasta = s.t + 14 * 60;
+      recuerdo(s, a, 'Pasó la noche en vela', -6, 18); s.pareja.tension = Math.min(100, (s.pareja.tension || 0) + (irritable(a) ? 6 : 2));
+      log(s, `🥱 ${a.nombre} amaneció sin dormir: hoy trabaja más lento y anda de mal genio.`, 'aviso');
+    }
+  }
+}
+
 // estrés de las personas y peleas: se revisa cada media hora
 function dilemasDelMomento(s) {
   const h = hora(s);
@@ -4012,7 +4173,7 @@ function migrar(s) {
     s.frutales ??= FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 }));
     s.jardines ??= JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 }));
     s.obras ??= OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })); s.esculturas ??= 0; s.avanceEscultura ??= 0; s.belleza ??= 10;
-    s.casa.estado ??= 100; s.casa.mejoras ??= []; s.casa.estilo ??= null; s.casa.obra ??= null; s.casa.turno ??= 0; s.desbloqueos ??= []; s.pareja.tension ??= 0; s.pareja.pendiente ??= null;
+    s.casa.estado ??= 100; s.casa.mejoras ??= []; s.casa.estilo ??= null; s.casa.obra ??= null; s.casa.cola ??= []; s.casa.turno ??= 0; s.desbloqueos ??= []; s.pareja.tension ??= 0; s.pareja.pendiente ??= null;
     { const n = placeresNuevos(); s.parras ??= n.parras; s.matas ??= n.matas; s.barricas ??= []; s.curado ??= [];
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS_BASE; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);

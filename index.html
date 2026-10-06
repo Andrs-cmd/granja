@@ -93,6 +93,17 @@
   .elegirPj button { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: #f1ece2; font: inherit; font-size: 12.5px; padding: 7px 11px; border-radius: 99px; cursor: pointer; } .elegirPj button small { opacity: .6; margin-left: 4px; }
   .siguiendoB { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(24,22,30,.88); color: #f1ece2; border: 1px solid rgba(231,196,106,.5); border-radius: 99px; padding: 6px 8px 6px 14px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 140px); }
   .siguiendoB span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .siguiendoB button { background: rgba(255,255,255,.1); border: 0; color: inherit; border-radius: 99px; width: 24px; height: 24px; cursor: pointer; }
+  .fila { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.07); font-size: 12px; }
+  .fila .q { flex: 1; min-width: 0; } .fila .q b { display: block; font-size: 12.5px; } .fila .q small { display: block; opacity: .65; font-size: 10.5px; line-height: 1.3; }
+  .fila button { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: inherit; font: inherit; font-size: 11.5px; font-weight: 700; padding: 6px 9px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .fila button:disabled { opacity: .35; cursor: default; } .fila button.prim { background: #2e7d4f; border-color: transparent; color: #fff; }
+  .fila .tag { font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 99px; background: rgba(124,195,106,.2); color: #9fdc8e; white-space: nowrap; }
+  .fila .tag.gris { background: rgba(255,255,255,.08); color: rgba(255,255,255,.55); } .fila .tag.oro { background: rgba(231,196,106,.2); color: #e7c46a; }
+  .vidaP h5 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin: 12px 0 2px; font-weight: 700; }
+  .vidaP .prog { height: 7px; background: rgba(255,255,255,.1); border-radius: 4px; overflow: hidden; margin: 5px 0; } .vidaP .prog i { display: block; height: 100%; background: #e7c46a; }
+  .chipRamiro { position: fixed; top: 54px; left: 50%; transform: translateX(-50%); z-index: 6; background: #e7c46a; color: #1b1a17; border: 0; border-radius: 99px; padding: 8px 14px; font: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.35); animation: latido 1.6s ease-in-out infinite; white-space: nowrap; }
+  .chipRamiro.off { display: none; }
+  .fichapj .suenoB { display: flex; gap: 5px; margin: 0 0 8px; flex-wrap: wrap; } .fichapj .suenoB button { flex: 1; font-size: 11.5px; padding: 6px 8px; } .fichapj .suenoB button.on { background: rgba(180,138,224,.4); border-color: rgba(180,138,224,.8); }
   .fichapj.off { display: none; } .fichapj .cerrar { position: absolute; right: 8px; top: 6px; background: none; border: 0; font-size: 18px; padding: 2px 6px; }
   .fichapj h3 { margin: 0 0 2px; font-size: 14px; } .fichapj .sub { font-size: 11.5px; opacity: .75; margin-bottom: 7px; } .fichapj .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
   .fichapj button:disabled { opacity: .35; cursor: default; }
@@ -253,6 +264,9 @@
 <div class="planoP off" id="planoP"></div>
 <button class="btn-dis" id="btnDis">🛠 Diseño</button>
 <div class="disenoP off" id="disenoP"></div>
+<div class="disenoP vidaP off" id="obrasP"></div>
+<div class="disenoP vidaP off" id="comercioP"></div>
+<button class="chipRamiro off" id="chipRamiro">🛒 Don Ramiro está en la granja · comerciar</button>
 <div class="disenoP vidaP off" id="vidaP"></div>
 <button class="btn-dec vacio" id="btnDec">⚖ Decisiones <span class="n">0</span></button>
 <div class="prioridades off" id="prioridades"><div class="caja"><h3>Prioridades de trabajo</h3><p>1 = lo hace primero · 4 = lo deja para el final · – = no lo hace (salvo emergencias). Toca una casilla para cambiarla.</p><table id="tablaP"></table><button class="cerrarP" id="cerrarP">Listo</button></div></div>
@@ -475,7 +489,7 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); pintarVida(); pintarSeguir(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); pintarVida(); pintarSeguir(); pintarObras(); pintarComercio(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
 
 // ---------------------------------------------------------------- alertas y prioridades de trabajo
 const elAlertas = document.getElementById('alertas'), elPrio = document.getElementById('prioridades'), tablaP = document.getElementById('tablaP');
@@ -520,7 +534,9 @@ function pintarJugador(forzar = false) {
       <div title="Lo hace pensar mejor: leer, el ajedrez, la responsabilidad y la calma. Con buen criterio decide bien las crisis que no atiendes.">🧠 Criterio: ${Math.round(Sim.criterio(a) * 100)} / 100</div></div>
       ${(a.metas || []).length ? `<div class="metas">${a.metas.map((m) => `🎯 ${esc(m.texto)}`).join('<br>')}</div>` : ''}
       <div class="habs">${Object.entries(Sim.PASATIEMPOS).map(([k, P]) => { const xp = a.xp?.[k] || 0, n = Sim.nivel(xp), f = n >= 10 ? 1 : (xp - 120 * n * n) / (120 * (2 * n + 1)); return `<span title="${esc(P.nombre)}: nivel ${n} de 10">${P.icono} ${esc(P.nombre)} ${n}<u><i style="width:${Math.round(f * 100)}%"></i></u></span>`; }).join('')}</div>
-      ${(a.trucos || []).length ? `<div class="sub" style="margin:0 0 6px">🛹 Trucos: ${a.trucos.map(esc).join(', ')}</div>` : ''}` : ''}`;
+      ${(a.trucos || []).length ? `<div class="sub" style="margin:0 0 6px">🛹 Trucos: ${a.trucos.map(esc).join(', ')}</div>` : ''}
+      <div class="sub" style="margin:4px 0 3px">🛏 Sueño${a.desveladoHasta > s.t ? ' · <span style="color:#ff9d94">trasnochado: rinde menos</span>' : ''}</div>
+      <div class="suenoB"><button data-sueno="dormir" class="${a.sueno?.modo === 'dormir' ? 'on' : ''}" title="Se acuesta ahora (si es de día, una siesta larga)">😴 A dormir ya</button><button data-sueno="desvelo" class="${a.sueno?.modo === 'desvelo' ? 'on' : ''}" title="Sigue haciendo cosas esta noche; mañana trabaja más lento y anda de mal genio">🌙 Quedarse despierto</button><button data-sueno="normal" class="${!a.sueno ? 'on' : ''}">↺ Normal</button></div>` : ''}`;
   const elCab = elFicha.querySelector('.cab'); if (elCab.innerHTML !== cab) elCab.innerHTML = cab;
   const ops = Object.entries(Sim.ACCIONES).map(([k, A]) => `<button data-acc="${k}" ${J.influencia < A.costo ? 'disabled' : ''}>${esc(A.txt)} <span style="opacity:.6">${'●'.repeat(A.costo)}</span><small>${esc(A.pista)}</small></button>`).join('');
   if (ops !== htmlFicha) { elFicha.querySelector('.ops').innerHTML = ops; htmlFicha = ops; }
@@ -591,6 +607,81 @@ elPlano.addEventListener('pointermove', (e) => {
 });
 const soltarArrastre = () => { arrastre = null; };
 elPlano.addEventListener('pointerup', soltarArrastre); elPlano.addEventListener('pointercancel', soltarArrastre);
+
+// ---------------------------------------------------------------- obras: todo lo que se puede construir, con fila
+const elObras = document.getElementById('obrasP'); let msgObras = '';
+const GRUPOS_OBRA = [['🏠 La casa', ['fachada', 'techo', 'cocina', 'bano', 'terraza', 'ventanales', 'ampliacion', 'solar', 'azotea']], ['🏊 Estilo de vida', ['piscina', 'jacuzzi', 'gimnasio', 'skatepark']], ['🍇 Cultivos de renta', ['vinedo', 'vinedo2', 'bodegaVino', 'huertaGrande', 'cultivoCaseta', 'cultivoPro']], ['🐄 La granja', ['establo2', 'gallinero2']]];
+function cerrarPaneles(menos) { for (const el of [elObras, elCom, elVida, elDis]) if (el !== menos) el.classList.add('off'); }
+function abrirObras() { const abrir = elObras.classList.contains('off'); cerrarPaneles(elObras); elObras.classList.toggle('off', !abrir); msgObras = ''; if (abrir) { if (angosto()) escena.encuadrar(0, 0, innerHeight * 0.55 + 8); else escena.encuadrar(0, Math.min(372, innerWidth - 24), 0); pintarObras(true); } else encuadre(); }
+function pintarObras(forzar) {
+  if (elObras.classList.contains('off')) return;
+  const s = estado, K = s.casa, mon = Math.floor(s.comercio.monedas), hechas = K.mejoras || [], cola = K.cola || [];
+  const M = (id) => Sim.MEJORAS_CASA.find((x) => x[0] === id);
+  const O = K.obra, MO = O && (M(O.id) || ['reforma', 'la reforma de estilo']);
+  const trabajan = s.agentes.filter((a) => a.vivo && a.tarea?.tipo === 'renovar').map((a) => a.nombre);
+  let h = `<div class="cab"><b>🔨 Obras · 🪙 ${mon}</b><button data-cerrar-obras="1" aria-label="Cerrar">×</button></div>`;
+  h += O ? `<div class="estado"><b>En obra:</b> ${esc(MO[1])} · ${Math.round(O.progreso * 100)} %<div class="prog"><i style="width:${Math.round(O.progreso * 100)}%"></i></div>${trabajan.length ? `👷 Trabajando ahora: ${esc(trabajan.join(' y '))}` : '⏳ Nadie trabajando en este momento (siguen cuando terminen lo urgente)'}${O.id !== 'reforma' ? ' · <button class="cancelar" data-cancelar-obra="1" style="background:none;border:0;color:#ff9d94;font:inherit;font-size:11px;cursor:pointer;text-decoration:underline">cancelar</button>' : ''}</div>` : `<div class="estado">No hay ninguna obra en curso. Elige qué construir: lo que encargues va primero.</div>`;
+  if (cola.length) h += `<h5>📋 En fila</h5>` + cola.map((id, i) => `<div class="fila"><div class="q"><b>${i + 1}. ${esc(M(id)?.[1] || id)}</b><small>${M(id)?.[2]} monedas</small></div><button data-quitar="${id}">Quitar</button></div>`).join('');
+  for (const [titulo, ids] of GRUPOS_OBRA) {
+    h += `<h5>${titulo}</h5>`;
+    for (const id of ids) {
+      const m = M(id); if (!m) continue;
+      const hecha = hechas.includes(id), enObra = O?.id === id, enCola = cola.includes(id), falta = m[5].filter((x) => !hechas.includes(x));
+      const est = hecha ? '<span class="tag">✓ Hecha</span>' : enObra ? `<span class="tag oro">${Math.round(O.progreso * 100)} %</span>` : enCola ? '<span class="tag oro">En fila</span>' : '';
+      const btn = hecha || enObra || enCola ? '' : `<button class="${mon >= m[2] && !O && !falta.length ? 'prim' : ''}" data-obra="${id}">${O || falta.length || mon < m[2] ? 'A la fila' : 'Construir'} · ${m[2]}</button>`;
+      h += `<div class="fila"><div class="q"><b>${esc(m[1][0].toUpperCase() + m[1].slice(1))}</b><small>${esc(m[4])} · ${m[3]} h de trabajo${falta.length && !hecha ? ` · requiere: ${esc(falta.map((x) => M(x)?.[1]).join(', '))}` : ''}</small></div>${est}${btn}</div>`;
+    }
+  }
+  h += `<div class="nota">${msgObras ? esc(msgObras) + '<br>' : ''}Construye quien sepa (Andrés es manitas) cuando no hay algo urgente. Lo que está en fila empieza solo al terminar lo anterior, si alcanza la plata.</div>`;
+  if (h !== elObras._h || forzar) { elObras.innerHTML = h; elObras._h = h; }
+}
+elObras.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar-obras]')) { elObras.classList.add('off'); return encuadre(); }
+  const b = e.target.closest('[data-obra]'); if (b) { const r = Sim.encargarObra(estado, b.dataset.obra); msgObras = r.msg; aviso(r.msg); if (r.ok) guardar(); return pintarObras(true); }
+  const q = e.target.closest('[data-quitar]'); if (q) { Sim.quitarDeCola(estado, q.dataset.quitar); guardar(); return pintarObras(true); }
+  if (e.target.closest('[data-cancelar-obra]')) { const r = Sim.cancelarObra(estado); msgObras = r.msg; guardar(); return pintarObras(true); }
+});
+// ---------------------------------------------------------------- comerciar: vender de todo a Don Ramiro, comprar, o llevar la carreta al pueblo
+const elCom = document.getElementById('comercioP'), chipR = document.getElementById('chipRamiro'); let msgCom = '';
+chipR.onclick = () => abrirComercio(true);
+function abrirComercio(forzarAbrir) { const abrir = forzarAbrir || elCom.classList.contains('off'); cerrarPaneles(elCom); elCom.classList.toggle('off', !abrir); msgCom = ''; if (abrir) { if (angosto()) escena.encuadrar(0, 0, innerHeight * 0.55 + 8); else escena.encuadrar(0, Math.min(372, innerWidth - 24), 0); pintarComercio(true); } else encuadre(); }
+const NOM_ANIMAL = { vaca: '🐄', oveja: '🐑', gallina: '🐔', gallo: '🐓', pato: '🦆', cabra: '🐐', cerdo: '🐖' };
+function pintarComercio(forzar) {
+  const s = estado, C = s.comercio, V = C.visita, aqui = Sim.puedeComerciar(s);
+  chipR.classList.toggle('off', !aqui || !elCom.classList.contains('off'));
+  if (elCom.classList.contains('off')) return;
+  const R = s.rec, mon = Math.floor(C.monedas);
+  let h = `<div class="cab"><b>💰 Comerciar · 🪙 ${mon}</b><button data-cerrar-com="1" aria-label="Cerrar">×</button></div>`;
+  if (aqui) {
+    const queda = Math.max(0, Math.round(V.bolsa - (V.pagado || 0)));
+    h += `<div class="estado">🛒 <b>${Sim.COMERCIANTE}</b> está en la granja hasta las 5. Trae <b>${queda}</b> monedas para comprarte. Cada cosa baja un poco de precio a medida que le vendes.</div><h5>Vender</h5>`;
+    for (const k of Object.keys(Sim.MERCADO).sort((x, y) => Sim.precioHoy(s, y) * (R[y] || 0) - Sim.precioHoy(s, x) * (R[x] || 0))) {   // primero lo que más plata deja
+      const n = Math.floor(R[k] || 0); if (!n) continue;
+      const p = Sim.precioHoy(s, k), caro = V.caro === k;
+      h += `<div class="fila"><div class="q"><b>${esc(Sim.MERCADO[k].nombre[0].toUpperCase() + Sim.MERCADO[k].nombre.slice(1))}${caro ? ' 🔥' : ''}</b><small>Tienes ${n} · ${p} c/u${caro ? ' · hoy lo paga bien' : ''}</small></div><button data-vender="${k}" data-n="1">1</button><button data-vender="${k}" data-n="5">5</button><button class="prim" data-vender="${k}" data-n="999">Todo</button></div>`;
+    }
+    const an = s.ganado.filter((g) => g.vivo && Sim.PRECIO_ANIMAL[g.tipo]);
+    if (an.length) { h += `<h5>Vender animales</h5>`; for (const g of an.sort((a, b) => Sim.valorAnimal(s, b) - Sim.valorAnimal(s, a)).slice(0, 14)) h += `<div class="fila"><div class="q"><b>${NOM_ANIMAL[g.tipo] || '🐾'} ${esc(g.nombre)}</b><small>${esc(g.tipo)} · ${g.sexo === 'm' ? 'macho' : 'hembra'}${(g.crec ?? 1) < 1 ? ' · cría' : ''}${g.edad > 8 ? ' · viejo' : ''}</small></div><button data-animal="${g.id}">Vender · ${Sim.valorAnimal(s, g)}</button></div>`; }
+    h += `<h5>Comprar</h5>` + Object.entries(Sim.COMPRAS).map(([k, X]) => `<div class="fila"><div class="q"><b>${esc(X.nombre)}</b><small>${esc(X.desc)}</small></div><button data-comprar-c="${k}" ${mon < X.precio ? 'disabled' : ''}>${X.precio}</button></div>`).join('');
+  } else {
+    const prox = C.proxima != null ? C.proxima - Sim.dia(s) : null;
+    h += `<div class="estado">${Sim.COMERCIANTE} no está. ${prox > 0 ? `Vuelve en ${prox} día${prox === 1 ? '' : 's'}.` : 'Viene pronto.'} Mientras tanto, alguien puede llevar la carreta al pueblo: se va medio día (no trabaja en la granja) y vende lo que sobra a un precio algo menor.</div><h5>🛻 Ir al pueblo a vender</h5>`;
+    for (const a of s.agentes.filter((x) => x.vivo && x.tipo === 'humano')) h += `<div class="fila"><div class="q"><b>${esc(a.nombre)}</b><small>${a.enPueblo ? 'ya está en el pueblo' : `energía ${Math.round(a.n.energia)} · ${esc((a.accion || '').toLowerCase())}`}</small></div><button class="prim" data-pueblo="${a.id}" ${a.enPueblo ? 'disabled' : ''}>Mandar</button></div>`;
+  }
+  const G = C.ganancias || {}, tot = Object.values(G).reduce((t, x) => t + x, 0);
+  if (tot) h += `<h5>Lo que más deja (total)</h5><div class="nota">${Object.entries(G).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${esc(Sim.MERCADO[k]?.nombre || k)}: ${Math.round(v)}`).join(' · ')}</div>`;
+  h += `<div class="nota">${msgCom ? esc(msgCom) : ''}</div>`;
+  if (h !== elCom._h || forzar) { elCom.innerHTML = h; elCom._h = h; }
+}
+elCom.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar-com]')) { elCom.classList.add('off'); return encuadre(); }
+  let r = null; const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.vender) r = Sim.venderCosa(estado, b.dataset.vender, +b.dataset.n);
+  else if (b.dataset.animal) r = Sim.venderAnimal(estado, b.dataset.animal);
+  else if (b.dataset.comprarC) r = Sim.comprarCosa(estado, b.dataset.comprarC);
+  else if (b.dataset.pueblo) r = Sim.irAlPueblo(estado, b.dataset.pueblo);
+  if (!r) return; msgCom = r.msg; if (r.msg) aviso(r.msg); if (r.ok) { guardar(); pintarDatos(); } pintarComercio(true);
+});
 
 // ---------------------------------------------------------------- seguir a un personaje con la cámara
 const elElegir = document.getElementById('elegirPj'), elSig = document.getElementById('siguiendoB');
@@ -745,6 +836,7 @@ elDil.addEventListener('click', (e) => {
 });
 elFicha.addEventListener('click', (e) => {
   if (e.target.closest('[data-cerrar]')) { fichaId = null; pintarJugador(true); return; }
+  const bz = e.target.closest('[data-sueno]'); if (bz && fichaId) { const r = Sim.ordenarSueno(estado, fichaId, bz.dataset.sueno); if (r.msg) aviso(r.msg); guardar(); pintarJugador(true); return; }
   if (e.target.closest('[data-seguir]')) { escena.seguir(escena.siguiendo === fichaId ? null : fichaId); pintarSeguir(); pintarJugador(true); return; }
   const b = e.target.closest('button[data-acc]'); if (!b || !fichaId) return;
   const r = Sim.actuar(estado, fichaId, b.dataset.acc);
@@ -771,6 +863,8 @@ const bDatos = document.createElement('button');
 function aplicarDatos() { document.body.classList.toggle('datos', datos); tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
+{ const b = document.createElement('button'); b.textContent = '🔨'; b.title = 'Obras: construir y ampliar'; b.onclick = () => abrirObras(); speeds.append(b); }
+{ const b = document.createElement('button'); b.textContent = '💰'; b.title = 'Comerciar y vender'; b.onclick = () => abrirComercio(); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '👁'; b.title = 'Elegir un personaje y seguirlo con la cámara'; b.onclick = () => abrirElegir(); speeds.append(b); }
 { const NOM = { auto: 'HD auto', alta: 'HD alta', ultra: 'HD ultra' }, SIG = { auto: 'alta', alta: 'ultra', ultra: 'auto' };
   const b = document.createElement('button'); b.textContent = NOM[modoCalidad] || NOM.auto; b.title = 'Calidad de imagen: auto se ajusta al equipo; alta y ultra se ven más nítidas (más exigentes)';
@@ -779,7 +873,7 @@ speeds.append(bDatos);
 { const b = document.createElement('button'); b.textContent = '📈'; b.title = 'Crónica: cómo ha cambiado el orbe'; b.onclick = () => abrirVida('cronica'); speeds.append(b); }
 { const b = document.createElement('button'); b.textContent = '🔮'; b.title = 'Otros orbes'; b.onclick = () => { guardar(); location.href = 'mundos/index.html'; }; speeds.append(b); }   // la galería de mundos
 // en el celular no caben todos: los extras van a un menú «⋯» (con su nombre escrito)
-const EXTRAS = [...speeds.querySelectorAll('button')].slice(VELOCIDADES.length + 1).map((b) => ({ b, icono: b.textContent, etq: { '👁': '👁 Seguir a alguien', '⚡': '⚡ Poderes y naturaleza', '📈': '📈 Crónica', '🔮': '🔮 Otros orbes' }[b.textContent] || b.textContent }));
+const EXTRAS = [...speeds.querySelectorAll('button')].slice(VELOCIDADES.length + 1).map((b) => ({ b, icono: b.textContent, etq: { '🔨': '🔨 Obras', '💰': '💰 Comerciar y vender', '👁': '👁 Seguir a alguien', '⚡': '⚡ Poderes y naturaleza', '📈': '📈 Crónica', '🔮': '🔮 Otros orbes' }[b.textContent] || b.textContent }));
 const menuMas = document.createElement('div'); menuMas.className = 'menuMas off'; document.body.append(menuMas);
 const bMas = document.createElement('button'); bMas.textContent = '⋯'; bMas.title = 'Más opciones'; bMas.className = 'mas'; speeds.append(bMas);
 bMas.onclick = (e) => { e.stopPropagation(); menuMas.classList.toggle('off'); };

@@ -2428,6 +2428,8 @@ uniform float uRafaga;
   function poseAgente(a, v, s, t, dt) {
     if (!v) return;
     if (a.seFue) { v.g.visible = false; if (v.tomb) v.tomb.visible = false; return; }   // se fue (al pueblo, a otra familia)
+    if (a.enPueblo) { v.g.visible = false; v.enPueblo = true; return; }   // de viaje al pueblo con la carreta
+    if (v.enPueblo) { v.g.visible = true; v.enPueblo = false; v.ready = false; }
     if (a.tipo === 'nino' || v.esHijo) {
       if (a.seFue) { v.g.visible = false; v.tomb.visible = false; return; }
       const et = a.vivo ? ajustarEdad(a, v, s) : null;
