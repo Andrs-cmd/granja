@@ -3,273 +3,329 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1b1a17">
+<meta name="theme-color" content="#15141a">
 <title>La aldea</title>
 <link rel="stylesheet" href="motor/ui.css">
 <style>
-  .fila { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin: 1px 0; } .fila span { opacity: .7; } .fila b { text-align: right; }
-  .card .estado { font-size: 11.5px; opacity: .85; margin-bottom: 4px; }
-  .lnk { background: none; border: 0; color: #e7c46a; cursor: pointer; font: inherit; font-weight: 600; padding: 0; text-decoration: underline dotted; }
-  .barra button .lbl { margin-left: 4px; }
-  .menu { right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); width: min(260px, calc(100vw - 24px)); }
-  body.panelAbierto .col.der { display: none; }
-  body.sinCols .col { display: none !important; }
-  .ficha .pens { font-style: italic; background: rgba(231,196,106,.1); border-left: 3px solid #e7c46a; padding: 6px 9px; border-radius: 6px; margin: 6px 0; font-size: 12.5px; }
-  .ficha .sub { font-size: 12px; opacity: .8; } .ficha h5 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin: 10px 0 4px; font-weight: 600; }
-  .ficha .ahora { font-size: 12.5px; } .ficha .ahora small { display: block; opacity: .7; font-size: 11.5px; margin-top: 1px; }
-  .rasgos { display: flex; flex-wrap: wrap; gap: 4px; } .rasgos span { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 2px 8px; font-size: 11.5px; cursor: help; }
-  .gentes { display: grid; gap: 3px; } .gentes button { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: 9px; padding: 5px 8px; cursor: pointer; font-size: 12px; }
-  .gentes button:hover { border-color: rgba(231,196,106,.6); } .gentes button small { grid-column: 1 / -1; opacity: .65; font-size: 11px; } .gentes .an { font-size: 11px; opacity: .8; }
-  .rel { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 12px; } .rel .pos { color: #8fd17a; } .rel .neg { color: #f07a70; }
-  .mem { list-style: none; display: grid; gap: 2px; font-size: 11.5px; } .mem .pos { color: #a8dc96; } .mem .neg { color: #f39a90; }
-  .tabs { display: flex; gap: 4px; margin-bottom: 8px; } .tabs button { flex: 1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 5px; cursor: pointer; font-size: 12px; font-weight: 600; } .tabs button.on { background: #e7c46a; color: #1b1a17; }
-  .grafs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .grafs div > span { font-size: 11.5px; opacity: .8; display: flex; justify-content: space-between; margin-bottom: 2px; } .grafs b { opacity: 1; }
-  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; } .nums div { background: rgba(255,255,255,.05); border-radius: 8px; padding: 5px; text-align: center; font-size: 11px; opacity: .9; } .nums b { display: block; font-size: 16px; color: #e7c46a; }
-  .puntos { letter-spacing: 3px; color: #e7c46a; font-size: 15px; }
-  .aldeas { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; } .aldeas button { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 3px 8px; font-size: 11.5px; cursor: pointer; } .aldeas button.on { background: #e7c46a; color: #1b1a17; border-color: transparent; } .aldeas button.vacia { opacity: .45; }
-  table.al { width: 100%; border-collapse: collapse; font-size: 11.5px; } table.al th { text-align: left; opacity: .6; font-weight: 600; padding: 2px 4px; } table.al td { padding: 3px 4px; border-top: 1px solid rgba(255,255,255,.08); }
-  .fin { text-align: center; } .fin p { margin: 6px 0; } .fin .ops { margin-top: 12px; }
-  .etq.sel { border: 1px solid rgba(231,196,106,.7); }
-  #loader { pointer-events: none; }
-  @media (max-width: 640px) {
-    .barra { gap: 0; padding: 3px; } .barra button { padding: 6px 6.5px; font-size: 11.5px; } .barra button .lbl { display: none; }
-    .col { height: 30vh; } .grafs { grid-template-columns: 1fr; }
-    .menu { right: 8px; left: 8px; width: auto; bottom: calc(58px + env(safe-area-inset-bottom)); }
-    .panel.centro { top: 8px; transform: translateX(-50%); max-height: calc(100vh - 80px); }
+  body { background: radial-gradient(ellipse at 50% 30%, #3b3a46 0%, #23222b 55%, #121117 100%); }
+  .arriba { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px; z-index: 5; display: flex; gap: 6px; align-items: center; pointer-events: none; }
+  .arriba > * { pointer-events: auto; }
+  .pill { background: rgba(18,18,24,.82); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; color: inherit; text-decoration: none; }
+  #titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  #espiritu { cursor: pointer; }
+  #hoja { position: fixed; left: 0; right: 0; bottom: 0; height: var(--h, 150px); z-index: 6; display: flex; flex-direction: column; background: rgba(20,19,27,.97); border-top: 1px solid rgba(255,255,255,.14); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.4); transition: height .28s ease; padding-bottom: env(safe-area-inset-bottom); }
+  #hoja.arrastrando { transition: none; }
+  .asa { height: 22px; flex: none; display: grid; place-items: center; cursor: grab; touch-action: none; } .asa::before { content: ''; width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); }
+  .controles { display: flex; gap: 4px; align-items: center; padding: 0 10px 6px; flex: none; }
+  .controles button { min-height: 36px; min-width: 36px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-weight: 700; font-size: 12.5px; cursor: pointer; padding: 0 8px; }
+  .controles button.on { background: rgba(231,196,106,.95); color: #1b1a17; border-color: transparent; }
+  .controles .sep { flex: 1; }
+  .pestanas { display: flex; flex: none; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .pestanas button { flex: 1; min-height: 46px; background: none; border: 0; border-bottom: 3px solid transparent; font-size: 11.5px; font-weight: 700; cursor: pointer; opacity: .7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 2px 0; position: relative; }
+  .pestanas button span { font-size: 17px; line-height: 1; } .pestanas button.on { opacity: 1; border-bottom-color: #e7c46a; color: #f5e3a8; }
+  .pestanas .badge { position: absolute; top: 4px; right: calc(50% - 20px); font-size: 10px; background: #e0574f; color: #fff; border-radius: 99px; padding: 0 5px; }
+  #cuerpo { flex: 1; overflow-y: auto; padding: 12px 12px 18px; font-size: 13.5px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  @media (min-width: 900px) {
+    #hoja { left: auto; right: 12px; top: 12px; bottom: 12px; width: 420px; height: auto !important; border-radius: 16px; border: 1px solid rgba(255,255,255,.14); }
+    .asa { display: none; } .controles { padding-top: 10px; } .arriba { right: 444px; }
   }
+  h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin: 14px 0 6px; font-weight: 700; } h3:first-child { margin-top: 2px; }
+  .nota { font-size: 12px; opacity: .72; line-height: 1.45; margin: 4px 0; }
+  .tarj { background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .era { display: flex; gap: 10px; align-items: center; } .era em { font-size: 34px; font-style: normal; } .era b { font-size: 16px; display: block; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; } .kv span { opacity: .65; } .kv b { text-align: right; font-weight: 600; }
+  .bar { display: grid; grid-template-columns: 112px 1fr 44px; gap: 8px; align-items: center; font-size: 12.5px; margin: 4px 0; }
+  .bar u { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; text-decoration: none; position: relative; } .bar u i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: var(--c, #e7c46a); }
+  .bar em { font-style: normal; text-align: right; font-size: 12px; opacity: .85; }
+  .eje { margin: 8px 0 10px; } .eje .ext { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; } .eje u { display: block; position: relative; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--a), rgba(255,255,255,.08) 50%, var(--b)); margin: 3px 0; text-decoration: none; }
+  .eje u b { position: absolute; top: -4px; width: 4px; height: 18px; border-radius: 2px; background: #fff; box-shadow: 0 0 6px #fff; transform: translateX(-50%); } .eje small { font-size: 11.5px; opacity: .7; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; } .chip { font-size: 11.5px; padding: 3px 8px; border-radius: 99px; background: rgba(255,255,255,.08); white-space: nowrap; } .chip.on { background: rgba(231,196,106,.3); } .chip.f { background: rgba(180,138,224,.25); } button.chip { border: 0; cursor: pointer; color: inherit; }
+  .op { display: block; width: 100%; text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .op b { font-size: 14px; } .op p { font-size: 12px; opacity: .78; margin: 3px 0 6px; } .op .ejes2 { font-size: 11.5px; opacity: .85; }
+  .op .voto { height: 7px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin: 6px 0; } .op .voto i { display: block; height: 100%; background: #e7c46a; }
+  .op .acc { display: flex; gap: 6px; } .op .acc button { flex: 1; min-height: 34px; border-radius: 9px; border: 1px solid rgba(180,138,224,.5); background: rgba(180,138,224,.16); color: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .op .acc button:disabled { opacity: .35; cursor: default; }
+  .gente { display: grid; gap: 4px; } .gente button { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; text-align: left; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 6px 9px; cursor: pointer; color: inherit; font-size: 12.5px; } .gente button small { grid-column: 1 / -1; opacity: .65; font-size: 11.5px; }
+  .pens { font-style: italic; background: rgba(231,196,106,.1); border-left: 3px solid #e7c46a; padding: 7px 10px; border-radius: 6px; margin: 8px 0 4px; font-size: 13px; }
+  .interno { font-size: 12px; opacity: .78; margin: 2px 0 2px 12px; font-style: italic; }
+  .opi { display: grid; grid-template-columns: 92px 1fr; gap: 2px 8px; align-items: center; font-size: 12px; margin: 5px 0; } .opi u { position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); text-decoration: none; } .opi u i { position: absolute; top: 0; bottom: 0; border-radius: 4px; } .opi u::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.4); } .opi small { grid-column: 2; opacity: .62; font-size: 11px; }
+  .lnk { background: none; border: 0; color: #e7c46a; cursor: pointer; font: inherit; font-weight: 700; padding: 0; text-decoration: underline dotted; }
+  .linea { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; } .linea div { flex: none; text-align: center; font-size: 11px; background: rgba(255,255,255,.05); border-radius: 8px; padding: 5px 7px; opacity: .55; } .linea div.on { opacity: 1; background: rgba(231,196,106,.22); } .linea div.ya { opacity: .9; } .linea em { display: block; font-size: 18px; font-style: normal; }
+  .grafs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .grafs span { font-size: 11.5px; opacity: .8; display: flex; justify-content: space-between; } @media (max-width: 420px) { .grafs { grid-template-columns: 1fr; } }
+  .fin { text-align: center; border-color: rgba(231,196,106,.5); } .fin em { font-size: 44px; font-style: normal; display: block; } .fin .boton { margin-top: 8px; width: 100%; min-height: 42px; }
+  .tabsm { display: flex; gap: 4px; margin-bottom: 8px; } .tabsm button { flex: 1; min-height: 32px; border-radius: 9px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: inherit; font-weight: 700; font-size: 12px; cursor: pointer; } .tabsm button.on { background: #e7c46a; color: #1b1a17; }
+  .diario li.decision { border-color: #b48ae0; } .diario li.era { border-color: #6ac8e0; } .diario li.espiritu { border-color: #e0b0ff; } .diario li.mov { border-color: #e09a5a; }
+  #menu { right: 12px; bottom: calc(160px + env(safe-area-inset-bottom)); width: min(270px, calc(100vw - 24px)); } @media (min-width: 900px) { #menu { right: 444px; bottom: 20px; } }
+  .etq { transition: none; }
 </style>
 </head>
 <body>
-<div id="loader">CONSTRUYENDO LA ALDEA…</div>
+<div id="loader">LA ALDEA DESPIERTA…</div>
 <div id="stage"></div>
-<div class="volver"><a href="index.html">← Orbes</a></div>
-<div class="titulo" id="titulo">La aldea</div>
-<div class="col izq" id="colIzq"><div class="card" id="cAldea"></div><div class="card" id="cRec"></div><div class="card" id="cObras"></div></div>
-<div class="col der" id="colDer"><div class="card"><h4>Diario</h4><div id="diario"></div></div></div>
-<div class="panel lado off ficha" id="pFicha"></div>
-<div class="panel lado off" id="pGente"></div>
-<div class="panel lado off" id="pEdif"></div>
-<div class="panel lado off" id="pPoder"></div>
-<div class="panel centro off" id="pCronica"></div>
-<div class="panel menu off" id="pMenu"><div class="ops" id="menuOps"></div></div>
-<div class="etq sel" id="etq" style="display:none"></div>
-<div class="barra" id="barra"></div>
+<div class="arriba"><a class="pill" href="index.html">←</a><div class="pill" id="titulo">La aldea</div><div class="pill" id="espiritu" title="Influencia del espíritu del orbe">✨ <b id="infl">0</b></div></div>
+<div class="etq" id="etq" style="display:none"></div>
+<div class="panel off" id="menu"><div class="ops" id="menuOps"></div></div>
+<section id="hoja">
+  <div class="asa" id="asa"></div>
+  <div class="controles" id="controles"></div>
+  <nav class="pestanas" id="pestanas"></nav>
+  <div id="cuerpo"></div>
+</section>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 <script type="module">
 import { crearOrbe, THREE } from './motor/orbe3d.js';
-import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlBarra, htmlGrafica, guardarJSON, cargarJSON } from './motor/ui.js';
+import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlGrafica, guardarJSON, cargarJSON } from './motor/ui.js';
 import * as S from './aldea/sim.js';
 import { crearEscenaAldea } from './aldea/escena.js';
 
-const CLAVE = 'orbe-aldea', MIN_POR_SEG = 2;   // ×1 = 2 minutos de juego por segundo: se alcanza a ver caminar a la gente
-let s = S.cargar(cargarJSON(CLAVE));
-const nueva = !s;
-if (!s) s = S.crearAldea((Math.random() * 2 ** 32) >>> 0);
-const O = crearOrbe($('#stage'), { radio: 46, colorSuelo: 0x7fa35a, camara: { target: new THREE.Vector3(0, 2, 0), pos: new THREE.Vector3(36, 50, 74) } });
+const M = S.MENTE, U = S.CIUDAD;
+const CLAVE = 'orbe-aldea', CLAVE_HIST = 'orbe-aldea-historia', MIN_POR_SEG = 2;   // ×1 = 2 minutos por segundo: se ve caminar a la gente
+const escritorio = () => innerWidth >= 900;
+// ---------------------------------------------------------------- partida: cargar, migrar o empezar
+let s = null, avisoInicial = null;
+{
+  const viejo = cargarJSON(CLAVE);
+  if (viejo && viejo.version !== S.VERSION) { try { localStorage.setItem('orbe-aldea-v2', JSON.stringify(viejo)); } catch { /* sin espacio */ } avisoInicial = 'La aldea renace con el nuevo motor de eras. Tu aldea anterior quedó guardada aparte (orbe-aldea-v2).'; }
+  s = S.cargar(viejo);
+  if (!s) { s = S.crearAldea((Math.random() * 2 ** 32) >>> 0, 1, leerHistoria()); avisoInicial ||= 'Nace una tribu nueva. Mírala crecer… y decide con ella.'; }
+}
+function leerHistoria() { try { return JSON.parse(localStorage.getItem(CLAVE_HIST) || '[]'); } catch { return []; } }
+const O = crearOrbe($('#stage'), { radio: 46, colorSuelo: 0x7fa35a, camara: { target: new THREE.Vector3(0, 2, 0), pos: new THREE.Vector3(30, 46, 66) } });
 const E = crearEscenaAldea(O, s);
 window.aldea = { get s() { return s; }, S, E, O };
-
-// ------------------------------------------------------------ guardado
 const guardar = () => guardarJSON(CLAVE, S.guardar(s));
 addEventListener('pagehide', guardar);
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardar(); });
-if (nueva) guardar();
+function nuevaCivilizacion() {
+  const h = [...(s.historia || [])]; if (s.fin && s.resumenFin && !h.some((x) => x.semilla === s.semilla && x.anios === s.resumenFin.anios)) h.push({ ciclo: s.ciclo, tipo: s.resumenFin.tipo, n: s.resumenFin.n, i: s.resumenFin.i, anios: s.resumenFin.anios, era: s.era, semilla: s.semilla });
+  try { localStorage.setItem(CLAVE_HIST, JSON.stringify(h.slice(-30))); } catch { /* */ }
+  guardarJSON(CLAVE, S.crearAldea((Math.random() * 2 ** 32) >>> 0, 1, h.slice(-30))); location.reload();
+}
 
-// ------------------------------------------------------------ barra: velocidades, gente, crónica y menú ⋯
-let mult = 1;
-const barra = $('#barra');
-barraVelocidades(barra, [['⏸', 0], ['×1', 1], ['×5', 5], ['×20', 20], ['×100', 100], ['×500', 500]], 'aldea-vel', 1, (m) => { mult = m; });
-const btn = (html, fn, titulo) => { const b = document.createElement('button'); b.innerHTML = html; b.title = titulo || ''; b.onclick = fn; barra.append(b); return b; };
-const paneles = { ficha: panel($('#pFicha'), { alCerrar: () => { elegir(null); lados(); } }), gente: panel($('#pGente'), { alCerrar: lados }), edif: panel($('#pEdif'), { alCerrar: lados }), poder: panel($('#pPoder'), { alCerrar: lados }), cronica: panel($('#pCronica')), menu: panel($('#pMenu')) };
-function lados() { document.body.classList.toggle('panelAbierto', ['ficha', 'gente', 'edif', 'poder'].some((k) => paneles[k].abierto)); ajustarVista(); }
-// en el celular los paneles tapan la mitad de abajo: corremos el dibujo hacia arriba para que quien sigues quede a la vista
-function ajustarVista() {
-  const c = O.renderer.domElement, w = c.clientWidth, h = c.clientHeight, angosto = innerWidth <= 640 && document.body.classList.contains('panelAbierto');
-  if (angosto) O.camera.setViewOffset(w, h, 0, h * 0.22, w, h); else O.camera.clearViewOffset();
+// ---------------------------------------------------------------- la hoja (abajo en celular, a la derecha en escritorio)
+const hoja = $('#hoja'), ALTOS = () => [150, Math.round(innerHeight * 0.5), Math.round(innerHeight * 0.86)];
+let nivelHoja = 1;
+function ponerHoja(n, anim = true) { nivelHoja = Math.max(0, Math.min(2, n)); hoja.classList.toggle('arrastrando', !anim); hoja.style.setProperty('--h', `${ALTOS()[nivelHoja]}px`); setTimeout(encuadre, anim ? 300 : 0); }
+{ let y0 = null, h0 = 0; const asa = $('#asa');
+  asa.addEventListener('pointerdown', (e) => { y0 = e.clientY; h0 = hoja.getBoundingClientRect().height; asa.setPointerCapture(e.pointerId); hoja.classList.add('arrastrando'); });
+  asa.addEventListener('pointermove', (e) => { if (y0 == null) return; const h = Math.max(110, Math.min(innerHeight * 0.92, h0 + (y0 - e.clientY))); hoja.style.setProperty('--h', `${h}px`); });
+  const soltar = (e) => { if (y0 == null) return; const dy = y0 - e.clientY, h = h0 + dy; y0 = null; hoja.classList.remove('arrastrando'); if (Math.abs(dy) < 6) return ponerHoja(nivelHoja === 0 ? 1 : nivelHoja === 1 ? 2 : 0); const A = ALTOS(); let m = 0; A.forEach((a, i) => { if (Math.abs(a - h) < Math.abs(A[m] - h)) m = i; }); ponerHoja(m); };
+  asa.addEventListener('pointerup', soltar); asa.addEventListener('pointercancel', soltar); }
+// el orbe se corre para quedar en el espacio libre (arriba de la hoja o a la izquierda del panel)
+function encuadre() {
+  const W = innerWidth, H = innerHeight;
+  if (escritorio()) O.camera.setViewOffset(W, H, 215, 0, W, H);
+  else { const h = hoja.getBoundingClientRect().height; O.camera.setViewOffset(W, H, 0, Math.min(h * 0.5, H * 0.34), W, H); }
   O.camera.updateProjectionMatrix();
 }
-addEventListener('resize', () => setTimeout(ajustarVista, 0));
-function abrirLado(k) { for (const x of ['ficha', 'gente', 'edif', 'poder']) if (x !== k && paneles[x].abierto) { $(`#p${{ ficha: 'Ficha', gente: 'Gente', edif: 'Edif', poder: 'Poder' }[x]}`).classList.add('off'); } paneles[k].abrir(); paneles.menu.cerrar(); lados(); pintar(true); }
-btn('👥<span class="lbl">Gente</span>', () => (paneles.gente.abierto ? (paneles.gente.cerrar()) : abrirLado('gente')), 'Habitantes');
-btn('📜<span class="lbl">Crónica</span>', () => { paneles.cronica.alternar(); paneles.menu.cerrar(); pintar(true); }, 'Crónica de la aldea');
-btn('⋯', () => paneles.menu.alternar(), 'Más');
-// menú ⋯
-const ops = $('#menuOps');
-const op = (txt, sub, fn) => { const b = document.createElement('button'); b.innerHTML = `${txt}<small>${sub}</small>`; b.onclick = () => { paneles.menu.cerrar(); fn(); }; ops.append(b); return b; };
-op('🏗 Construcciones', 'Edificios, obras y campos', () => abrirLado('edif'));
-op('✨ Poderes del espíritu', 'Influye en la aldea (con medida)', () => abrirLado('poder'));
-op('📖 Diario', 'Mostrar u ocultar el diario', () => { document.body.classList.remove('sinCols'); document.body.classList.toggle('verDer'); });
-op('◧ Paneles', 'Mostrar u ocultar los paneles', () => document.body.classList.toggle('sinCols'));
-op('🎥 Vista general', 'Dejar de seguir y ver todo el orbe', () => { O.seguir(null); O.volar(new THREE.Vector3(0, 2, 0), 105); });
-op('🌱 Nueva aldea', 'Empieza otra con otros colonos (la actual queda de respaldo)', () => { if (!confirm('¿Empezar una aldea nueva? La actual queda guardada como respaldo.')) return; guardarJSON(CLAVE, S.crearAldea((Math.random() * 2 ** 32) >>> 0)); location.reload(); });
-const hd = document.createElement('div'); ops.append(hd); botonCalidad(hd, guardar).className = 'op';
-if (matchMedia('(max-width: 640px)').matches) document.body.classList.add('sinCols');
+addEventListener('resize', () => { if (!escritorio()) ponerHoja(nivelHoja, false); setTimeout(encuadre, 0); });
+ponerHoja(1, false);
 
-// ------------------------------------------------------------ elegir y seguir personas
+// ---------------------------------------------------------------- controles: velocidades, pausa en decisiones, menú
+let mult = 1, pausaDecision = (() => { try { return localStorage.getItem('aldea-pausa') !== '0'; } catch { return true; } })();
+const ctr = $('#controles');
+const vel = barraVelocidades(ctr, [['⏸', 0], ['×1', 1], ['×20', 20], ['×200', 200], ['×2k', 2000], ['×20k', 20000]], 'aldea-vel3', 3, (m) => { mult = m; });
+const sep = document.createElement('div'); sep.className = 'sep'; ctr.append(sep);
+const bPausa = document.createElement('button'); bPausa.title = 'Pausar cuando la sociedad deba decidir'; ctr.append(bPausa);
+const pintarPausa = () => { bPausa.textContent = pausaDecision ? '⚖⏸' : '⚖▶'; bPausa.classList.toggle('on', pausaDecision); };
+bPausa.onclick = () => { pausaDecision = !pausaDecision; try { localStorage.setItem('aldea-pausa', pausaDecision ? '1' : '0'); } catch { /* */ } pintarPausa(); aviso(pausaDecision ? 'Se pausará cuando haya que decidir.' : 'Las decisiones no pausarán el tiempo.'); };
+pintarPausa();
+const menuP = panel($('#menu'));
+const bMenu = document.createElement('button'); bMenu.textContent = '⋯'; bMenu.onclick = () => menuP.alternar(); ctr.append(bMenu);
+{ const ops = $('#menuOps'), op = (t, sub, fn) => { const b = document.createElement('button'); b.innerHTML = `${t}<small>${sub}</small>`; b.onclick = () => { menuP.cerrar(); fn(); }; ops.append(b); };
+  op('🎥 Vista general', 'Dejar de seguir y ver todo el orbe', () => { seguir(null); O.volar(new THREE.Vector3(0, 2, 0), 110); });
+  op('🌱 Nueva civilización', 'Otra semilla, otra historia (la actual queda en la historia del orbe)', () => { if (confirm('¿Empezar una civilización nueva?')) nuevaCivilizacion(); });
+  const hd = document.createElement('div'); ops.append(hd); botonCalidad(hd, guardar).className = 'op'; }
+$('#espiritu').onclick = () => irA('destino');
+
+// ---------------------------------------------------------------- pestañas
+const TABS = [['era', '🏛', 'Era'], ['decidir', '⚖', 'Decidir'], ['destino', '🧭', 'Destino'], ['gente', '👥', 'Gente'], ['ciudad', '🏙', 'Ciudad'], ['cronica', '📜', 'Crónica']];
+let tab = 'era', vista = null, subGente = 'vivos', ordenGente = 'fama', alVista = 0;
+function irA(t, v = null) { tab = t; vista = v; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintar(true); $('#cuerpo').scrollTop = 0; }
+$('#pestanas').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; if (tab === b.dataset.tab && !vista && !escritorio()) { ponerHoja(nivelHoja === 1 ? 2 : 1); return; } irA(b.dataset.tab); });
+
+// ---------------------------------------------------------------- elegir y seguir gente
 let selId = null, siguiendo = false;
-function elegir(id) { selId = id; E.elegir(id); if (id == null && siguiendo) { O.seguir(null); siguiendo = false; } }
-function abrirFicha(id) { elegir(id); abrirLado('ficha'); }
-function seguir(id) { if (siguiendo && selId === id) { O.seguir(null); siguiendo = false; } else { elegir(id); siguiendo = true; O.seguir(() => (S.vivo(s, id) ? E.posDe(id) : null), 16); } pintar(true); }
+function elegir(id) { selId = id; E.elegir(id); }
+function seguir(id) { if (id == null || (siguiendo && selId === id)) { O.seguir(null); siguiendo = false; } else { elegir(id); siguiendo = true; O.seguir(() => (S.vivo(s, id) ? E.posDe(id) : null), 14); } pintar(true); }
 O.alTocar((ev) => {
-  const id = E.personaEn(ev, s); if (id != null) return abrirFicha(id);
-  const bid = E.edificioEn(ev, s); if (bid == null) return;
-  const b = S.edificio(s, bid), T = S.TIPOS[b.tipo], viven = s.gente.filter((a) => a.hogar === b.id);
-  aviso(`${T.n}${b.hecho ? '' : ` (en obra, ${Math.round(b.p * 100)} %)`}${b.campo && b.hecho ? ` · ${{ barbecho: 'en barbecho', sembrado: `sembrado (${Math.round(b.campo.c * 100)} %)`, maduro: 'listo para cosechar' }[b.campo.e]}` : ''}${viven.length ? ` · viven: ${viven.map((a) => a.nombre).join(', ')}` : T.camas && b.hecho ? ' · vacía' : ''}${b.fuego > 0 ? ' · ¡EN LLAMAS!' : ''}`);
+  const id = E.personaEn(ev); if (id != null) { elegir(id); irA('gente', { p: id }); return; }
+  const c = E.celdaEn(ev); if (!c) return;
+  const usos = S.USOS, viven = s.gente.filter((a) => a.hogar === c.k).length, trab = s.gente.filter((a) => a.trabajo === c.k).length;
+  const t = c.u ? `${usos[c.u].n}${c.n > 1 ? ` · ${c.n} pisos` : ''} · estilo ${S.ERAS[c.e].n.toLowerCase()}${c.ru ? ' · EN RUINAS' : ''}` : c.o ? `En obra: ${usos[c.o.u].n} (${Math.round(c.o.p * 100)} %)` : { p: 'Pradera', b: 'Bosque', r: 'Roca', m: `Montaña (${c.h.toFixed(1)} m)`, a: 'Lago', v: 'Río', c: 'Cementerio' }[c.t];
+  aviso(`${t}${viven ? ` · viven ${viven}` : ''}${trab ? ` · trabajan ${trab}` : ''}${c.cont > 0.15 ? ` · contaminación ${Math.round(c.cont * 100)} %` : ''}`);
 });
 document.addEventListener('click', (e) => {
-  const p = e.target.closest('[data-p]'); if (p) { abrirFicha(+p.dataset.p); return; }
-  const f = e.target.closest('[data-seguir]'); if (f) seguir(+f.dataset.seguir);
-  const pw = e.target.closest('[data-poder]'); if (pw) { const r = S.usarPoder(s, pw.dataset.poder, selId); aviso(r || `Usaste: ${S.PODERES[pw.dataset.poder].n}`); pintar(true); }
-  const t = e.target.closest('[data-tab]'); if (t) { tabGente = t.dataset.tab; pintar(true); }
-  const al = e.target.closest('[data-al]'); if (al) { alVista = +al.dataset.al; const A = s.aldeas[alVista]; O.seguir(null); siguiendo = false; O.volar(new THREE.Vector3(A.x, 2, A.z), alVista ? 48 : 80); pintar(true); }
-  const nv = e.target.closest('[data-nueva]'); if (nv) { guardarJSON(CLAVE, S.crearAldea((Math.random() * 2 ** 32) >>> 0)); location.reload(); }
+  const t = e.target;
+  const p = t.closest('[data-p]'); if (p) { elegir(+p.dataset.p); irA('gente', { p: +p.dataset.p }); return; }
+  if (t.closest('[data-seguir]')) seguir(+t.closest('[data-seguir]').dataset.seguir);
+  const pw = t.closest('[data-poder]'); if (pw) { const r = S.usarPoder(s, pw.dataset.poder, pw.dataset.arg ?? selId); aviso(r || `✨ ${S.PODERES[pw.dataset.poder].n}`); if (!r && pw.dataset.poder === 'forzar') { s.pausar = false; } pintar(true); }
+  const sg = t.closest('[data-sub]'); if (sg) { subGente = sg.dataset.sub; pintar(true); }
+  const od = t.closest('[data-orden]'); if (od) { ordenGente = od.dataset.orden; pintar(true); }
+  const al = t.closest('[data-al]'); if (al) { alVista = +al.dataset.al; const C = s.ciudades[alVista]; seguir(null); O.volar(new THREE.Vector3(C.x, 2, C.z), alVista ? 50 : 80); pintar(true); }
+  if (t.closest('[data-volver]')) { vista = null; pintar(true); }
+  if (t.closest('[data-nueva]')) nuevaCivilizacion();
+  if (t.closest('[data-seguirtiempo]')) { vel.elegir(3); aviso('El tiempo sigue.'); }
 });
 
-// ------------------------------------------------------------ pintar la interfaz
-const fmt = (n) => Math.round(n).toLocaleString('es-CO');
-const edadTxt = (e) => (e < 1 ? `${Math.max(1, Math.round(e * 12))} meses` : `${Math.floor(e)} años`);
-const nomBtn = (a) => `<button class="lnk" data-p="${a.id}">${esc(a.nombre)}</button>`;
-let tabGente = 'vivos', presionado = false, alVista = 0, finVisto = s.fin;
-const COLORES = ['#e7c46a', '#6aa8e0', '#7cc36a', '#e07a6a', '#b48ae0', '#e0a85a'];
-const aldeaBtns = () => `<div class="aldeas">${s.aldeas.map((A) => `<button data-al="${A.id}" class="${A.id === alVista ? 'on' : ''} ${A.vacia ? 'vacia' : ''}" title="${A.vacia ? 'Abandonada' : 'Ver esta aldea'}"><span style="color:${A.id === alVista ? 'inherit' : COLORES[A.id % 6]}">●</span> ${esc(A.nombre)} ${A.vacia ? '·' : S.gentes(s, A.id).length}</button>`).join('')}</div>`;
-for (const id of ['pFicha', 'pGente', 'pEdif', 'pPoder']) { const el = $('#' + id); el.addEventListener('pointerdown', () => { presionado = true; }); }
-addEventListener('pointerup', () => setTimeout(() => { presionado = false; }, 50));
-function estadoTxt() {
-  const c = s.clima, l = [];
-  if (s.amenaza?.tipo === 'bandidos') l.push('⚔ ¡bandidos!'); if (s.edificios.some((b) => b.fuego > 0)) l.push('🔥 incendio');
-  if (s.fiesta) l.push('🎉 fiesta'); if (c.sequia) l.push('☀ sequía'); if (c.lluvia) l.push('🌧 lluvia'); if (c.nieve) l.push('❄ nieva'); if (c.duro && S.fecha(s).est === 3) l.push('🥶 invierno duro');
-  if (s.epidemia > 0 && s.gente.some((a) => a.enf > 0)) l.push('🤒 fiebre');
-  const rac = s.aldeas.filter((A) => A.racion && !A.vacia); if (rac.length) l.push(`🍞 racionan en ${rac.map((A) => A.nombre).join(' y ')}`);
-  if (s.fin) l.push('⌛ fin de la historia');
-  return l.join(' · ') || 'En calma';
+// ---------------------------------------------------------------- pintar
+const fmt = (n) => (n >= 1e6 ? `${(n / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M` : n >= 1e4 ? `${Math.round(n / 1e3)} mil` : Math.round(n).toLocaleString('es-CO'));
+const pct = (x) => `${Math.round(x * 100)} %`;
+const barra = (t, v, max = 100, c = '#e7c46a', txt = null) => `<div class="bar"><span>${t}</span><u><i style="width:${Math.max(0, Math.min(100, (v / max) * 100))}%;--c:${c};background:${c}"></i></u><em>${txt ?? Math.round(v)}</em></div>`;
+const nom = (a) => `<button class="lnk" data-p="${a.id}">${esc(a.nombre)}</button>`;
+const EJES = [['cf', 'Ciencia', 'Fe', '#6aa8e0', '#c8a0f0', 'Lo que la gente piensa de la ciencia y la religión, más lo que decidió (academias, censura, teocracia…).'], ['aa', 'Ambición', 'Armonía', '#e07a5a', '#7cc36a', 'Ambición, guerra y conquista frente a empatía y paz.'], ['ic', 'Individuo', 'Colectivo', '#e0b84a', '#5ac8b8', 'Propiedad, mercado y codicia frente a igualdad y comunidad.'], ['ni', 'Industria', 'Naturaleza', '#8a8a8a', '#4fa84a', 'Fábricas, humo y tecnología frente a bosques, parques y ecología.']];
+function pintar(forzar = false) {
+  const f = S.fecha(s), Er = S.ERAS[Math.min(8, s.era)];
+  $('#titulo').textContent = `${Er.i} ${s.destino ? S.DESTINOS[s.destino.tipo].n : Er.n} · ${S.fechaTxt(s)}`;
+  $('#infl').textContent = Math.floor(s.esp.influencia);
+  pintarSi($('#pestanas'), TABS.map(([k, e, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}"><span>${e}</span>${n}${k === 'decidir' && s.decision ? '<i class="badge">!</i>' : ''}</button>`).join(''));
+  const h = { era: htmlEra, decidir: htmlDecidir, destino: htmlDestino, gente: htmlGente, ciudad: htmlCiudad, cronica: htmlCronica }[tab]();
+  if (forzar || !presionado) pintarSi($('#cuerpo'), h);
 }
-function pintar(forzar) {
-  if (!s.aldeas[alVista]) alVista = 0;
-  const A = s.aldeas[alVista], r = S.resumen(s, alVista), tot = s.gente.length;
-  $('#titulo').textContent = `La aldea · ${S.fechaTxt(s)}`;
-  if (s.fin && !finVisto) { finVisto = true; paneles.cronica.abrir(); forzar = true; }
-  pintarSi($('#cAldea'), `<h4>${s.aldeas.length > 1 ? `Aldeas · ${tot} habitantes` : 'Aldea'}</h4><div class="estado">${estadoTxt()}</div>${s.aldeas.length > 1 ? aldeaBtns() : ''}
-    <div class="fila"><span>${esc(A.nombre)}${A.madre != null ? ` <small>(hija de ${esc(s.aldeas[A.madre].nombre)})</small>` : ''}</span><b>${r.pob}</b></div><div class="fila"><span>Adultos · niños · ancianos</span><b>${r.adultos} · ${r.ninos} · ${r.ancianos}</b></div>
-    <div class="fila"><span>Líder</span><b>${r.lider ? nomBtn(r.lider) : '—'}</b></div><div class="fila"><span>Camas</span><b>${r.camas}${r.sinTecho ? ` · ${r.sinTecho} sin techo` : ''}</b></div>
-    ${htmlBarra('Ánimo', r.animo)}${htmlBarra('Salud', r.salud)}${r.enfermos ? `<div class="fila"><span>Enfermos</span><b>${r.enfermos}</b></div>` : ''}`);
-  const R = A.res;
-  pintarSi($('#cRec'), `<h4>Recursos</h4>
-    <div class="fila"><span>Comida (cruda · preparada)</span><b>${fmt(R.alimentos)} · ${fmt(R.comidas)}</b></div>
-    <div class="fila"><span>Alcanza para</span><b>${r.reserva >= 99 ? '99+' : r.reserva.toFixed(1)} días</b></div>
-    <div class="fila"><span>Despensa</span><b>${fmt(R.alimentos + R.comidas)} / ${fmt(r.capacidad)}</b></div>
-    <div class="fila"><span>Madera · piedra</span><b>${fmt(R.madera)} · ${fmt(R.piedra)}</b></div><div class="fila"><span>Herramientas</span><b>${fmt(R.herramientas)}</b></div>
-    ${A.animales >= 1 ? `<div class="fila"><span>Animales del corral</span><b>${Math.round(A.animales)}</b></div>` : ''}
-    ${htmlBarra('Presas', s.fauna)}${htmlBarra('Peces', s.peces)}${s.fauna < 15 ? '<div class="estado">Casi no quedan presas: hay que criar y cultivar.</div>' : ''}`);
-  pintarSi($('#cObras'), `<h4>Obras</h4>${r.obras.length ? r.obras.map((b) => htmlBarra(S.TIPOS[b.tipo].n, b.p * 100)).join('') : '<div class="fila"><span>Nada en obra</span></div>'}
-    ${A.meta ? `<div class="estado" style="margin-top:4px">Próximo: ${S.TIPOS[A.meta.tipo].n.toLowerCase()} (${esc(A.meta.motivo)}). Falta ${[A.meta.madera > 0 ? fmt(A.meta.madera) + ' de madera' : '', A.meta.piedra > 0 ? fmt(A.meta.piedra) + ' de piedra' : ''].filter(Boolean).join(' y ')}.</div>` : ''}`);
-  pintarSi($('#diario'), htmlDiario(s.diario, 50));
-  if (presionado && !forzar) return;
-  if (paneles.ficha.abierto) pintarSi($('#pFicha'), htmlFicha(selId));
-  if (paneles.gente.abierto) pintarSi($('#pGente'), htmlGente());
-  if (paneles.edif.abierto) pintarSi($('#pEdif'), htmlEdif());
-  if (paneles.poder.abierto) pintarSi($('#pPoder'), htmlPoder());
-  if (paneles.cronica.abierto) pintarSi($('#pCronica'), htmlCronica());
+let presionado = false; $('#cuerpo').addEventListener('pointerdown', () => { presionado = true; }); addEventListener('pointerup', () => setTimeout(() => { presionado = false; }, 60));
+function htmlFin() {
+  if (!s.fin || !s.resumenFin) return '';
+  const R = s.resumenFin, X = S.DESTINOS[R.tipo];
+  return `<div class="tarj fin"><em>${R.i}</em><b style="font-size:17px">${esc(R.n)}</b><p class="nota">${X?.d ? esc(X.d) : 'No quedó nadie en el orbe.'}${R.causa ? ` Causa: ${esc(S.CAUSAS[R.causa].n.toLowerCase())}.` : ''}</p><div class="kv"><span>Duró</span><b>${R.anios} años</b><span>Era alcanzada</span><b>${S.ERAS[Math.min(8, R.era)].i} ${S.ERAS[Math.min(8, R.era)].n}</b><span>Población máxima</span><b>${R.maxPob} ciudadanos</b><span>Nacimientos · muertes</span><b>${R.nacimientos} · ${R.muertes}</b><span>Inventos · revoluciones</span><b>${R.inventos} · ${R.revoluciones}</b></div><button class="boton prim" data-nueva>🌱 Nueva civilización (otra semilla)</button>${R.tipo === 'extincion' ? '<button class="boton" data-poder="errantes">✨ Llamar errantes (2)</button>' : ''}</div>`;
 }
-const cab = (t) => `<div class="cab"><b>${t}</b><button data-cerrar title="Cerrar">×</button></div>`;
-function htmlFicha(id) {
-  const a = S.vivo(s, id), d = a ? null : S.persona(s, id);
-  if (!a && !d) return cab('—') + '<p class="sub">No se encuentra a esta persona.</p>';
-  const rasgos = (p) => `<div class="rasgos">${p.rasgos.map((k) => `<span title="${esc(S.RASGOS[k].d)}">${S.RASGOS[k].n}</span>`).join('')}</div>`;
-  const fam = (p) => {
-    const l = []; const nm = (id2) => { const x = S.persona(s, id2); return x ? `<button class="lnk" data-p="${x.id}">${esc(x.nombre)}</button>${S.vivo(s, id2) ? '' : ' †'}` : ''; };
-    if (p.pareja) l.push(`<div class="fila"><span>Pareja</span><b>${nm(p.pareja)}</b></div>`);
-    if (p.padres.length) l.push(`<div class="fila"><span>Padres</span><b>${p.padres.map(nm).join(', ')}</b></div>`);
-    if (p.hijos?.length) l.push(`<div class="fila"><span>Hijos</span><b>${p.hijos.map(nm).join(', ')}</b></div>`);
-    return l.join('') || '<div class="sub">Sin familia en la aldea.</div>';
-  };
-  const vida = (p) => `<ul class="diario">${p.vida.map((v) => `<li><span class="d">${esc(v.d)}</span>${esc(v.texto)}</li>`).join('')}</ul>`;
-  if (!a) return cab(`${esc(d.nombre)} ${esc(d.apellido)}`) + `<div class="sub">${d.estado === 'muerto' ? `Murió a los ${Math.floor(d.edad)} años (${esc(d.causa)}), ${esc(d.d)}.` : `Se fue de la aldea a los ${Math.floor(d.edad)} años (${esc(d.causa)}), ${esc(d.d)}.`}</div><h5>Rasgos</h5>${rasgos(d)}<h5>Familia</h5>${fam(d)}<h5>Su vida</h5>${vida(d)}`;
-  const n = a.nec, casa = S.edificio(s, a.hogar), lider = s.aldeas[a.al].lider === a.id;
-  const habs = Object.entries(a.hab).sort((x, y) => y[1] - x[1]);
-  const rel = S.relacionesDe(s, a.id, 7).map(({ p, v }) => `<span>${nomBtn(p)} <small style="opacity:.6">${S.parentesco(s, a, p) || (v >= 40 ? (p.sexo === 'f' ? 'amiga' : 'amigo') : v <= -40 ? 'enemistad' : v > 0 ? 'se llevan bien' : 'roces')}</small></span><b class="${v >= 0 ? 'pos' : 'neg'}">${v > 0 ? '+' : ''}${Math.round(v)}</b>`).join('');
-  return cab(`${esc(a.nombre)} ${esc(a.apellido)}${lider ? ' · líder' : ''}`) + `
-    <div class="sub">${edadTxt(a.edad)} · ${a.sexo === 'f' ? 'mujer' : 'hombre'} · ${esc(S.rolDe(a))}${s.aldeas.length > 1 ? ` · de ${esc(s.aldeas[a.al].nombre)}` : ''}${a.emb > 0 ? ' · embarazada' : ''}${a.enf > 0 ? ' · con fiebre' : ''}</div>
-    <div class="pens">«${esc(S.pensamiento(s, a))}»</div>
-    <div class="ahora"><b>${esc(S.haciendo(s, a))}</b><small>${esc(S.porQue(s, a))}</small></div>
-    <div class="chips" style="margin-top:8px"><button data-seguir="${a.id}" class="${siguiendo && selId === a.id ? 'on' : ''}">${siguiendo && selId === a.id ? '◉ Siguiendo' : '◎ Seguir con la cámara'}</button></div>
-    <h5>Rasgos</h5>${rasgos(a)}
-    <h5>Necesidades</h5>${htmlBarra('Comida', n.saciedad)}${htmlBarra('Energía', n.energia)}${htmlBarra('Compañía', n.social)}${htmlBarra('Ánimo', n.animo)}${htmlBarra('Salud', n.salud)}
-    <div class="fila" style="font-size:12px;margin-top:4px"><span style="opacity:.7">Hogar</span><b>${casa ? S.TIPOS[casa.tipo].n : 'Sin techo'}</b></div><div class="fila" style="font-size:12px"><span style="opacity:.7">Bienes</span><b>${a.bienes.toFixed(1)}</b></div>
-    <h5>Familia</h5>${fam(a)}
-    <h5>Relaciones</h5>${rel ? `<div class="rel">${rel}</div>` : '<div class="sub">Aún no conoce bien a nadie.</div>'}
-    <h5>Habilidades</h5>${a.edad < 8 ? '<div class="sub">Todavía aprende jugando.</div>' : habs.map(([k, v]) => htmlBarra(S.HABS[k], v)).join('')}
-    <h5>Lo que le pesa o le alegra</h5>${a.mem.length ? `<ul class="mem">${a.mem.slice().sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).map((m) => `<li class="${m.v >= 0 ? 'pos' : 'neg'}">${m.v > 0 ? '+' : ''}${m.v} · ${esc(m.txt)}</li>`).join('')}</ul>` : '<div class="sub">Nada en particular.</div>'}
-    <h5>Su vida</h5>${a.vida.length ? vida(a) : '<div class="sub">Su historia apenas empieza.</div>'}`;
+function htmlEra() {
+  const Er = S.ERAS[Math.min(8, s.era)], C = s.ciudades.find((x) => !x.vacia) || s.ciudades[0], r = S.resumen(s), L = S.vivo(s, C.lider);
+  const deEra = Object.keys(s.tec).filter((k) => S.TEC[k].era === s.era).length, sig = S.ERAS[s.era + 1];
+  const inv = (t) => { const I = s.inv[t]; if (!I) return `<div class="nota">${t === 'c' ? 'La ciencia' : 'La fe'} no tiene nada que investigar ahora.</div>`; const T = S.TEC[I.k]; return barra(`${t === 'c' ? '🔬' : '🙏'} ${T.n}`, I.p, T.costo, t === 'c' ? '#6aa8e0' : '#c8a0f0', pct(I.p / T.costo)) + `<div class="nota" style="margin:-2px 0 6px 120px">${esc(T.d)}</div>`; };
+  const ev = []; if (s.guerra) ev.push(`⚔ guerra: ${esc(s.ciudades[s.guerra.a].nombre)} contra ${esc(s.ciudades[s.guerra.b].nombre)}`); if (s.epidemia) ev.push(`🤒 epidemia en ${esc(s.ciudades[s.epidemia.al].nombre)}`); if (s.clima.sequia) ev.push('☀ sequía'); if (s.mega) ev.push(`${S.DESTINOS[s.mega.k].i} megaproyecto ${Math.round(s.mega.prog * 100)} %`); if (C.hambre > 0.1) ev.push('🍞 hambre'); if (C.sinEnergia) ev.push('⚡ apagones');
+  for (const Mv of s.movimientos.filter((m) => m.activo)) ev.push(`📣 «${esc(Mv.nombre)}» (${pct(Mv.fuerza)})`);
+  return htmlFin() + `<div class="tarj era"><em>${Er.i}</em><div><b>${s.destino ? S.DESTINOS[s.destino.tipo].i + ' ' + S.DESTINOS[s.destino.tipo].n : Er.n}</b><span class="nota">${esc(Er.d)}</span></div></div>
+    <div class="kv"><span>Ciudadanos (personas)</span><b>${r.pob}</b><span>Habitantes que representan</span><b>${fmt(r.hab)}</b><span>Gobierno</span><b>${S.GOBIERNOS[s.gobierno].n}</b><span>Al mando</span><b>${L ? `${nom(L)}, ${S.cargoDe(s, L)}` : '—'}</b><span>Ánimo · salud · estudio</span><b>${r.animo} · ${r.salud} · ${r.edu}</b>${s.ciclo > 1 ? `<span>Ciclo</span><b>${s.ciclo}</b>` : ''}</div>
+    ${ev.length ? `<div class="chips" style="margin-top:8px">${ev.map((x) => `<span class="chip">${x}</span>`).join('')}</div>` : ''}
+    <h3>Investigación</h3>${inv('c')}${inv('f')}
+    ${sig && s.era < 7 ? `<div class="nota">Para la siguiente era (${sig.i} ${sig.n}) hacen falta 3 descubrimientos de esta era (van ${deEra}) y al menos ${sig.pob} ciudadanos (hay ${r.pob}).</div>` : s.era >= 7 && !s.destino ? '<div class="nota">Es la última era: la sociedad debe elegir su destino (o caer antes).</div>' : ''}
+    <h3>Recursos de ${esc(C.nombre)}</h3>${['comida', 'materiales', 'metal', 'energia', 'bienes'].filter((k) => k !== 'energia' || s.era >= 4).map((k) => barra({ comida: '🌾 Comida', materiales: '🪵 Materiales', metal: '⛏ Metal', energia: '⚡ Energía', bienes: '📦 Bienes' }[k], C.res[k], Math.max(50, r.pob * 30), '#7cc36a', fmt(C.res[k]))).join('')}
+    ${barra('🌳 Ecología', s.ecologia, 100, s.ecologia > 60 ? '#4fa84a' : '#e0a050')}${barra('🏭 Contaminación', s.contaminacion * 100, 100, '#8a7a6a')}
+    <h3>Descubierto</h3><div class="chips">${Object.keys(s.tec).map((k) => `<span class="chip ${S.TEC[k].t === 'f' ? 'f' : ''}" title="${esc(S.TEC[k].d)}">${esc(S.TEC[k].n)}</span>`).join('') || '<span class="nota">Nada todavía.</span>'}</div>
+    <h3>Diario</h3>${htmlDiario(s.diario, 25)}`;
+}
+const flechas = (ej) => Object.entries(ej || {}).map(([k, v]) => { const E0 = EJES.find((x) => x[0] === k); return `${v > 0 ? E0[1] : E0[2]} ${v > 0 ? '+' : '+'}${Math.abs(v)}`; }).join(' · ');
+function htmlDecidir() {
+  const D = s.decision;
+  let h = '';
+  if (D) {
+    const c = S.conteo(s), dias = D.cierra - s.dia, Gb = S.GOBIERNOS[s.gobierno];
+    const quien = { mayores: 'El consejo de ancianos (los mayores pesan más)', lider: 'El gobernante decide (con algo de peso de los poderosos)', fieles: 'Los fieles y los sacerdotes', ricos: 'Los ciudadanos con propiedades (los ricos pesan más)', todos: 'Toda la gente adulta, un voto cada quien', sabios: 'Los sabios y científicos' }[c.quien];
+    h += `<div class="tarj"><b style="font-size:16px">⚖ ${esc(D.t)}</b><p class="nota" style="font-size:13px;opacity:.9">${esc(D.q)}</p><div class="nota">Decide: ${quien} (${esc(Gb.n)}). Se resuelve en ${dias} día${dias === 1 ? '' : 's'} de juego.</div></div>`;
+    for (const o of D.ops) {
+      const v = c.tally[o.k] / c.total;
+      h += `<div class="op"><b>${esc(o.n)}</b>${D.consejo[o.k] ? ' <span class="chip f">✨ aconsejado</span>' : ''}<p>${esc(o.d)}</p>${o.ejes ? `<div class="ejes2">Empuja hacia: ${flechas(o.ejes)}</div>` : ''}${o.gob ? `<div class="ejes2">Gobierno: ${S.GOBIERNOS[o.gob].n}</div>` : ''}
+        <div class="voto"><i style="width:${v * 100}%"></i></div><div class="ejes2">Peso de los votos: ${pct(v)}</div>
+        <div class="acc"><button data-poder="aconsejar" data-arg="${o.k}" ${s.esp.influencia < 1 ? 'disabled' : ''}>✨ Aconsejar (1)</button><button data-poder="forzar" data-arg="${o.k}" ${s.esp.influencia < 3 ? 'disabled' : ''}>⚡ Imponer (3)</button></div></div>`;
+    }
+    const muestra = s.gente.filter((a) => a.edad >= 16).sort((a, b) => b.fama - a.fama).slice(0, 6);
+    h += `<h3>Qué piensa la gente</h3>${muestra.map((a) => { const v = S.votoDe(s, a); return `<div class="nota">${nom(a)} (${esc(S.oficioDe(s, a).toLowerCase())}) apoya «${esc(v.n)}» ${esc(v.motivo)}.</div>`; }).join('')}
+      <button class="boton" style="width:100%;margin-top:10px" data-seguirtiempo>▶ Dejar que decidan (seguir el tiempo)</button>`;
+  } else h += '<div class="tarj"><b>No hay decisiones pendientes.</b><p class="nota">En cada cambio de era, y cuando hay crisis (guerra, epidemia, revolución, contaminación, desigualdad, una nueva fe), la sociedad debe decidir. Puedes aconsejar o imponer con tu influencia.</p></div>';
+  h += `<h3>Decisiones de la historia</h3>${s.decisiones.slice().reverse().slice(0, 40).map((d) => `<div class="nota">A${d.anio} · <b>${esc(d.t)}</b>: «${esc(d.n)}» ${d.forzada ? '(impuesto ✨)' : `(${d.pct} %)`}</div>`).join('') || '<div class="nota">Todavía ninguna.</div>'}`;
+  return h;
+}
+function htmlDestino() {
+  const prob = S.destinoProbable(s), r = S.riesgosDe(s);
+  let h = htmlFin() + '<h3>Medidor del destino</h3><div class="nota">Cada eje suma lo que la gente piensa hoy y lo que la sociedad decidió a lo largo de su historia.</div>';
+  for (const [k, a, b, ca, cb, d] of EJES) { const v = s.ejes[k], base = Math.round(s.ejeBase[k]); h += `<div class="eje" style="--a:${ca};--b:${cb}"><div class="ext"><span style="color:${ca}">${a}</span><span style="color:${cb}">${b}</span></div><u><b style="left:${50 - v / 2}%"></b></u><small>${esc(d)} Historia: ${base > 0 ? a : b} ${Math.abs(base)} · gente hoy: ${(s.ejesOp?.[k] ?? 0) > 0 ? a : b} ${Math.abs(s.ejesOp?.[k] ?? 0)}.</small></div>`; }
+  h += `<h3>Hacia dónde va</h3><div class="chips">${prob.map((p, i) => `<span class="chip ${i === 0 ? 'on' : ''}">${S.DESTINOS[p.k].i} ${S.DESTINOS[p.k].n}</span>`).join('')}</div>`;
+  if (s.mega) { const X = S.DESTINOS[s.mega.k]; h += `<h3>${X.i} Megaproyecto: ${esc(X.mega)}</h3>${Object.entries(X.costo).map(([k, c]) => barra(k, s.mega.ap[k] || 0, c, '#e7c46a', pct((s.mega.ap[k] || 0) / c))).join('')}${barra('Apoyo popular', s.mega.apoyo * 100, 100, '#7cc36a')}<div class="nota">Si la gente no cree en el proyecto, avanza más lento. Progreso total: ${pct(s.mega.prog)}.</div>`; }
+  h += '<h3>Destinos posibles</h3>';
+  for (const [k, X] of Object.entries(S.DESTINOS)) { if (k === 'destruccion') continue; const T = S.TEC[X.tec]; h += `<div class="tarj"><b>${X.i} ${esc(X.n)}</b> ${s.tec[X.tec] ? '<span class="chip on">abierto</span>' : ''}<div class="nota">${esc(X.d)}</div><div class="nota">Requiere: «${esc(T.n)}» (era futura) y luego el megaproyecto «${esc(X.mega)}». Lo apoyan quienes valoran ${{ estelar: 'la ambición, la ciencia y la tecnología', trascendencia: 'la fe y la empatía', gaia: 'la naturaleza y la igualdad', colmena: 'la tecnología, la lealtad y lo colectivo' }[k]}.</div></div>`; }
+  h += `<h3>💀 Riesgos de destrucción</h3>${[['nuclear', '☢ Guerra nuclear', 'Existe si decidieron construir la bomba; sube con guerras, odios entre ciudades y ambición.'], ['ia', '🤖 IA descontrolada', 'Existe con la inteligencia artificial; mucho mayor si le dieron libertad total.'], ['eco', '🌫 Colapso ecológico', 'Sube cuando muere el bosque y el humo lo cubre todo.'], ['plaga', '🦠 Plaga artificial', 'Existe con la genética; la ambición la vuelve más probable.'], ['civil', '🔥 Guerra civil', 'Sube con la gente en contra del gobierno y la desigualdad.']].map(([k, n, d]) => barra(n, r[k], 100, '#e0574f') + `<div class="nota" style="margin:-3px 0 6px 120px">${d}</div>`).join('')}`;
+  h += `<h3>✨ Poderes del espíritu del orbe</h3><div class="nota">Influencia: ${Math.floor(s.esp.influencia)} de 8 (se recupera con las estaciones, más rápido con mucha fe). Fe en el espíritu: ${Math.round(s.esp.fe)}.</div><div class="ops">${Object.entries(S.PODERES).filter(([k]) => !['aconsejar', 'forzar'].includes(k)).map(([k, P]) => `<button data-poder="${k}" ${s.esp.influencia < P.costo || (k === 'inspirar' && !S.vivo(s, selId)) ? 'disabled' : ''}>${esc(P.n)} · ${'✨'.repeat(P.costo)}<small>${esc(P.d)}${k === 'inspirar' ? (S.vivo(s, selId) ? ` (a ${esc(S.vivo(s, selId).nombre)})` : ' Toca primero a alguien.') : ''}</small></button>`).join('')}</div>`;
+  return h;
 }
 function htmlGente() {
-  const tabs = `<div class="tabs"><button data-tab="vivos" class="${tabGente === 'vivos' ? 'on' : ''}">Habitantes (${s.gente.length})</button><button data-tab="idos" class="${tabGente === 'idos' ? 'on' : ''}">Recordados (${s.difuntos.length + s.idos.length})</button></div>`;
-  if (tabGente === 'idos') {
-    const l = [...s.difuntos, ...s.idos].sort((x, y) => y.id - x.id).slice(0, 80);
-    return cab('Gente') + tabs + `<div class="gentes">${l.map((d) => `<button data-p="${d.id}"><span>${esc(d.nombre)} ${esc(d.apellido)}</span><span class="an">${d.estado === 'muerto' ? '†' : '↗'} ${Math.floor(d.edad)} años</span><small>${esc(d.d)} · ${esc(d.causa)}</small></button>`).join('') || '<div class="sub">Nadie todavía.</div>'}</div>`;
-  }
-  const lider = (a) => s.aldeas[a.al].lider === a.id;
-  const l = s.gente.slice().sort((x, y) => (x.al !== alVista) - (y.al !== alVista) || x.al - y.al || lider(y) - lider(x) || y.edad - x.edad);
+  if (vista?.p != null) return htmlFicha(vista.p);
+  const A = s.gente.filter((a) => a.edad >= 16), cl = { alta: 0, media: 0, baja: 0 }; for (const a of A) cl[a.clase]++;
+  const of = {}; for (const a of A) if (a.oficio) of[a.oficio] = (of[a.oficio] || 0) + 1;
+  let h = `<div class="tabsm"><button data-sub="vivos" class="${subGente === 'vivos' ? 'on' : ''}">Ciudadanos (${s.gente.length})</button><button data-sub="idos" class="${subGente === 'idos' ? 'on' : ''}">Recordados</button></div>`;
+  if (subGente === 'idos') return h + `<div class="gente">${[...s.difuntos, ...s.idos].sort((a, b) => b.id - a.id).slice(0, 100).map((d) => `<button data-p="${d.id}"><span>${esc(d.nombre)} ${esc(d.apellido)}</span><span>${d.estado === 'muerto' ? '†' : d.estado === 'partió' ? '🚀' : d.estado === 'trascendió' ? '✨' : '↗'} ${Math.floor(d.edad)}</span><small>${esc(d.d)} · ${esc(d.causa)}</small></button>`).join('')}</div>`;
+  h += `<h3>Clases</h3>${s.era === 0 ? '<div class="nota">En la tribu todavía no hay ricos ni pobres.</div>' : barra('Alta', cl.alta, A.length || 1, '#e0b84a', cl.alta) + barra('Media', cl.media, A.length || 1, '#6aa8e0', cl.media) + barra('Baja', cl.baja, A.length || 1, '#e07a5a', cl.baja)}
+    <h3>Oficios</h3><div class="chips">${Object.entries(of).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="chip">${esc(S.tituloOficio(k, s.era, 'm'))}: ${n}</span>`).join('')}</div>
+    ${s.movimientos.some((m) => m.activo) ? `<h3>Movimientos</h3>${s.movimientos.filter((m) => m.activo).map((m) => { const L = S.vivo(s, m.lider); return `<div class="nota">📣 <b>${esc(m.nombre)}</b> (${pct(m.fuerza)} de los adultos)${L ? ` · lo guía ${nom(L)}` : ''}</div>`; }).join('')}` : ''}
+    <h3>Gente</h3><div class="tabsm"><button data-orden="fama" class="${ordenGente === 'fama' ? 'on' : ''}">Más conocidos</button><button data-orden="animo" class="${ordenGente === 'animo' ? 'on' : ''}">Más tristes</button><button data-orden="edad" class="${ordenGente === 'edad' ? 'on' : ''}">Mayores</button></div>`;
   const cara = (v) => (v >= 70 ? '😊' : v >= 45 ? '🙂' : v >= 28 ? '😐' : '😟');
-  return cab('Gente') + tabs + `<div class="gentes">${l.map((a) => `<button data-p="${a.id}"><span>${esc(a.nombre)} ${esc(a.apellido)}${lider(a) ? ' ★' : ''}</span><span class="an">${cara(a.nec.animo)} ${edadTxt(a.edad)}</span><small>${s.aldeas.length > 1 ? `<span style="color:${COLORES[a.al % 6]}">●</span> ${esc(s.aldeas[a.al].nombre)} · ` : ''}${esc(S.rolDe(a))} · ${esc(S.haciendo(s, a))}${a.enf > 0 ? ' · 🤒' : ''}${a.hogar == null && a.edad >= 3 ? ' · sin techo' : ''}</small></button>`).join('')}</div>`;
+  const l = s.gente.slice().sort((a, b) => (ordenGente === 'fama' ? b.fama - a.fama || b.edad - a.edad : ordenGente === 'animo' ? a.animo - b.animo : b.edad - a.edad)).slice(0, 80);
+  return h + `<div class="gente">${l.map((a) => `<button data-p="${a.id}"><span>${esc(a.nombre)} ${esc(a.apellido)}${s.ciudades.some((C) => C.lider === a.id) ? ' ★' : ''}</span><span>${cara(a.animo)} ${Math.floor(a.edad)}</span><small>${esc(S.oficioDe(s, a))}${s.era > 0 ? ` · clase ${a.clase}` : ''}${s.ciudades.length > 1 ? ` · ${esc(s.ciudades[a.al].nombre)}` : ''}</small></button>`).join('')}</div>`;
 }
-function htmlEdif() {
-  const A = s.aldeas[alVista], cuenta = {}; for (const b of s.edificios) if (b.hecho && b.al === alVista) cuenta[b.tipo] = (cuenta[b.tipo] || 0) + 1;
-  const campos = s.edificios.filter((b) => b.campo && b.hecho && b.al === alVista), ce = (e) => campos.filter((b) => b.campo.e === e).length;
-  const casas = s.edificios.filter((b) => b.tipo === 'casa' && b.hecho && b.al === alVista);
-  return cab(`Construcciones · ${esc(A.nombre)}`) + (s.aldeas.length > 1 ? aldeaBtns() : '') + `
-    <h5 style="margin-top:0">Obras</h5>${s.edificios.filter((b) => !b.hecho && b.al === alVista).map((b) => htmlBarra(S.TIPOS[b.tipo].n, b.p * 100)).join('') || '<div class="sub">Nada en obra.</div>'}
-    ${A.meta ? `<div class="sub" style="margin-top:4px">El consejo quiere ${S.elTipo(A.meta.tipo)} (${esc(A.meta.motivo)}), pero falta material.</div>` : ''}
-    ${casas.length ? `<div class="sub" style="margin-top:4px">Casas con muebles: ${casas.filter((b) => b.nivel >= 1).length} de ${casas.length}${casas.some((b) => b.nivel >= 3) ? ' (algunas ya con balcón y jardineras)' : ''}.</div>` : ''}
-    <h5>En pie</h5><div class="grid">${Object.entries(cuenta).map(([k, v]) => `<span>${S.TIPOS[k].n}</span><b>${v}</b>`).join('')}</div>
-    ${campos.length ? `<h5>Campos</h5><div class="grid"><span>Sembrados</span><b>${ce('sembrado')}</b><span>Listos para cosechar</span><b>${ce('maduro')}</b><span>En barbecho</span><b>${ce('barbecho')}</b></div>` : ''}
-    <h5>Cómo crece</h5><div class="sub">El consejo de cada aldea, guiado por su líder, decide qué construir según lo que haga falta (camas, comida, animales, agua, herramientas, defensa, fe). Si falta madera o piedra, la gente se pone a talar o picar; si sobra madera, hacen muebles o la venden. Cuando una aldea se llena, una pareja con empuje se va a fundar otra.</div>`;
+function htmlFicha(id) {
+  const a = S.vivo(s, id), d = a || S.persona(s, id);
+  if (!d) { vista = null; return htmlGente(); }
+  const bar5 = (o) => M.BIG5.map(([k, n]) => barra(n, o.p[k] * 100, 100, '#b48ae0')).join('');
+  const valores = (o) => M.VALORES.map(([k, n]) => barra(n, o.v[k] * 100, 100, '#6ac8b8')).join('');
+  const opiniones = (o) => Object.entries(M.TEMAS).map(([k, [, n]]) => { const v = o.op[k], w = Math.abs(v) * 50; return `<div class="opi"><span>${n}</span><u><i style="left:${v >= 0 ? 50 : 50 - w}%;width:${w}%;background:${v >= 0 ? '#7cc36a' : '#e07a5a'}"></i></u>${a ? `<small>${v > 0.25 ? 'A favor' : v < -0.25 ? 'En contra' : 'Dudas'} · ${esc(M.porQueOpina(a, k))}</small>` : ''}</div>`; }).join('');
+  const vida = (o) => `<ul class="diario">${o.vida.map((v) => `<li><span class="d">${esc(v.d)}</span>${esc(v.texto)}</li>`).join('')}</ul>`;
+  let h = `<button class="volverF lnk" data-volver style="margin-bottom:6px">← Gente</button>`;
+  if (!a) return h + `<div class="tarj"><b style="font-size:16px">${esc(d.nombre)} ${esc(d.apellido)}</b><div class="nota">${d.estado === 'muerto' ? `Murió a los ${Math.floor(d.edad)} años (${esc(d.causa)}), ${esc(d.d)}.` : `${esc(d.causa)} a los ${Math.floor(d.edad)} años, ${esc(d.d)}.`}${d.ciudad ? ` Vivía en ${esc(d.ciudad)}.` : ''}</div></div>${d.p ? `<h3>Quién fue</h3>${bar5(d)}<h3>Lo que pensaba</h3>${opiniones(d)}` : ''}<h3>Su vida</h3>${vida(d)}`;
+  const P = S.pensamiento(s, a), C = s.ciudades[a.al], casa = U.mapa(s).get(a.hogar), voto = s.decision ? S.votoDe(s, a) : null;
+  const sueno = M.SUENOS[a.sueno.k];
+  h += `<div class="tarj"><b style="font-size:16px">${esc(a.nombre)} ${esc(a.apellido)}</b>${C.lider === a.id ? ` <span class="chip on">${esc(S.cargoDe(s, a))}</span>` : ''}<div class="nota">${Math.floor(a.edad)} años · ${a.sexo === 'f' ? 'mujer' : 'hombre'} · ${esc(S.oficioDe(s, a))}${s.era > 0 ? ` · clase ${a.clase}` : ''} · ${esc(C.nombre)}${casa ? '' : ' · sin casa'}</div><div class="nota">Es ${esc(M.describir(a))}.</div>
+    <div class="pens">💭 «${esc(P.txt)}»</div>${P.interno.map((t) => `<div class="interno">— ${esc(t)}</div>`).join('')}
+    <div class="acc" style="display:flex;gap:6px;margin-top:8px"><button class="boton" data-seguir="${a.id}">${siguiendo && selId === a.id ? '◉ Siguiendo' : '◎ Seguir'}</button><button class="boton" data-poder="inspirar" data-arg="${a.id}" ${s.esp.influencia < 1 ? 'disabled' : ''}>✨ Inspirar</button></div></div>
+    ${voto ? `<div class="nota">⚖ En «${esc(s.decision.t)}» apoya <b>«${esc(voto.n)}»</b> ${esc(voto.motivo)}.</div>` : ''}
+    <h3>Sueño de vida</h3><div class="nota">${a.sueno.ok ? '✓ ' : ''}${esc(sueno)}${a.sueno.ok ? ` (lo cumplió en el año ${a.sueno.anio})` : ''}</div>
+    ${barra('Ánimo', a.animo, 100, a.animo > 50 ? '#7cc36a' : '#e07a5a')}${barra('Salud', a.salud, 100, '#7cc36a')}${barra('Estudio', a.edu, 100, '#6aa8e0')}
+    <h3>Qué piensa de…</h3>${opiniones(a)}
+    <h3>Personalidad</h3>${bar5(a)}<h3>Valores</h3>${valores(a)}
+    ${a.mov != null ? `<div class="nota">📣 Es parte de «${esc(s.movimientos.find((m) => m.id === a.mov)?.nombre || '')}».</div>` : ''}
+    <h3>Su gente</h3>${S.relacionesDe(s, a, 8).map(({ p, v }) => `<div class="nota">${nom(p)} · ${S.parentesco(a, p) || (v >= 45 ? (p.sexo === 'f' ? 'amiga' : 'amigo') : v <= -45 ? 'enemistad' : v > 0 ? 'se llevan bien' : 'roces')} <span style="color:${v >= 0 ? '#8fd17a' : '#f07a70'}">${v > 0 ? '+' : ''}${v}</span>${S.vivo(s, p.id) ? '' : ' †'}</div>`).join('') || '<div class="nota">Aún no conoce bien a nadie.</div>'}
+    <h3>Lo que recuerda</h3>${a.mem.map((m) => `<div class="nota" style="color:${m.peso >= 0 ? '#a8dc96' : '#f39a90'}">${esc(m.d)} · ${esc(m.txt)}</div>`).join('') || '<div class="nota">Nada que le pese.</div>'}
+    <h3>Su vida</h3>${vida(a)}`;
+  return h;
 }
-function htmlPoder() {
-  const sel = selId != null && S.vivo(s, selId);
-  return cab('Poderes del espíritu') + `<div class="sub">Eres el espíritu del orbe. Tu influencia es poca: se recupera con cada estación (más rápido si hay templo y fe).</div>
-    <div class="fila" style="margin:8px 0"><span>Influencia</span><b class="puntos">${'●'.repeat(Math.floor(s.esp.influencia))}${'○'.repeat(Math.max(0, 6 - Math.floor(s.esp.influencia)))}</b></div>${htmlBarra('Fe de la aldea', s.esp.fe)}
-    <div class="ops" style="margin-top:10px">${Object.entries(S.PODERES).map(([k, P]) => `<button data-poder="${k}" ${s.esp.influencia < P.costo || (k === 'inspirar' && !sel) ? 'disabled' : ''}>${P.n} · ${'●'.repeat(P.costo)}<small>${esc(P.d)}${k === 'inspirar' ? (sel ? ` (a ${esc(sel.nombre)})` : ' Toca primero a alguien.') : ''}</small></button>`).join('')}</div>`;
+function htmlCiudad() {
+  const V = s.ciudades; if (!V[alVista]) alVista = 0;
+  const C = V[alVista], r = S.resumen(s, C.id), L = S.vivo(s, C.lider), b = U.barrios(s, C, S.gentes(s, C.id));
+  const usos = {}; for (const c of s.celdas) if (c.al === C.id && c.u && !c.ru) usos[c.u] = (usos[c.u] || 0) + 1;
+  const obras = s.celdas.filter((c) => c.o && c.al === C.id);
+  return `<div class="chips" style="margin-bottom:8px">${V.map((X) => `<button class="chip ${X.id === alVista ? 'on' : ''}" data-al="${X.id}">${esc(X.nombre)}${X.vacia ? ' (vacía)' : ` · ${S.gentes(s, X.id).length}`}</button>`).join('')}</div>
+    <div class="kv"><span>Ciudadanos · habitantes</span><b>${r.pob} · ${fmt(r.hab)}</b><span>Al mando</span><b>${L ? nom(L) : '—'}</b><span>Desigualdad</span><b>${Math.round((C.gini || 0) * 100)} %</b><span>Salud pública</span><b>${pct(Math.min(1, C.salud))}</b><span>Sin casa</span><b>${r.sinCasa}</b>${C.madre != null ? `<span>Fundada</span><b>año ${C.fundada}</b>` : ''}</div>
+    <h3>Barrios</h3><div class="chips">${[['alto', '🏛 Residencial alto'], ['medio', '🏠 Barrio medio'], ['obrero', '🧱 Barrio obrero'], ['industrial', '🏭 Industrial'], ['templos', '⛪ Templos'], ['saber', '🎓 Saber'], ['centro', '🏙 Centro'], ['campos', '🌾 Campos'], ['parques', '🌳 Parques'], ['ruinas', '🏚 Ruinas']].filter(([k]) => b[k]).map(([k, n]) => `<span class="chip">${n}: ${b[k]}</span>`).join('')}</div>
+    <h3>Construcciones</h3><div class="chips">${Object.entries(usos).sort((a, x) => x[1] - a[1]).map(([k, n]) => `<span class="chip">${esc(S.USOS[k].n)}: ${n}</span>`).join('')}</div>
+    <h3>Obras</h3>${obras.length ? obras.map((c) => barra(`${S.USOS[c.o.u].n}${c.u ? ' (renovación)' : ''}`, c.o.p * 100, 100, '#e0b84a', pct(c.o.p))).join('') : '<div class="nota">Nada en obra.</div>'}${C.falta ? `<div class="nota">Falta material para: ${esc(C.falta)}.</div>` : ''}
+    <div class="nota" style="margin-top:8px">La ciudad crece hacia afuera mientras hay suelo, y hacia arriba cuando la era lo permite (máximo ${S.ERAS[Math.min(8, s.era)].pisos} pisos). Cuando cambia la era, los edificios viejos se renuevan con la arquitectura nueva.</div>`;
 }
 function htmlCronica() {
-  const H = s.hist, c = s.cont, f = S.fecha(s), ult = (l) => (l.length ? l[l.length - 1] : 0);
-  const g = (t, d, col) => `<div><span>${t}<b>${fmt(ult(d))}</b></span>${htmlGrafica([{ datos: d, color: col }], 58)}</div>`;
-  const RF = s.resumenFin, fin = s.fin ? `<div class="fin card" style="margin-bottom:10px"><b style="color:#e7c46a;font-size:15px">Fin de la historia</b><p>El orbe quedó vacío después de ${RF?.anios ?? f.anio} años. Llegó a tener ${s.maxPob} habitantes a la vez y ${c.aldeas} aldea${c.aldeas > 1 ? 's' : ''}.</p><div class="ops"><button data-nueva>🌱 Empezar una aldea nueva<small>Otros colonos, otro mapa.</small></button>${s.esp.influencia >= 3 ? '<button data-poder="errantes">✨ Llamar errantes<small>Usa 3 de influencia para que alguien vuelva a habitar las ruinas.</small></button>' : ''}</div></div>` : '';
-  const multi = s.aldeas.length > 1 ? `<div style="grid-column:1/-1"><span>Población por aldea${s.aldeas.map((A) => ` <i style="color:${COLORES[A.id % 6]};font-style:normal">● ${esc(A.nombre)}</i>`).join('')}</span>${htmlGrafica(s.aldeas.map((A) => ({ datos: H.al[A.id] || [], color: COLORES[A.id % 6] })), 70)}</div>` : '';
-  const tabla = s.aldeas.length > 1 ? `<h5 style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#e7c46a;margin:12px 0 5px">Aldeas</h5><table class="al"><tr><th>Aldea</th><th>Gente</th><th>Líder</th><th>Lazo con su madre</th></tr>${s.aldeas.map((A) => { const L = S.vivo(s, A.lider), lz = A.madre != null ? S.lazo(s, A.id, A.madre) : null; return `<tr><td><span style="color:${COLORES[A.id % 6]}">●</span> ${esc(A.nombre)}${A.vacia ? ' (abandonada)' : ''}</td><td>${S.gentes(s, A.id).length}</td><td>${L ? esc(L.nombre) : '—'}</td><td>${lz == null ? 'fundadora' : `${lz >= 40 ? 'hermanas' : lz >= 10 ? 'buenos vecinos' : lz > -20 ? 'distantes' : lz > -50 ? 'rivales' : 'enemigas'} (${Math.round(lz)})`}</td></tr>`; }).join('')}</table>` : '';
-  return cab(`Crónica · ${f.anio} año${f.anio > 1 ? 's' : ''}`) + fin + `
-    <div class="nums"><div><b>${c.nacimientos}</b>nacimientos</div><div><b>${c.muertes}</b>muertes</div><div><b>${c.parejas}</b>parejas</div><div><b>${c.llegadas}</b>llegadas</div><div><b>${c.partidas}</b>partidas</div><div><b>${c.lideres}</b>líderes</div>${s.aldeas.length > 1 ? `<div><b>${c.aldeas}</b>aldeas</div><div><b>${c.mudanzas || 0}</b>mudanzas</div><div><b>${s.maxPob}</b>máximo</div>` : ''}</div>
-    <div class="grafs">${g('Población total', H.pob, '#e7c46a')}${g('Comida guardada', H.comida, '#7cc36a')}${multi}${g('Ánimo promedio', H.animo, '#6aa8e0')}${g('Construcciones', H.casas, '#c49a7a')}</div>${tabla}
-    <h5 style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#e7c46a;margin:12px 0 5px">Hitos</h5>
-    <ul class="diario">${s.hitos.slice(0, 60).map((h) => `<li class="logro"><span class="d">${esc(h.d)}</span>${esc(h.texto)}</li>`).join('')}</ul>`;
+  const H = s.hist, c = s.cont, ult = (l) => (l.length ? l[l.length - 1] : 0);
+  const g = (t, d, col, txt) => `<div><span>${t}<b>${txt ?? fmt(ult(d))}</b></span>${htmlGrafica([{ datos: d, color: col }], 54)}</div>`;
+  const linea = S.ERAS.slice(0, 8).map((E0, i) => { const ya = s.eras.filter((x) => x.era === i).pop(); return `<div class="${i === s.era && !s.destino ? 'on' : ya ? 'ya' : ''}"><em>${E0.i}</em>${esc(E0.n.replace('Era ', '').replace('de la ', ''))}<br><small>${ya ? `año ${ya.anio}` : '—'}</small></div>`; }).join('') + (s.destino ? `<div class="on"><em>${S.DESTINOS[s.destino.tipo].i}</em>${esc(S.DESTINOS[s.destino.tipo].n)}<br><small>año ${s.destino.anio}</small></div>` : '');
+  const hist = (s.historia || []).length ? `<h3>Historia del orbe</h3>${s.historia.slice().reverse().map((x) => `<div class="nota">${x.i} Ciclo ${x.ciclo}: ${esc(x.n)}${x.causa ? ` (${esc(S.CAUSAS[x.causa]?.n.toLowerCase() || x.causa)})` : ''} · ${x.anios} años · llegó a ${S.ERAS[Math.min(8, x.era)].n.toLowerCase()}</div>`).join('')}` : '';
+  return htmlFin() + `<h3>Línea del tiempo</h3><div class="linea">${linea}</div>
+    <div class="chips" style="margin:8px 0"><span class="chip">👶 ${c.nacimientos}</span><span class="chip">🕯 ${c.muertes}</span><span class="chip">💡 ${c.inventos} inventos</span><span class="chip">✊ ${c.revoluciones} revoluciones</span><span class="chip">⚔ ${c.guerras} guerras</span><span class="chip">🏙 ${c.ciudades} ciudades</span></div>
+    <div class="grafs">${g('Ciudadanos', H.pob, '#e7c46a')}${g('Habitantes', H.hab, '#e0a050')}${g('Ciencia por año', H.ciencia, '#6aa8e0')}${g('Fe por año', H.fe, '#c8a0f0')}${g('Ánimo', H.animo, '#7cc36a')}${g('Ecología', H.eco, '#4fa84a')}</div>
+    <h3>Hitos</h3><ul class="diario">${s.hitos.slice(0, 80).map((x) => `<li class="${x.tipo}"><span class="d">${esc(x.d)}</span>${esc(x.texto)}</li>`).join('')}</ul>${hist}`;
 }
 
-// ------------------------------------------------------------ avisos de lo importante y etiqueta de la persona elegida
+// ---------------------------------------------------------------- avisos, etiqueta y bucle
 let visto = s.diario[0];
 function avisosNuevos() {
   const nuevos = []; for (const x of s.diario) { if (x === visto) break; nuevos.push(x); } visto = s.diario[0];
-  for (const x of nuevos.filter((x) => x.tipo === 'logro' || x.tipo === 'malo').slice(0, 2).reverse()) aviso(x.texto);
+  for (const x of nuevos.filter((x) => ['logro', 'malo', 'decision', 'era', 'espiritu'].includes(x.tipo)).slice(0, 2).reverse()) aviso(x.texto, 4200);
 }
 const etq = $('#etq');
 function etiqueta() {
-  const a = selId != null && S.vivo(s, selId), p = a && !a.dentro && E.posDe(selId);
+  const a = selId != null && S.vivo(s, selId), p = a && !E.estaDentro(selId) && E.posDe(selId);
   if (!p) { etq.style.display = 'none'; return; }
-  const q = O.proyectar(p.add(new THREE.Vector3(0, 1.3 * (a.edad < 15 ? 0.6 : 1), 0)));
+  const q = O.proyectar(p.add(new THREE.Vector3(0, 1.4, 0)));
   etq.style.display = q.visible ? '' : 'none'; etq.style.left = q.x + 'px'; etq.style.top = q.y + 'px'; etq.textContent = a.nombre;
 }
-
-// ------------------------------------------------------------ bucle
-let tUI = 0, tGuardar = 0;
+let tUI = 0, tGuardar = 0, finVisto = s.fin;
 O.cada((dt) => {
-  if (mult) S.avanzar(s, dt * mult * MIN_POR_SEG);
-  O.setHora(S.horaDe(s) + s.resto / 60, { nublado: s.clima.lluvia > 0 || s.clima.nieve > 0 ? 0.7 : 0 });
+  if (mult && !(s.decision && pausaDecision && s.pausar)) { s.pausar = false; S.avanzar(s, dt * mult * MIN_POR_SEG, 40); }
+  if (s.pausar && s.decision) { if (pausaDecision) { if (mult) { vel.elegir(0); irA('decidir'); aviso(`⚖ La sociedad debe decidir: ${s.decision.t}`, 5000); } } s.pausar = false; }
+  if (s.fin && !finVisto) { finVisto = true; vel.elegir(0); irA('cronica'); }
+  O.setHora(S.horaDe(s), { nublado: Math.min(0.85, (s.clima.lluvia ? 0.6 : 0) + s.contaminacion * 0.8) });
   E.actualizar(s, dt, mult);
   etiqueta();
-  tUI += dt; if (tUI > 0.4) { tUI = 0; pintar(); avisosNuevos(); }
-  tGuardar += dt; if (tGuardar > 15) { tGuardar = 0; guardar(); }
+  tUI += dt; if (tUI > 0.5) { tUI = 0; pintar(); avisosNuevos(); }
+  tGuardar += dt; if (tGuardar > 20) { tGuardar = 0; guardar(); }
 });
-pintar(true);
+pintar(true); encuadre();
 $('#loader').style.opacity = '0'; setTimeout(() => $('#loader').remove(), 700);
-aviso(nueva ? 'Nace una aldea nueva. Toca a una persona para ver su ficha y seguirla.' : `Bienvenido de vuelta: ${S.fechaTxt(s, false)}.`, 5200);
+if (avisoInicial) aviso(avisoInicial, 6000);
 </script>
 </body>
 </html>

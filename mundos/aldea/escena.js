@@ -1,446 +1,355 @@
 // =====================================================================
-// La aldea en 3D: dibuja el estado de sim.js dentro del orbe. No decide nada de la vida.
-// Para no pasar de ~300 llamadas de dibujo: árboles, rocas, arbustos y tumbas son InstancedMesh;
-// las construcciones terminadas se funden en UNA malla (y sus ventanas en otra); los campos en otra;
-// solo las ~22 personas más cerca de la cámara usan cuerpo articulado, el resto son figuras instanciadas.
+// La aldea en 3D: dibuja la civilización dentro del orbe (no decide nada de la vida).
+//  - el suelo es un lienzo pintado celda a celda (pradera, bosque, campos, calles, contaminación, ruinas)
+//    sobre una malla con relieve (la montaña que las minas van excavando)
+//  - los edificios son una InstancedMesh por arquetipo (choza, casa, bloque, torre, aguja, cúpula…)
+//    y otra por arquetipo para las ventanas que brillan de noche: pocas llamadas de dibujo
+//  - la gente sigue un horario (casa → trabajo → plaza → casa); las 12 más cercanas a la cámara
+//    tienen cuerpo articulado, el resto son figuras instanciadas vestidas según la era
+//  - autos, voladores, humo, faroles y los efectos de cada destino (cohetes, luz, colmena, hongo nuclear)
 // =====================================================================
 import { THREE, fundir, fundirGeo, GEO, MAT_VERTICE, crearPersona, animarPersona, angLerp } from '../motor/orbe3d.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TIPOS, ANIM, PASO, horaDe, fecha, DIAS_EST } from './sim.js';
+import { geometrias, aspecto, ropaDe, ARQ } from './urbe3d.js';
+import * as U from './ciudad.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
-const C = { madera: 0x8a5a34, maderaO: 0x5e3b22, paja: 0xd2b25e, barro: 0xb89a72, piedra: 0x9a968c, piedraO: 0x6e6a62, teja: 0x9a4a32, blanco: 0xe6dcc6, puerta: 0x4a2e1a, verde: 0x4f7a3a, rojo: 0x8a3a28 };
-const CONO4 = new THREE.ConeGeometry(1, 1, 4), CIL6 = new THREE.CylinderGeometry(1, 1, 1, 6), DODE = new THREE.DodecahedronGeometry(1, 0);
-const NDET = 22;   // personas con cuerpo articulado
-
-// ---------------------------------------------------------------- diseños de construcciones (frente hacia +z; ventanas aparte para que brillen de noche)
-function diseno(tipo) {
-  const P = [], W = [];
-  const techo2 = (an, la, y, col) => { P.push([GEO.caja, col, 0, y, -la * 0.24, an, 0.18, la * 0.56, -0.62, 0, 0], [GEO.caja, col, 0, y, la * 0.24, an, 0.18, la * 0.56, 0.62, 0, 0]); };
-  switch (tipo) {
-    case 'fogata':
-      for (let i = 0; i < 9; i++) { const a = (i / 9) * 6.28; P.push([GEO.esfera, C.piedraO, Math.cos(a) * 0.95, 0.15, Math.sin(a) * 0.95, 0.28, 0.2, 0.28]); }
-      P.push([GEO.cil, C.maderaO, 0, 0.2, 0, 0.12, 1.4, 0.12, 0, 0, 1.3], [GEO.cil, C.maderaO, 0, 0.2, 0, 0.12, 1.4, 0.12, 1.3, 0, 0]);
-      for (let i = 0; i < 4; i++) { const a = (i / 4) * 6.28 + 0.4; P.push([GEO.cil, C.madera, Math.cos(a) * 2.1, 0.22, Math.sin(a) * 2.1, 0.22, 1.3, 0.22, 0, -a, Math.PI / 2]); }
-      break;
-    case 'choza':
-      P.push([GEO.cil, C.barro, 0, 0.75, 0, 1.7, 1.5, 1.7], [GEO.cono, C.paja, 0, 2.3, 0, 2.2, 1.8, 2.2], [GEO.caja, C.puerta, 0, 0.6, 1.62, 0.65, 1.2, 0.2]);
-      W.push([GEO.caja, 0xffffff, 1.2, 1, 1.15, 0.35, 0.3, 0.12, 0, 0.8, 0]);
-      break;
-    case 'casa':
-      P.push([GEO.caja, C.piedra, 0, 0.2, 0, 4.4, 0.4, 3.6], [GEO.caja, C.blanco, 0, 1.4, 0, 4.2, 2.1, 3.4], [CONO4, C.teja, 0, 3.25, 0, 3.4, 1.7, 2.9, 0, Math.PI / 4, 0],
-        [GEO.caja, C.piedraO, 1.2, 3.5, -0.6, 0.5, 1.4, 0.5], [GEO.caja, C.puerta, 0, 0.95, 1.72, 0.8, 1.5, 0.1]);
-      for (const x of [-2.08, 2.08]) for (const z of [-1.68, 1.68]) P.push([GEO.caja, C.maderaO, x, 1.4, z, 0.16, 2.2, 0.16]);
-      W.push([GEO.caja, 0xffffff, -1.3, 1.5, 1.72, 0.6, 0.55, 0.08], [GEO.caja, 0xffffff, 1.3, 1.5, 1.72, 0.6, 0.55, 0.08], [GEO.caja, 0xffffff, 2.12, 1.5, 0, 0.08, 0.55, 0.7], [GEO.caja, 0xffffff, -2.12, 1.5, 0, 0.08, 0.55, 0.7]);
-      break;
-    case 'granero':
-      P.push([GEO.caja, C.rojo, 0, 1.5, 0, 5, 3, 4], [GEO.caja, C.blanco, 0, 1.1, 2.02, 1.8, 2.2, 0.08]);
-      techo2(5.4, 4.6, 3.55, C.maderaO);
-      P.push([GEO.caja, C.rojo, 0, 3.3, 2.01, 3.2, 0.9, 0.06], [GEO.caja, C.blanco, 0, 1.1, 2.07, 2.2, 0.14, 0.04, 0, 0, 0.88], [GEO.caja, C.blanco, 0, 1.1, 2.07, 2.2, 0.14, 0.04, 0, 0, -0.88]);
-      W.push([GEO.caja, 0xffffff, 0, 3.1, 2.05, 0.6, 0.5, 0.06]);
-      break;
-    case 'pozo':
-      P.push([GEO.cil, C.piedra, 0, 0.45, 0, 0.85, 0.9, 0.85], [GEO.cil, 0x2a3a4a, 0, 0.91, 0, 0.6, 0.04, 0.6], [GEO.caja, C.maderaO, -0.75, 1.3, 0, 0.12, 1.8, 0.12], [GEO.caja, C.maderaO, 0.75, 1.3, 0, 0.12, 1.8, 0.12],
-        [CONO4, C.teja, 0, 2.5, 0, 1.3, 0.7, 1.1, 0, Math.PI / 4, 0], [GEO.cil, C.maderaO, 0, 1.9, 0, 0.06, 1.5, 0.06, 0, 0, Math.PI / 2], [GEO.cil, C.madera, 0, 1.5, 0, 0.18, 0.3, 0.18]);
-      break;
-    case 'aserradero':
-      for (const x of [-1.8, 1.8]) for (const z of [-1.3, 1.3]) P.push([GEO.caja, C.maderaO, x, 1.3, z, 0.2, 2.6, 0.2]);
-      P.push([GEO.caja, C.madera, 0, 2.75, 0, 4.4, 0.18, 3.4, 0.12, 0, 0], [GEO.caja, C.maderaO, 0, 0.8, 0, 2.6, 0.15, 0.8], [GEO.cil, 0xc0c0c0, 0, 1.05, 0, 0.45, 0.04, 0.45, Math.PI / 2, 0, 0]);
-      for (let i = 0; i < 6; i++) P.push([GEO.cil, C.madera, -1.2 + (i % 3) * 0.55, 0.3 + Math.floor(i / 3) * 0.5, 2.3, 0.26, 2.2, 0.26, 0, 0, Math.PI / 2]);
-      for (let i = 0; i < 4; i++) P.push([GEO.caja, 0xb08a5a, 1.6, 0.15 + i * 0.16, -2.3, 2, 0.14, 0.6]);
-      break;
-    case 'herreria':
-      P.push([GEO.caja, C.piedra, 0, 1.2, -0.4, 3.6, 2.4, 2.4], [CONO4, C.piedraO, 0, 3, -0.4, 2.8, 1.2, 2.1, 0, Math.PI / 4, 0], [GEO.caja, C.piedraO, -1.2, 3.6, -1, 0.7, 2.2, 0.7],
-        [GEO.caja, C.maderaO, 0, 2.2, 1.6, 3.6, 0.15, 1.6, -0.15, 0, 0], [GEO.caja, C.maderaO, -1.7, 1.1, 2.3, 0.16, 2.2, 0.16], [GEO.caja, C.maderaO, 1.7, 1.1, 2.3, 0.16, 2.2, 0.16],
-        [GEO.caja, 0x3a3a3e, 0.6, 0.55, 1.6, 0.8, 0.3, 0.4], [GEO.caja, 0x3a3a3e, 0.6, 0.3, 1.6, 0.3, 0.6, 0.3], [GEO.caja, C.puerta, 0, 0.9, 0.82, 0.9, 1.6, 0.08]);
-      W.push([GEO.caja, 0xffffff, -1.2, 0.8, 0.84, 0.8, 0.6, 0.06], [GEO.caja, 0xffffff, 1.2, 1.5, 0.84, 0.5, 0.45, 0.06]);
-      break;
-    case 'enfermeria':
-      P.push([GEO.caja, C.piedra, 0, 0.2, 0, 4.2, 0.4, 3.4], [GEO.caja, 0xf0ece0, 0, 1.4, 0, 4, 2.1, 3.2], [CONO4, C.verde, 0, 3.2, 0, 3.2, 1.6, 2.7, 0, Math.PI / 4, 0], [GEO.caja, C.puerta, 0, 0.95, 1.62, 0.8, 1.5, 0.1]);
-      for (let i = 0; i < 3; i++) P.push([GEO.caja, 0x6a4a2a, -1.4 + i * 1.4, 0.15, 2.6, 1, 0.3, 0.7], [GEO.esfera, 0x5aa04a, -1.4 + i * 1.4, 0.45, 2.6, 0.4, 0.25, 0.3]);
-      W.push([GEO.caja, 0xffffff, -1.3, 1.5, 1.62, 0.6, 0.55, 0.08], [GEO.caja, 0xffffff, 1.3, 1.5, 1.62, 0.6, 0.55, 0.08]);
-      break;
-    case 'templo':
-      P.push([GEO.caja, C.piedraO, 0, 0.3, 0, 4.8, 0.6, 7], [GEO.caja, C.piedra, 0, 2.3, -0.3, 4, 3.6, 6], [CONO4, C.teja, 0, 4.9, -0.3, 3.4, 1.8, 4.6, 0, Math.PI / 4, 0],
-        [GEO.caja, C.piedra, 0, 3, 2.8, 1.6, 6, 1.6], [CONO4, C.teja, 0, 6.8, 2.8, 1.3, 1.8, 1.3, 0, Math.PI / 4, 0], [GEO.caja, C.puerta, 0, 1.2, 3.62, 0.9, 1.8, 0.08], [GEO.esfera, 0xc9a35a, 0, 5.3, 2.8, 0.3, 0.35, 0.3]);
-      W.push([GEO.caja, 0xffffff, 2.02, 2.6, -1.5, 0.06, 1.3, 0.5], [GEO.caja, 0xffffff, 2.02, 2.6, 0.8, 0.06, 1.3, 0.5], [GEO.caja, 0xffffff, -2.02, 2.6, -1.5, 0.06, 1.3, 0.5], [GEO.caja, 0xffffff, -2.02, 2.6, 0.8, 0.06, 1.3, 0.5], [GEO.cil, 0xffffff, 0, 4.4, 3.61, 0.35, 0.06, 0.35, Math.PI / 2, 0, 0]);
-      break;
-    case 'plaza': {
-      P.push([GEO.cil, 0xa8a090, 0, 0.06, 0, 4.2, 0.12, 4.2], [GEO.cil, C.piedra, 0, 0.35, 0, 0.9, 0.5, 0.9], [GEO.cil, 0x4a7aa0, 0, 0.62, 0, 0.7, 0.05, 0.7], [GEO.cil, C.piedra, 0, 0.9, 0, 0.15, 1, 0.15]);
-      const tela = [0xc0502a, 0x2a7a8a, 0xd0a030];
-      for (let i = 0; i < 3; i++) { const a = (i / 3) * 6.28 + 0.5, x = Math.cos(a) * 2.8, z = Math.sin(a) * 2.8; P.push([GEO.caja, C.maderaO, x, 0.5, z, 1.4, 0.9, 0.7, 0, -a, 0], [GEO.caja, tela[i], x, 1.75, z, 1.7, 0.1, 1.1, 0.15, -a, 0], [GEO.caja, C.maderaO, x, 1.2, z, 0.08, 1.2, 0.08], [GEO.esfera, [0xd04a2a, 0x7ab03a, 0xe0b040][i], x, 1.05, z, 0.35, 0.18, 0.25]); }
-      break;
-    }
-    case 'corral': {
-      // cerca de troncos con establo pequeño; los animales van aparte (instanciados)
-      const n = 7;
-      for (let i = 0; i <= n; i++) for (const [x0, z0, dx, dz] of [[-3, -2.6, 6 / n, 0], [-3, 2.6, 6 / n, 0], [-3, -2.6, 0, 5.2 / n], [3, -2.6, 0, 5.2 / n]]) { if (dz === 0 && z0 > 0 && i >= 3 && i <= 4) continue; P.push([GEO.caja, C.maderaO, x0 + dx * i, 0.45, z0 + dz * i, 0.12, 0.9, 0.12]); }
-      P.push([GEO.caja, C.madera, 0, 0.62, -2.6, 6, 0.08, 0.06], [GEO.caja, C.madera, -1.9, 0.62, 2.6, 2.2, 0.08, 0.06], [GEO.caja, C.madera, 1.9, 0.62, 2.6, 2.2, 0.08, 0.06], [GEO.caja, C.madera, -3, 0.62, 0, 0.06, 0.08, 5.2], [GEO.caja, C.madera, 3, 0.62, 0, 0.06, 0.08, 5.2]);
-      P.push([GEO.caja, C.madera, -1.8, 0.8, -1.7, 2.2, 1.6, 1.6], [GEO.caja, C.maderaO, -1.8, 1.7, -1.7, 2.6, 0.12, 2, -0.2, 0, 0], [GEO.caja, 0xc9b06a, 1.8, 0.3, -1.8, 1, 0.6, 0.8], [GEO.cil, 0x6a6a6a, 1.6, 0.2, 1.6, 0.5, 0.3, 0.3]);
-      P.push([GEO.cil, 0x7a6a4a, 0, 0.02, 0, 3.4, 0.04, 2.9]);
-      break;
-    }
-    case 'muelle':
-      // tablones que entran al lago (+z) y botes amarrados
-      P.push([GEO.caja, 0x9a7a52, 0, 0.35, 2.2, 1.6, 0.12, 5.4]);
-      for (const z of [0.2, 2, 3.8]) for (const x of [-0.7, 0.7]) P.push([GEO.cil, C.maderaO, x, 0.1, z, 0.1, 0.9, 0.1]);
-      P.push([GEO.caja, 0x7a4a2a, 1.6, 0.18, 3.2, 0.9, 0.3, 2.4], [GEO.caja, 0x5a3a20, 1.6, 0.34, 3.2, 0.7, 0.06, 2.1], [GEO.caja, 0x7a4a2a, -1.5, 0.18, 2.2, 0.8, 0.28, 2.2], [GEO.cil, C.maderaO, -1.5, 0.5, 2.2, 0.03, 1, 0.03, 0.8, 0, 0], [GEO.caja, 0xb08a5a, -0.3, 0.55, -0.4, 0.8, 0.3, 0.5]);
-      break;
-    case 'monumento':
-      P.push([GEO.caja, C.piedraO, 0, 0.5, 0, 1.6, 1, 1.6], [GEO.caja, C.piedra, 0, 1.3, 0, 1.1, 0.6, 1.1], [GEO.capsula, 0xc8c2b4, 0, 2.5, 0, 0.6, 1.1, 0.45], [GEO.esfera, 0xc8c2b4, 0, 3.55, 0, 0.32, 0.36, 0.32], [GEO.capsula, 0xc8c2b4, 0.45, 3.3, 0, 0.18, 0.9, 0.18, 0, 0, -0.5]);
-      break;
-  }
-  return { geo: P.length ? fundirGeo(P) : null, ven: W.length ? fundirGeo(W) : null };
-}
-const DIS = {};
-const dis = (t) => DIS[t] || (DIS[t] = diseno(t));
-// casas con muebles: el portal, las bancas y las jardineras se ven desde afuera
-function disCasa(n) {
-  const k = 'casa' + n; if (DIS[k]) return DIS[k];
-  const base = diseno('casa'), P = [];
-  if (n >= 1) P.push([GEO.caja, C.madera, -1.3, 0.35, 2.15, 1.2, 0.12, 0.4], [GEO.caja, C.maderaO, -1.3, 0.18, 2.15, 1.1, 0.35, 0.08], [GEO.caja, 0x7a5a3a, 1.6, 0.25, 2.6, 0.5, 0.5, 0.5]);
-  if (n >= 2) P.push([GEO.caja, C.teja, 0, 2.35, 2.3, 2.6, 0.12, 1.3, 0.25, 0, 0], [GEO.caja, C.maderaO, -1.15, 1.2, 2.85, 0.12, 2.3, 0.12], [GEO.caja, C.maderaO, 1.15, 1.2, 2.85, 0.12, 2.3, 0.12], [GEO.caja, 0xa08860, 0, 0.08, 2.4, 2.6, 0.12, 1.4]);
-  if (n >= 3) for (const x of [-1.3, 1.3]) P.push([GEO.caja, 0x6a4a2a, x, 1.05, 1.86, 0.75, 0.18, 0.25], [GEO.esfera, x > 0 ? 0xe0c040 : 0xd04a6a, x, 1.22, 1.86, 0.32, 0.14, 0.14]);
-  return (DIS[k] = { geo: P.length ? mergeGeometries([base.geo, fundirGeo(P)]) : base.geo, ven: base.ven });
-}
-const disDe = (b) => (b.tipo === 'casa' && b.nivel ? disCasa(b.nivel) : dis(b.tipo));
-const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color(), UP = V(0, 1, 0);
-const colocar = (geo, x, z, rot, sy = 1) => geo.clone().applyMatrix4(_m.compose(_p.set(x, 0, z), _q.setFromAxisAngle(UP, rot), _s.set(1, sy, 1)));
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _e = new THREE.Euler(), UP = V(0, 1, 0);
+const NDET = 12, MAXP = 260;
+const hash = (n) => { n = Math.imul(n ^ (n >>> 16), 2246822507); n = Math.imul(n ^ (n >>> 13), 3266489909); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
 
 export function crearEscenaAldea(O, s0) {
-  const M = O.mundo, scene = O.scene;
-  // ------------------------------------------------------------ agua, orillas, tierra de la aldea y cementerio
-  const agua = new THREE.MeshStandardMaterial({ color: 0x3f86b0, roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.9 });
-  {
-    const L = s0.lago, g1 = new THREE.CircleGeometry(L.r, 48).rotateX(-Math.PI / 2).translate(L.x, 0.06, L.z);
-    const pos = [], pts = s0.rio.filter(([x, z]) => Math.hypot(x, z) < 45.8);
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [x0, z0] = pts[i], [x1, z1] = pts[i + 1], dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz), nx = (-dz / l) * 1.1, nz = (dx / l) * 1.1, w0 = 1 + (i === 0 ? 0.6 : 0);
-      pos.push(x0 - nx * w0, 0.05, z0 - nz * w0, x1 - nx, 0.05, z1 - nz, x1 + nx, 0.05, z1 + nz, x0 - nx * w0, 0.05, z0 - nz * w0, x1 + nx, 0.05, z1 + nz, x0 + nx * w0, 0.05, z0 + nz * w0);
-    }
-    const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g2.computeVertexNormals();
-    const g1n = g1.toNonIndexed(); g1n.deleteAttribute('uv');
-    const m = new THREE.Mesh(mergeGeometries([g1n, g2]), agua); m.receiveShadow = true; M.add(m);
-    const arena = new THREE.Mesh(new THREE.RingGeometry(L.r - 0.2, L.r + 1.4, 48).rotateX(-Math.PI / 2).translate(L.x, 0.035, L.z), new THREE.MeshStandardMaterial({ color: 0xc9b37a, roughness: 1 })); arena.receiveShadow = true; M.add(arena);
-    // cementerio: cerca baja
-    const Cm = s0.cementerio, partes = [], ux = -Math.sin(Cm.ang), uz = Math.cos(Cm.ang), vx = -Math.cos(Cm.ang), vz = -Math.sin(Cm.ang);
-    for (let i = -6; i <= 6; i++) for (const sg of [-1, 1]) { partes.push([GEO.caja, C.maderaO, Cm.x + ux * i * 0.95 + vx * sg * 5.2, 0.4, Cm.z + uz * i * 0.95 + vz * sg * 5.2, 0.12, 0.8, 0.12]); partes.push([GEO.caja, C.maderaO, Cm.x + vx * i * 0.85 + ux * sg * 5.9, 0.4, Cm.z + vz * i * 0.85 + uz * sg * 5.9, 0.12, 0.8, 0.12]); }
-    partes.push([GEO.cil, 0x6a7a4a, Cm.x, 0.02, Cm.z, 6, 0.04, 6]);
-    M.add(fundir(partes));
+  const M = O.mundo;
+  let s = s0;
+  // ------------------------------------------------------------ suelo pintado con relieve
+  const TAM = 92, RES = 276, lienzo = document.createElement('canvas'); lienzo.width = lienzo.height = RES;
+  const ctx = lienzo.getContext('2d'), tex = new THREE.CanvasTexture(lienzo); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const geoSuelo = new THREE.PlaneGeometry(TAM, TAM, 92, 92).rotateX(-Math.PI / 2);
+  const suelo = new THREE.Mesh(geoSuelo, new THREE.MeshStandardMaterial({ map: tex, roughness: 1, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
+  suelo.receiveShadow = true; M.add(suelo);
+  const alt = (x, z) => U.altura(s, x, z);
+  function relieve() {
+    const p = geoSuelo.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setY(i, 0.03 + alt(p.getX(i), p.getZ(i)));
+    p.needsUpdate = true; geoSuelo.computeVertexNormals();
   }
-  const matTierra = new THREE.MeshStandardMaterial({ color: 0x8c7a56, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), geoTierra = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
-  const tierras = [...Array(6)].map(() => { const m = new THREE.Mesh(geoTierra, matTierra); m.receiveShadow = true; m.visible = false; M.add(m); return m; });
+  const px = (x) => ((x + TAM / 2) / TAM) * RES;
+  const SUELO_EST = ['#7fa35a', '#8ea552', '#a48c4c', '#dfe5ea'], CALLE = ['#8a7656', '#8a7656', '#8f8a80', '#8a857c', '#5e5a54', '#4a4c50', '#3e4146', '#c9d2dc'];
+  const mezclar = (a, b, k) => { const A = new THREE.Color(a), Bc = new THREE.Color(b); return '#' + A.lerp(Bc, Math.max(0, Math.min(1, k))).getHexString(); };
+  function pintar() {
+    const est = Math.floor((s.dia % 24) / 6), cel = (U.CEL / TAM) * RES;
+    ctx.clearRect(0, 0, RES, RES);
+    ctx.save(); ctx.beginPath(); ctx.arc(RES / 2, RES / 2, (45.6 / TAM) * RES, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = SUELO_EST[est]; ctx.fillRect(0, 0, RES, RES);
+    for (const c of s.celdas) {
+      let col = SUELO_EST[est];
+      if (c.t === 'b') col = est === 3 ? '#cfd8d0' : '#5f7f43';
+      if (c.t === 'r') col = '#8a8478'; if (c.t === 'm') col = c.h > 5.5 && est === 3 ? '#eef2f4' : mezclar('#857a6a', '#a89e90', c.h / 8);
+      if (c.t === 'a') col = '#c9b37a'; if (c.t === 'v') col = '#4a7a98'; if (c.t === 'c') col = '#6a7a4a';
+      if (c.u === 'campo') col = c.e >= 6 ? '#5aa08a' : ['#9ab04a', '#8aa83a', '#d8b04a', '#8a7454'][est];
+      else if (c.u === 'parque') col = '#4f8a3a';
+      else if (c.u) col = c.fogata && c.e <= 1 ? '#8c7a56' : CALLE[Math.min(7, c.e)] === '#c9d2dc' && (s.ejes.ni < -15 || s.destino?.tipo === 'gaia') ? '#7a9a6a' : mezclar(CALLE[Math.min(7, c.e)], '#a8a29a', 0.35);
+      if (c.o && !c.u) col = '#9a8460';
+      if (c.ru) col = '#4a4640';
+      if (c.cont > 0.05) col = mezclar(col, '#2e2a26', c.cont * 0.8);
+      ctx.fillStyle = col; ctx.fillRect(px(c.x - 1.5), px(c.z - 1.5), cel + 0.6, cel + 0.6);
+      if (c.u === 'campo' && est !== 3) { ctx.fillStyle = 'rgba(70,50,30,.35)'; for (let k = 0; k < 4; k++) ctx.fillRect(px(c.x - 1.3), px(c.z - 1.1 + k * 0.7), cel * 0.85, 1); }
+    }
+    // calles: los bordes de las manzanas construidas
+    const e = s.era; ctx.strokeStyle = CALLE[Math.min(7, e)]; ctx.lineWidth = e >= 5 ? 2.2 : 1.4;
+    ctx.beginPath();
+    for (const c of s.celdas) if (c.u && !['campo', 'parque'].includes(c.u) && !c.ru) { const x0 = px(c.x - 1.5), z0 = px(c.z - 1.5); ctx.rect(x0, z0, cel, cel); }
+    if (e >= 1) ctx.stroke();
+    ctx.restore();
+    tex.needsUpdate = true;
+  }
+  // ------------------------------------------------------------ agua: lago y río (más turbios con la contaminación)
+  const agua = new THREE.MeshStandardMaterial({ color: 0x3f86b0, roughness: 0.15, metalness: 0.15, transparent: true, opacity: 0.9 });
+  {
+    const L = s.lago, g1 = new THREE.CircleGeometry(L.r, 48).rotateX(-Math.PI / 2).translate(L.x, 0.09, L.z).toNonIndexed(); g1.deleteAttribute('uv');
+    const pos = [], pts = s.rio.filter(([x, z]) => Math.hypot(x, z) < 45.8);
+    for (let i = 0; i < pts.length - 1; i++) { const [x0, z0] = pts[i], [x1, z1] = pts[i + 1], dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz), nx = (-dz / l) * 1.1, nz = (dx / l) * 1.1; pos.push(x0 - nx, 0.08, z0 - nz, x1 - nx, 0.08, z1 - nz, x1 + nx, 0.08, z1 + nz, x0 - nx, 0.08, z0 - nz, x1 + nx, 0.08, z1 + nz, x0 + nx, 0.08, z0 + nz); }
+    const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g2.computeVertexNormals();
+    const m = new THREE.Mesh(mergeGeometries([g1, g2]), agua); m.receiveShadow = true; M.add(m);
+  }
+  const borde = new THREE.Mesh(new THREE.TorusGeometry(s.lago.r + 0.1, 0.22, 6, 48).rotateX(Math.PI / 2).translate(s.lago.x, 0.1, s.lago.z), new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.9 })); borde.visible = false; M.add(borde);
 
-  // ------------------------------------------------------------ árboles, tocones, rocas, arbustos y tumbas (instanciados)
+  // ------------------------------------------------------------ árboles, rocas y tumbas
   const geoPino = fundirGeo([[GEO.cil, 0x6a4a2e, 0, 0.7, 0, 0.22, 1.4, 0.22], [GEO.cono, 0xffffff, 0, 2.2, 0, 1.4, 2.2, 1.4], [GEO.cono, 0xffffff, 0, 3.3, 0, 1, 1.8, 1]]);
   const geoRoble = fundirGeo([[GEO.cil, 0x6a4a2e, 0, 0.9, 0, 0.26, 1.8, 0.26], [GEO.esfera, 0xffffff, 0, 2.6, 0, 1.5, 1.3, 1.5], [GEO.esfera, 0xffffff, 0.6, 2.2, 0.3, 0.9, 0.8, 0.9]]);
-  // la copa es blanca: el color de la estación lo pone instanceColor (el tronco queda oscuro igual)
-  const nA = s0.arboles.length;
-  const pinos = new THREE.InstancedMesh(geoPino, MAT_VERTICE, nA), robles = new THREE.InstancedMesh(geoRoble, MAT_VERTICE, nA), tocones = new THREE.InstancedMesh(fundirGeo([[GEO.cil, 0x7a5a3a, 0, 0.2, 0, 0.28, 0.4, 0.28], [GEO.cil, 0xc9a874, 0, 0.41, 0, 0.26, 0.02, 0.26]]), MAT_VERTICE, nA);
-  for (const im of [pinos, robles, tocones]) { im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; M.add(im); }
-  const rocas = new THREE.InstancedMesh(fundirGeo([[DODE, 0x8f8b84, 0, 0.5, 0, 1.2, 0.9, 1.1], [DODE, 0x7a766e, 0.8, 0.35, 0.4, 0.7, 0.55, 0.7]]), MAT_VERTICE, s0.rocas.length); rocas.castShadow = rocas.receiveShadow = true; M.add(rocas);
-  const nB = s0.arbustos.length, arbustos = new THREE.InstancedMesh(fundirGeo([[GEO.esfera, 0x3f6a2e, 0, 0.5, 0, 0.9, 0.6, 0.9], [GEO.esfera, 0x4a7a34, 0.5, 0.4, 0.3, 0.6, 0.45, 0.6]]), MAT_VERTICE, nB);
-  const bayas = new THREE.InstancedMesh(fundirGeo([...Array(7)].map((_, i) => [GEO.esfera, 0xc0283a, Math.cos(i * 2.3) * 0.7, 0.55 + (i % 3) * 0.18, Math.sin(i * 2.3) * 0.65, 0.11, 0.11, 0.11])), MAT_VERTICE, nB);
-  for (const im of [arbustos, bayas]) { im.castShadow = true; M.add(im); }
-  const tumbas = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0x8a867c, 0, 0.45, 0, 0.55, 0.9, 0.16], [GEO.caja, 0x5a6a3a, 0, 0.04, 0.5, 0.6, 0.08, 1]]), MAT_VERTICE, 48); tumbas.castShadow = true; tumbas.count = 0; M.add(tumbas);
-
-  // ------------------------------------------------------------ construcciones: una malla fundida + ventanas + obras + campos + empalizada
-  const matVent = new THREE.MeshStandardMaterial({ color: 0x2a2418, emissive: 0xffbf62, emissiveIntensity: 0, roughness: 0.6 });
-  let estaticas = null, ventanas = null, campos = null, muralla = null, firmaE = '', firmaC = '', firmaM = '';
-  const obras = new Map();
-  const andamioGeo = fundirGeo([[GEO.caja, C.maderaO, -1, 1.3, -1, 0.1, 2.6, 0.1], [GEO.caja, C.maderaO, 1, 1.3, -1, 0.1, 2.6, 0.1], [GEO.caja, C.maderaO, -1, 1.3, 1, 0.1, 2.6, 0.1], [GEO.caja, C.maderaO, 1, 1.3, 1, 0.1, 2.6, 0.1],
-    [GEO.caja, 0xb08a5a, 0, 1.3, 1, 2.1, 0.08, 0.35], [GEO.caja, 0xb08a5a, 0, 1.3, -1, 2.1, 0.08, 0.35], [GEO.caja, C.maderaO, 0, 2.5, 1, 2.1, 0.08, 0.08, 0, 0, 0.3], [GEO.caja, 0xb08a5a, 1.6, 0.25, 1.6, 0.9, 0.5, 0.6], [GEO.caja, 0x9a968c, -1.6, 0.25, 1.6, 0.7, 0.5, 0.7]]);
-  function rehacerEstaticas(s) {
-    const lista = s.edificios.filter((b) => b.hecho && !['campo', 'muralla'].includes(b.tipo));
-    const f = lista.map((b) => b.id + (b.nivel ? 'n' + b.nivel : '')).join(',');
-    if (f === firmaE) return; firmaE = f;
-    for (const m of [estaticas, ventanas]) if (m) { M.remove(m); m.geometry.dispose(); }
-    const gs = [], vs = [];
-    for (const b of lista) { const d = disDe(b); if (d.geo) gs.push(colocar(d.geo, b.x, b.z, b.rot)); if (d.ven) vs.push(colocar(d.ven, b.x, b.z, b.rot)); }
-    estaticas = gs.length ? new THREE.Mesh(mergeGeometries(gs), MAT_VERTICE) : null;
-    ventanas = vs.length ? new THREE.Mesh(mergeGeometries(vs), matVent) : null;
-    if (estaticas) { estaticas.castShadow = estaticas.receiveShadow = true; M.add(estaticas); }
-    if (ventanas) M.add(ventanas);
-    gs.concat(vs).forEach((x) => x.dispose());
-  }
-  function rehacerCampos(s) {
-    const l = s.edificios.filter((b) => b.tipo === 'campo');
-    const f = l.map((b) => `${b.id}${b.hecho ? b.campo.e[0] : 'o' + Math.round(b.p * 4)}${Math.round(b.campo.c * 6)}`).join(',');
-    if (f === firmaC) return; firmaC = f;
-    if (campos) { M.remove(campos); campos.geometry.dispose(); campos = null; }
-    if (!l.length) return;
-    const gs = l.map((b) => {
-      const P = [[GEO.caja, 0x6a4a2e, 0, 0.07, 0, 5.2, 0.14, 4.2]], C2 = b.campo, prog = b.hecho ? 1 : b.p;
-      for (let i = 0; i < 5; i++) P.push([GEO.caja, 0x4e3420, 0, 0.15, -1.7 + i * 0.85, 4.8 * prog + 0.1, 0.05, 0.22]);
-      for (const [x, z] of [[-2.6, -2.1], [2.6, -2.1], [-2.6, 2.1], [2.6, 2.1]]) P.push([GEO.caja, C.maderaO, x, 0.4, z, 0.1, 0.8, 0.1]);
-      if (b.hecho && C2.e !== 'barbecho') {
-        const k = C2.e === 'maduro' ? 1 : Math.max(0.15, C2.c), col = C2.e === 'maduro' ? 0xd8b04a : C2.c > 0.7 ? 0x9ab040 : 0x5a9a3a;
-        for (let i = 0; i < 5; i++) for (let j = 0; j < 7; j++) P.push([GEO.cono, col, -2.1 + j * 0.7, 0.15 + 0.45 * k, -1.7 + i * 0.85, 0.18, 0.9 * k, 0.18]);
-      }
-      return colocar(fundirGeo(P), b.x, b.z, b.rot);
+  const nA = s.maxArboles || s.arboles.length + 260;
+  const pinos = new THREE.InstancedMesh(geoPino, MAT_VERTICE, nA), robles = new THREE.InstancedMesh(geoRoble, MAT_VERTICE, nA);
+  for (const im of [pinos, robles]) { im.castShadow = im.receiveShadow = true; im.frustumCulled = false; im.count = 0; for (let i = 0; i < nA; i++) im.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(im); }
+  const rocas = new THREE.InstancedMesh(fundirGeo([[new THREE.DodecahedronGeometry(1, 0), 0x8f8b84, 0, 0.5, 0, 1.2, 0.9, 1.1]]), MAT_VERTICE, s.rocas.length); rocas.castShadow = true; M.add(rocas);
+  const tumbas = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0x8a867c, 0, 0.45, 0, 0.55, 0.9, 0.16]]), MAT_VERTICE, 81); tumbas.count = 0; M.add(tumbas);
+  const COPA = { pino: ['#3f6a3a', '#386236', '#3a5e36', '#c4ccd0'], roble: ['#5c8a3e', '#4f7a34', '#c8782c', '#cfd6dc'] };
+  let firmaA = '';
+  function bosque() {
+    const est = Math.floor((s.dia % 24) / 6), muerto = s.destino?.tipo === 'destruccion' && ['nuclear', 'eco'].includes(s.destino.causa);
+    const f = `${s.arboles.length}:${s.arboles.reduce((n, t, i) => n + (t.c < 0 ? 0 : Math.round(t.c * 5) + 1) * ((i % 7) + 1), 0)}:${est}:${muerto}`;
+    if (f === firmaA) return; firmaA = f;
+    let np = 0, nr = 0;
+    s.arboles.forEach((t, i) => {
+      if (t.c <= 0) return;
+      const esc = (0.3 + 0.7 * t.c) * (0.85 + ((i * 37) % 10) / 30), im = t.v ? robles : pinos, k = t.v ? nr++ : np++;
+      _m.compose(_p.set(t.x, alt(t.x, t.z), t.z), _q.setFromAxisAngle(UP, (i * 2.399) % 6.28), _s.setScalar(esc)); im.setMatrixAt(k, _m);
+      im.setColorAt(k, _c.set(muerto ? '#5a4a3a' : (t.v ? COPA.roble : COPA.pino)[est]));
     });
-    campos = new THREE.Mesh(mergeGeometries(gs), MAT_VERTICE); campos.receiveShadow = campos.castShadow = true; M.add(campos);
-  }
-  function rehacerMuralla(s) {
-    const ms = s.edificios.filter((x) => x.tipo === 'muralla'), f = ms.map((b) => `${b.id}:${b.radio}:${Math.round(b.p * 30)}`).join(',');
-    if (f === firmaM) return; firmaM = f;
-    if (muralla) { M.remove(muralla); muralla.geometry.dispose(); muralla = null; }
-    const P = [], L = s.lago;
-    for (const b of ms) {
-      // se levanta tronco a tronco; el lago, el río y los edificios cortan el anillo; cuatro portones con torres
-      const R = b.radio, n = Math.round((Math.PI * 2 * R) / 0.62), listos = Math.floor(n * b.p), paso = Math.round(n / 4);
-      for (let i = 0; i < listos; i++) {
-        const a = (i / n) * Math.PI * 2, x = b.x + Math.cos(a) * R, z = b.z + Math.sin(a) * R;
-        if (Math.hypot(x, z) > 44.5 || Math.hypot(x - L.x, z - L.z) < L.r + 0.8 || s.rio.some(([rx, rz]) => Math.hypot(x - rx, z - rz) < 1.6) || i % paso < 4) continue;
-        if (s.edificios.some((e) => e.tipo !== 'muralla' && e.tipo !== 'campo' && Math.hypot(x - e.x, z - e.z) < TIPOS[e.tipo].radio + 0.3)) continue;
-        const h = 2 + ((i * 7) % 5) * 0.08;
-        P.push([GEO.cil, 0x7a5434, x, h / 2, z, 0.26, h, 0.26], [GEO.cono, 0x6a4a2e, x, h + 0.25, z, 0.26, 0.5, 0.26]);
-        if (i % 6 === 0 && (i + 6) % paso >= 4) P.push([GEO.caja, 0x5e3b22, x, h * 0.62, z, 0.12, 0.14, 3.7, 0, -a, 0]);   // travesaño
-      }
-      if (b.p >= 1) for (let k = 0; k < 4; k++) for (const j of [-1, 4]) { const a = ((k * paso + j) / n) * Math.PI * 2, x = b.x + Math.cos(a) * R, z = b.z + Math.sin(a) * R; if (Math.hypot(x, z) > 44.5 || Math.hypot(x - L.x, z - L.z) < L.r + 1) continue; P.push([GEO.caja, C.maderaO, x, 1.7, z, 0.55, 3.4, 0.55], [CONO4, C.madera, x, 3.75, z, 0.65, 0.8, 0.65, 0, Math.PI / 4, 0]); }
-    }
-    if (!P.length) return;
-    if (!P.length) return;
-    muralla = fundir(P); M.add(muralla);
-  }
-  function actualizarObras(s) {
-    const vivas = new Set();
-    for (const b of s.edificios) {
-      if (b.hecho || ['campo', 'muralla'].includes(b.tipo)) continue;
-      vivas.add(b.id);
-      let o = obras.get(b.id);
-      if (!o) {
-        const d = dis(b.tipo), g = new THREE.Group(); g.position.set(b.x, 0, b.z); g.rotation.y = b.rot;
-        const cuerpo = d.geo ? new THREE.Mesh(d.geo, MAT_VERTICE) : new THREE.Group(); cuerpo.castShadow = true; g.add(cuerpo);
-        const and = new THREE.Mesh(andamioGeo, MAT_VERTICE); const r = TIPOS[b.tipo].radio; and.scale.set(r * 0.85, 1.2, r * 0.85); and.castShadow = true; g.add(and);
-        M.add(g); o = { g, cuerpo }; obras.set(b.id, o);
-      }
-      o.cuerpo.scale.set(1, 0.08 + 0.92 * b.p, 1);
-    }
-    for (const [id, o] of obras) if (!vivas.has(id)) { M.remove(o.g); obras.delete(id); }
+    pinos.count = np; robles.count = nr;
+    for (const im of [pinos, robles]) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; }
+    s.rocas.forEach((r, i) => { _m.compose(_p.set(r.x, alt(r.x, r.z) - 0.1, r.z), _q.setFromAxisAngle(UP, r.t * 6), _s.setScalar(0.8)); rocas.setMatrixAt(i, _m); }); rocas.instanceMatrix.needsUpdate = true;
+    tumbas.count = Math.min(81, s.tumbas.length); s.tumbas.slice(0, 81).forEach((t, i) => { _m.compose(_p.set(t.x, 0, t.z), _q.setFromAxisAngle(UP, s.cementerio.ang + Math.PI / 2), _s.setScalar(1)); tumbas.setMatrixAt(i, _m); }); tumbas.instanceMatrix.needsUpdate = true;
   }
 
-  // ------------------------------------------------------------ fuego: fogata, incendios, luz y humo
+  // ------------------------------------------------------------ edificios por arquetipo (cuerpo + ventanas), cultivos, parques y obras
+  const GEOS = geometrias();
+  const matVent = new THREE.MeshStandardMaterial({ color: 0x3a4250, emissive: 0xffd27a, emissiveIntensity: 0, roughness: 0.4, metalness: 0.2 });
+  const CAP = 420, arq = {};
+  for (const k of ARQ) {
+    const cu = new THREE.InstancedMesh(GEOS[k].cuerpo, MAT_VERTICE, CAP); cu.castShadow = cu.receiveShadow = true; cu.frustumCulled = false; cu.count = 0; for (let i = 0; i < CAP; i++) cu.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(cu);
+    let ve = null; if (GEOS[k].ventanas) { ve = new THREE.InstancedMesh(GEOS[k].ventanas, matVent, CAP); ve.frustumCulled = false; ve.count = 0; M.add(ve); }
+    arq[k] = { cu, ve, n: 0 };
+  }
+  const geoCultivo = fundirGeo([...Array(4)].flatMap((_, i) => [...Array(5)].map((_, j) => [GEO.cono, 0xffffff, -0.36 + j * 0.18, 0.12, -0.3 + i * 0.2, 0.06, 0.24, 0.06])));
+  const cultivos = new THREE.InstancedMesh(geoCultivo, MAT_VERTICE, 400); cultivos.count = 0; cultivos.castShadow = true; for (let i = 0; i < 400; i++) cultivos.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(cultivos);
+  const geoParque = fundirGeo([[GEO.cil, 0x6a4a2e, 0, 0.4, 0, 0.12, 0.8, 0.12], [GEO.esfera, 0x4f8a3a, 0, 1.1, 0, 0.6, 0.55, 0.6]]);
+  const parques = new THREE.InstancedMesh(geoParque, MAT_VERTICE, 400); parques.count = 0; parques.castShadow = true; M.add(parques);
+  const geoAndamio = fundirGeo([[GEO.caja, 0x5e3b22, -0.45, 0.5, -0.45, 0.04, 1, 0.04], [GEO.caja, 0x5e3b22, 0.45, 0.5, -0.45, 0.04, 1, 0.04], [GEO.caja, 0x5e3b22, -0.45, 0.5, 0.45, 0.04, 1, 0.04], [GEO.caja, 0x5e3b22, 0.45, 0.5, 0.45, 0.04, 1, 0.04], [GEO.caja, 0xb08a5a, 0, 0.5, 0.45, 0.94, 0.03, 0.12], [GEO.caja, 0xb08a5a, 0, 0.5, -0.45, 0.94, 0.03, 0.12], [GEO.caja, 0xb08a5a, 0, 0.95, 0.45, 0.94, 0.03, 0.12]]);
+  const andamios = new THREE.InstancedMesh(geoAndamio, MAT_VERTICE, 60); andamios.count = 0; M.add(andamios);
+  const gruas = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0xe0b030, 0, 0.5, 0, 0.05, 1, 0.05], [GEO.caja, 0xe0b030, 0.25, 1.0, 0, 0.7, 0.04, 0.05], [GEO.caja, 0x555555, -0.12, 0.98, 0, 0.12, 0.08, 0.12]]), MAT_VERTICE, 60); gruas.count = 0; gruas.castShadow = true; M.add(gruas);
+  let firmaC = '', ruinasFuego = [];
+  function ciudad() {
+    const f = `${s.vc}:${s.era}:${Math.floor((s.dia % 24) / 6)}:${s.destino?.tipo || ''}:${s.ejes.ni < -15}:${s.ejes.cf < -20}`;
+    if (f === firmaC) return false; firmaC = f;
+    for (const k of ARQ) arq[k].n = 0;
+    let nc = 0, np = 0, na = 0, ng = 0; ruinasFuego = [];
+    const est = Math.floor((s.dia % 24) / 6), CULT = ['#7cc04a', '#8ab03a', '#e0b84a', '#8a7454'];
+    for (const c of s.celdas) {
+      const y = alt(c.x, c.z);
+      if (c.u === 'campo' && !c.ru) { if (nc < 400) { _m.compose(_p.set(c.x, y, c.z), _q.identity(), _s.set(2.8, est === 3 ? 0.3 : 1, 2.8)); cultivos.setMatrixAt(nc, _m); cultivos.setColorAt(nc++, _c.set(c.e >= 6 ? '#3ab0a0' : CULT[est])); } continue; }
+      if (c.u === 'parque') { for (let k = 0; k < 3 && np < 400; k++) { const a = k * 2.1 + c.k; _m.compose(_p.set(c.x + Math.cos(a) * 0.8, y, c.z + Math.sin(a) * 0.8), _q.identity(), _s.setScalar(1 + (k % 2) * 0.3)); parques.setMatrixAt(np++, _m); } continue; }
+      const A = aspecto(s, c, s.era); if (!A) continue;
+      const enObra = c.o && !c.u, R = arq[A.a]; if (!R || R.n >= CAP) continue;
+      const sy = A.sy * (enObra ? 0.1 + 0.9 * c.o.p : 1), rot = (c.k % 4) * (Math.PI / 2);
+      _m.compose(_p.set(c.x, y, c.z), _q.setFromAxisAngle(UP, rot), _s.set(A.sx, sy, A.sz));
+      R.cu.setMatrixAt(R.n, _m); R.cu.setColorAt(R.n, A.color); if (R.ve) R.ve.setMatrixAt(R.n, _m); R.n++;
+      if (c.o && na < 60) { const h = Math.max(2.5, (c.o.u === 'vivienda' && c.o.e >= 4 ? c.o.n * 0.95 : A.sy) * Math.max(0.3, c.o.p) + 0.5); _m.compose(_p.set(c.x, y, c.z), _q.identity(), _s.set(2.8, h, 2.8)); andamios.setMatrixAt(na++, _m); if (c.o.e >= 4 && ng < 60) { _m.compose(_p.set(c.x + 1.2, y, c.z - 1.2), _q.setFromAxisAngle(UP, c.k), _s.set(4, h + 3, 4)); gruas.setMatrixAt(ng++, _m); } }
+      if (c.ru && ruinasFuego.length < 30 && (c.k % 3 === 0)) ruinasFuego.push([c.x, y, c.z]);
+    }
+    for (const k of ARQ) { const R = arq[k]; R.cu.count = R.n; R.cu.visible = R.n > 0; R.cu.instanceMatrix.needsUpdate = true; R.cu.instanceColor.needsUpdate = true; if (R.ve) { R.ve.count = R.n; R.ve.visible = R.n > 0; R.ve.instanceMatrix.needsUpdate = true; } }
+    cultivos.count = nc; cultivos.instanceMatrix.needsUpdate = true; cultivos.instanceColor.needsUpdate = true;
+    parques.count = np; parques.instanceMatrix.needsUpdate = true;
+    andamios.count = na; andamios.instanceMatrix.needsUpdate = true; gruas.count = ng; gruas.instanceMatrix.needsUpdate = true;
+    redVial();
+    return true;
+  }
+  // ------------------------------------------------------------ calles para los autos: las esquinas de las manzanas
+  let nodos = [], aristas = new Map();
+  function redVial() {
+    const m = new Map(), add = (a, b) => { const ka = `${a[0]},${a[1]}`, kb = `${b[0]},${b[1]}`; if (!m.has(ka)) m.set(ka, { p: a, v: new Set() }); if (!m.has(kb)) m.set(kb, { p: b, v: new Set() }); m.get(ka).v.add(kb); m.get(kb).v.add(ka); };
+    for (const c of s.celdas) if (c.u && !['campo', 'parque'].includes(c.u) && !c.ru) { const x0 = c.x - 1.5, x1 = c.x + 1.5, z0 = c.z - 1.5, z1 = c.z + 1.5; add([x0, z0], [x1, z0]); add([x1, z0], [x1, z1]); add([x1, z1], [x0, z1]); add([x0, z1], [x0, z0]); }
+    aristas = m; nodos = [...m.keys()];
+  }
+  // ------------------------------------------------------------ vehículos: autos (era moderna) y voladores (era futura)
+  const autos = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0xffffff, 0, 0.18, 0, 0.32, 0.18, 0.62], [GEO.caja, 0x2a3440, 0, 0.33, -0.04, 0.28, 0.14, 0.32]]), MAT_VERTICE, 70); autos.count = 0; for (let i = 0; i < 70; i++) autos.setColorAt(i, _c.setHSL((i * 0.137) % 1, 0.5, 0.5)); M.add(autos);
+  const matVuelo = new THREE.MeshStandardMaterial({ color: 0xe8f4ff, emissive: 0x6ad8ff, emissiveIntensity: 0.8, roughness: 0.3 });
+  const voladores = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.18, 0.5, 3, 8).rotateX(Math.PI / 2), matVuelo, 40); voladores.count = 0; M.add(voladores);
+  const carros = [...Array(70)].map((_, i) => ({ de: null, a: null, t: 0, v: 3 + (i % 5) }));
+  function moverAutos(dt, mult) {
+    const n = s.era >= 5 && !s.destino ? Math.min(70, Math.floor(nodos.length / 6)) : 0;
+    autos.count = n;
+    for (let i = 0; i < n; i++) {
+      const c = carros[i];
+      if (!c.de || !aristas.get(c.de) || !aristas.get(c.a)) { c.de = nodos[Math.floor(hash(i * 13 + s.dia) * nodos.length)]; const vs = [...(aristas.get(c.de)?.v || [])]; c.a = vs[i % Math.max(1, vs.length)] || c.de; c.t = 0; }
+      c.t += (dt * c.v * Math.min(4, 1 + mult / 200)) / 3;
+      if (c.t >= 1) { const vs = [...aristas.get(c.a).v].filter((k) => k !== c.de); c.de = c.a; c.a = vs.length ? vs[Math.floor(hash(i * 7 + Math.floor(c.t * 100) + s.dia) * vs.length)] : c.de; c.t = 0; }
+      const A = aristas.get(c.de).p, B = aristas.get(c.a).p, x = A[0] + (B[0] - A[0]) * c.t, z = A[1] + (B[1] - A[1]) * c.t;
+      _m.compose(_p.set(x, alt(x, z), z), _q.setFromAxisAngle(UP, Math.atan2(B[0] - A[0], B[1] - A[1])), _s.setScalar(1)); autos.setMatrixAt(i, _m);
+    }
+    autos.instanceMatrix.needsUpdate = true;
+    const nv = s.era >= 7 && !s.destino ? 30 : 0, tt = performance.now() / 1000; voladores.count = nv;
+    const C0 = s.ciudades.find((C) => !C.vacia) || s.ciudades[0];
+    for (let i = 0; i < nv; i++) { const r = 6 + (i % 6) * 3, a = tt * (0.15 + (i % 4) * 0.05) * (i % 2 ? 1 : -1) + i, y = 10 + (i % 5) * 3; _m.compose(_p.set(C0.x + Math.cos(a) * r, y, C0.z + Math.sin(a) * r), _q.setFromAxisAngle(UP, -a + (i % 2 ? 0 : Math.PI)), _s.setScalar(1)); voladores.setMatrixAt(i, _m); }
+    voladores.instanceMatrix.needsUpdate = true;
+  }
+
+  // ------------------------------------------------------------ fuego, humo y faroles
   const matLlama = new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff6a10, emissiveIntensity: 2.2, transparent: true, opacity: 0.9 });
-  // una llama y una luz por aldea (creadas de una vez: cambiar el número de luces recompila los materiales)
-  const geoLlama = new THREE.ConeGeometry(0.45, 1.1, 7);
-  const fogatas = [...Array(6)].map(() => { const l = new THREE.Mesh(geoLlama, matLlama); l.visible = false; M.add(l); const luz = new THREE.PointLight(0xffa04a, 0, 24, 1.6); M.add(luz); return { l, luz }; });
-  const llamas = new THREE.InstancedMesh(new THREE.ConeGeometry(0.6, 1.8, 6), matLlama, 40); llamas.count = 0; M.add(llamas);
+  const llamas = new THREE.InstancedMesh(new THREE.ConeGeometry(0.45, 1.2, 7), matLlama, 48); llamas.count = 0; M.add(llamas);
+  const luzF = new THREE.PointLight(0xffa04a, 0, 26, 1.6); M.add(luzF);
   const humoTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-  const NH = 180, humoPos = new Float32Array(NH * 3), humoVida = new Float32Array(NH).fill(-1), humoGeo = new THREE.BufferGeometry(); humoGeo.setAttribute('position', new THREE.BufferAttribute(humoPos, 3));
-  const humo = new THREE.Points(humoGeo, new THREE.PointsMaterial({ color: 0xc8c4bc, size: 2.4, map: humoTex, transparent: true, opacity: 0.45, depthWrite: false })); humo.frustumCulled = false; M.add(humo);
-  // lluvia y nieve
-  const NL = 500, lluPos = new Float32Array(NL * 6), lluGeo = new THREE.BufferGeometry(); lluGeo.setAttribute('position', new THREE.BufferAttribute(lluPos, 3));
+  const NH = 260, humoPos = new Float32Array(NH * 3).fill(-50), humoVida = new Float32Array(NH).fill(-1), humoGeo = new THREE.BufferGeometry(); humoGeo.setAttribute('position', new THREE.BufferAttribute(humoPos, 3));
+  const matHumo = new THREE.PointsMaterial({ color: 0xbdb8b0, size: 2.6, map: humoTex, transparent: true, opacity: 0.45, depthWrite: false });
+  const humo = new THREE.Points(humoGeo, matHumo); humo.frustumCulled = false; M.add(humo);
+  const NF = 400, farPos = new Float32Array(NF * 3), farGeo = new THREE.BufferGeometry(); farGeo.setAttribute('position', new THREE.BufferAttribute(farPos, 3));
+  const faroles = new THREE.Points(farGeo, new THREE.PointsMaterial({ color: 0xffd890, size: 0.9, map: humoTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); faroles.frustumCulled = false; M.add(faroles);
+  function ponerFaroles() { let n = 0; for (let i = 0; i < nodos.length && n < NF; i += 2) { const p = aristas.get(nodos[i]).p; farPos.set([p[0], alt(p[0], p[1]) + 1.6, p[1]], n * 3); n++; } farGeo.setDrawRange(0, n); farGeo.attributes.position.needsUpdate = true; }
+  // ------------------------------------------------------------ lluvia y nieve
+  const NL = 400, lluPos = new Float32Array(NL * 6), lluGeo = new THREE.BufferGeometry(); lluGeo.setAttribute('position', new THREE.BufferAttribute(lluPos, 3));
   for (let i = 0; i < NL; i++) { const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 42, x = Math.cos(a) * r, z = Math.sin(a) * r, y = Math.random() * 40; lluPos.set([x, y, z, x + 0.1, y + 1.1, z], i * 6); }
   const lluvia = new THREE.LineSegments(lluGeo, new THREE.LineBasicMaterial({ color: 0xa8c0d8, transparent: true, opacity: 0.5 })); lluvia.frustumCulled = false; lluvia.visible = false; M.add(lluvia);
-  const NN = 700, niePos = new Float32Array(NN * 3), nieGeo = new THREE.BufferGeometry(); nieGeo.setAttribute('position', new THREE.BufferAttribute(niePos, 3));
-  for (let i = 0; i < NN; i++) { const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 43; niePos.set([Math.cos(a) * r, Math.random() * 40, Math.sin(a) * r], i * 3); }
-  const nieve = new THREE.Points(nieGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.35, map: humoTex, transparent: true, depthWrite: false })); nieve.frustumCulled = false; nieve.visible = false; M.add(nieve);
 
-  // ------------------------------------------------------------ personas
+  // ------------------------------------------------------------ destinos: cohetes, ascensor y estación; luz; red neural; hongo nuclear
+  const destino = new THREE.Group(); M.add(destino);
+  const matBrillo = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(52, 40, 24), matBrillo); halo.position.y = 4; destino.add(halo);
+  const ascensor = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 1, 8).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: 0xdde4ee, emissive: 0x88aaff, emissiveIntensity: 0.4 })); ascensor.visible = false; destino.add(ascensor);
+  const estacion = new THREE.Mesh(new THREE.TorusGeometry(9, 0.7, 8, 40), new THREE.MeshStandardMaterial({ color: 0xe8eef6, emissive: 0x4488ff, emissiveIntensity: 0.3, metalness: 0.4, roughness: 0.3 })); estacion.rotation.x = Math.PI / 2; estacion.visible = false; destino.add(estacion);
+  const geoCohete = fundirGeo([[GEO.cil, 0xf2f2f2, 0, 1.2, 0, 0.35, 2.4, 0.35], [GEO.cono, 0xd04030, 0, 2.7, 0, 0.35, 0.7, 0.35], [GEO.cono, 0xffa030, 0, -0.2, 0, 0.3, 0.8, 0.3, Math.PI, 0, 0]]);
+  const cohetes = new THREE.InstancedMesh(geoCohete, MAT_VERTICE, 24); cohetes.count = 0; destino.add(cohetes);
+  const NLZ = 300, luzPos = new Float32Array(NLZ * 3), luzGeo = new THREE.BufferGeometry(); luzGeo.setAttribute('position', new THREE.BufferAttribute(luzPos, 3));
+  const luces = new THREE.Points(luzGeo, new THREE.PointsMaterial({ color: 0xfff2c0, size: 1.4, map: humoTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); luces.frustumCulled = false; luces.visible = false; destino.add(luces);
+  const red = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x3ac8ff, transparent: true, opacity: 0.35 })); red.visible = false; red.frustumCulled = false; destino.add(red);
+  const hongo = fundir([[GEO.cil, 0xc8a080, 0, 6, 0, 1.6, 12, 1.6], [GEO.esferaFina, 0xd8b090, 0, 13, 0, 6, 3.6, 6], [GEO.esferaFina, 0xa88060, 0, 12, 0, 4, 2.4, 4], [GEO.esferaFina, 0xe8c8a0, 0, 2, 0, 5, 1.2, 5]]); hongo.visible = false; destino.add(hongo);
+  let firmaRed = '';
+  function hacerRed() {
+    const cs = s.celdas.filter((c) => c.u && !['campo', 'parque'].includes(c.u) && !c.ru), pts = [];
+    for (let i = 0; i < cs.length; i += 2) { const b = cs[(i * 7 + 13) % cs.length]; if (b === cs[i]) continue; pts.push(cs[i].x, 8 + (i % 5), cs[i].z, b.x, 8 + ((i + 1) % 5), b.z); }
+    red.geometry.dispose(); red.geometry = new THREE.BufferGeometry(); red.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  }
+
+  // ------------------------------------------------------------ gente
   const figGeo = fundirGeo([[GEO.capsula, 0xffffff, 0, 1.05, 0, 0.42, 0.9, 0.3], [GEO.esferaFina, 0xe8c8a8, 0, 1.78, 0, 0.17, 0.19, 0.17], [GEO.capsula, 0x555555, -0.12, 0.42, 0, 0.15, 0.6, 0.15], [GEO.capsula, 0x555555, 0.12, 0.42, 0, 0.15, 0.6, 0.15]]);
-  const figuras = new THREE.InstancedMesh(figGeo, MAT_VERTICE, 260); figuras.count = 0; figuras.castShadow = true; figuras.frustumCulled = false; M.add(figuras);
-  const vis = new Map();   // id → { x, z, rot, p (persona o null), clave, modo }
-  const anillo = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.75, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe7c46a, transparent: true, opacity: 0.85, depthWrite: false })); anillo.position.y = 0.05; anillo.visible = false; M.add(anillo);
-  const gruposDet = [];
-  function claveAspecto(a) { return `${a.edad >= 64 ? 'b' : a.edad >= 52 ? 'g' : 'n'}${a.edad < 15 ? 'k' : ''}`; }
+  const matFig = MAT_VERTICE;
+  const figuras = new THREE.InstancedMesh(figGeo, matFig, MAXP); figuras.count = 0; figuras.castShadow = true; figuras.frustumCulled = false; for (let i = 0; i < MAXP; i++) figuras.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(figuras);
+  const vis = new Map(), gruposDet = [];
+  const anillo = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.75, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe7c46a, transparent: true, opacity: 0.85, depthWrite: false })); anillo.visible = false; M.add(anillo);
+  let sel = null;
+  const centro = (k) => U.mapa(s).get(k);
+  // dónde está cada quien a esta hora (horario propio, un poco distinto para cada persona)
+  function lugar(a, h, C) {
+    const fase = (hash(a.id) - 0.5) * 1.4, hh = (((h - fase) % 24) + 24) % 24, casa = centro(a.hogar), trab = centro(a.trabajo), plaza = C ? { x: C.x, z: C.z } : { x: 0, z: 0 };
+    const jit = (k, r) => [(hash(a.id * 7 + k) - 0.5) * r, (hash(a.id * 11 + k) - 0.5) * r];
+    const P = (c, k, r = 2) => { if (!c) { const [jx, jz] = jit(k, 6); return [plaza.x + jx, plaza.z + jz]; } const [jx, jz] = jit(k, r); return [c.x + jx, c.z + jz]; };
+    const enCasa = P(casa, 1, 1.2), enTrab = a.edad < 14 ? P(centro(a.hogar), 5, 7) : P(trab, 2, 2.6), enPlaza = P(null, 3);
+    const lerp = (A, B, k) => [A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, true];
+    if (a.edad < 3) return { p: enCasa, dentro: hh < 7 || hh > 19, modo: 'quieto' };
+    if (hh < 6 || hh >= 22) return { p: enCasa, dentro: true, modo: 'quieto' };
+    if (hh < 7.3) return { p: lerp(enCasa, enTrab, (hh - 6) / 1.3), modo: 'camina' };
+    if (hh < 17) { if (a.edad >= 70 || !a.oficio) return { p: P(casa, 4, 3.5), modo: 'sentado' }; return { p: enTrab, modo: a.edad < 14 ? 'corre' : hh > 12 && hh < 13 ? 'sentado' : MODO[a.oficio] || 'trabaja' }; }
+    if (hh < 18.3) return { p: lerp(enTrab, a.p.ext > 0.45 ? enPlaza : enCasa, (hh - 17) / 1.3), modo: 'camina' };
+    if (hh < 21) return { p: a.p.ext > 0.45 ? enPlaza : P(casa, 6, 3), modo: s.fiesta && s.dia <= s.fiesta ? 'baila' : 'quieto' };
+    return { p: lerp(a.p.ext > 0.45 ? enPlaza : enCasa, enCasa, hh - 21), modo: 'camina' };
+  }
+  const MODO = { comida: 'trabaja', materiales: 'golpe', metal: 'golpe', energia: 'trabaja', bienes: 'trabaja', ciencia: 'quieto', fe: 'sentado', salud: 'trabaja', comercio: 'quieto', seguridad: 'quieto', cultura: 'baila', construir: 'trabaja' };
   function hacerPersona(a) {
-    const k = claveAspecto(a), pelo = a.edad >= 64 ? 0xe4e2dc : a.edad >= 52 ? 0x9a968e : a.ap.pelo;
-    const p = crearPersona({ piel: a.ap.piel, ropa: a.ap.ropa, pantalon: a.ap.pantalon, pelo, peinado: a.edad < 15 && a.ap.peinado === 'calvo' ? 'corto' : a.ap.peinado, ancho: a.ap.ancho });
+    const pelo = a.edad >= 64 ? 0xe4e2dc : a.edad >= 52 ? 0x9a968e : a.ap.pelo;
+    const p = crearPersona({ piel: a.ap.piel, ropa: ropaDe(s.era, a), pantalon: s.era >= 4 ? 0x2a2e38 : 0x4a3a2a, pelo, peinado: a.ap.peinado, ancho: a.ap.ancho });
     p.g.userData.id = a.id;
-    p.g.traverse((o) => { if (o.isMesh) o.castShadow = o.parent === p.torso || o === p.torso || o.parent === p.cab; });
-    return { p, k };
-  }
-
-  // ------------------------------------------------------------ animales de corral (una malla instanciada por especie)
-  const especies = [
-    fundirGeo([[GEO.capsula, 0xf0ece0, 0, 0.55, 0, 0.5, 0.5, 0.42, Math.PI / 2, 0, 0], [GEO.esfera, 0x3a3430, 0, 0.62, 0.48, 0.16, 0.18, 0.2], ...[[0.13, 0.22], [-0.13, 0.22], [0.13, -0.22], [-0.13, -0.22]].map(([x, z]) => [GEO.cil, 0x3a3430, x, 0.18, z, 0.05, 0.36, 0.05])]),   // oveja
-    fundirGeo([[GEO.capsula, 0x8a6a4a, 0, 0.55, 0, 0.36, 0.5, 0.3, Math.PI / 2, 0, 0], [GEO.esfera, 0x7a5a3a, 0, 0.75, 0.42, 0.14, 0.16, 0.2], [GEO.cono, 0xd8d0c0, 0.06, 0.95, 0.38, 0.03, 0.18, 0.03, -0.4, 0, 0], [GEO.cono, 0xd8d0c0, -0.06, 0.95, 0.38, 0.03, 0.18, 0.03, -0.4, 0, 0], ...[[0.1, 0.2], [-0.1, 0.2], [0.1, -0.2], [-0.1, -0.2]].map(([x, z]) => [GEO.cil, 0x5a4a3a, x, 0.2, z, 0.04, 0.4, 0.04])]),   // cabra
-    fundirGeo([[GEO.esfera, 0xe8e2d4, 0, 0.22, 0, 0.16, 0.15, 0.2], [GEO.esfera, 0xe8e2d4, 0, 0.36, 0.13, 0.08, 0.09, 0.08], [GEO.cono, 0xd0302a, 0, 0.46, 0.13, 0.03, 0.06, 0.05], [GEO.cono, 0xe0a030, 0, 0.35, 0.22, 0.025, 0.06, 0.025, Math.PI / 2, 0, 0]]),   // gallina
-  ].map((geo) => { const im = new THREE.InstancedMesh(geo, MAT_VERTICE, 70); im.count = 0; im.castShadow = true; im.frustumCulled = false; M.add(im); return im; });
-  function actualizarAnimales(s, tt) {
-    const n = [0, 0, 0];
-    for (const A of s.aldeas) {
-      const cs = s.edificios.filter((b) => b.tipo === 'corral' && b.hecho && b.al === A.id); if (!cs.length) continue;
-      const tot = Math.round(A.animales || 0);
-      for (let i = 0; i < tot; i++) {
-        const c = cs[i % cs.length], e = i % 3, k = n[e]; if (k >= 70) continue;
-        const ang = i * 2.399 + tt * (e === 2 ? 0.25 : 0.05) * ((i % 2) * 2 - 1), rr = 0.6 + ((i * 37) % 10) / 6;
-        const lx = Math.cos(ang) * rr * 1.1 + 0.6, lz = Math.sin(ang) * rr * 0.9 + 0.5, cr = Math.cos(c.rot), sr = Math.sin(c.rot);
-        _m.compose(_p.set(c.x + lx * cr + lz * sr, 0, c.z - lx * sr + lz * cr), _q.setFromAxisAngle(UP, ang + Math.PI / 2 + (e === 2 ? Math.sin(tt * 3 + i) : 0)), _s.setScalar(1));
-        especies[e].setMatrixAt(k, _m); n[e]++;
-      }
-    }
-    especies.forEach((im, e) => { im.count = n[e]; im.instanceMatrix.needsUpdate = true; });
-  }
-
-  // ------------------------------------------------------------ lobos y bandidos
-  const geoLobo = fundirGeo([[GEO.capsula, 0x6a6660, 0, 0.75, 0, 0.5, 0.9, 0.45, Math.PI / 2, 0, 0], [GEO.esfera, 0x5a5650, 0, 0.95, 0.75, 0.28, 0.26, 0.34], [GEO.cono, 0x4a4640, 0, 0.92, 1.1, 0.14, 0.3, 0.14, Math.PI / 2, 0, 0], [GEO.cono, 0x4a4640, 0.12, 1.2, 0.7, 0.07, 0.18, 0.07], [GEO.cono, 0x4a4640, -0.12, 1.2, 0.7, 0.07, 0.18, 0.07],
-    ...[[0.18, 0.4], [-0.18, 0.4], [0.18, -0.4], [-0.18, -0.4]].map(([x, z]) => [GEO.cil, 0x5a5650, x, 0.3, z, 0.07, 0.6, 0.07]), [GEO.cono, 0x6a6660, 0, 0.8, -0.75, 0.1, 0.5, 0.1, -Math.PI / 2.4, 0, 0]]);
-  const lobos = [...Array(4)].map(() => { const m = new THREE.Mesh(geoLobo, MAT_VERTICE); m.castShadow = true; m.visible = false; M.add(m); return m; });
-  const bandidos = [...Array(6)].map((_, i) => { const p = crearPersona({ ropa: 0x3a1a1a, pantalon: 0x1a1a1a, pelo: 0x1a1210, piel: [0xc68c5c, 0xa8714a, 0xe0ac7e][i % 3], extraCab: [[GEO.esferaFina, 0x2a1410, 0, 0.2, -0.01, 0.18, 0.14, 0.18]] }); p.g.visible = false; M.add(p.g); return p; });
-
-  // ------------------------------------------------------------ estaciones
-  const SUELO = [0x7fa35a, 0x8ea552, 0xa48c4c, 0xdfe5ea].map((c) => new THREE.Color(c));
-  const COPA = { pino: [[0.26, 0.45, 0.26], [0.22, 0.4, 0.22], [0.22, 0.38, 0.22], [0.74, 0.8, 0.82]], roble: [[0.4, 0.62, 0.26], [0.32, 0.52, 0.2], [0.82, 0.42, 0.14], [0.8, 0.84, 0.88]] };
-  let firmaA = '', ultEst = -1, tAcum = 0;
-  function mezcla(arr, e, k) { const a = arr[e], b = arr[(e + 1) % 4]; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; }
-  function actualizarBosque(s, forzar) {
-    const f = fecha(s), kE = Math.max(0, (f.dia - 1 + f.hora / 24 - (DIAS_EST - 1.5)) / 1.5);   // transición en el último día y medio
-    const firma = s.arboles.reduce((n, t, i) => n + (t.c < 0 ? -1 : t.c === 0 ? 0.5 : Math.round(t.c * 8)) * ((i % 13) + 1), 0) + ':' + f.est + ':' + Math.round(kE * 6);
-    if (firma === firmaA && !forzar) return; firmaA = firma;
-    const cp = mezcla(COPA.pino, f.est, Math.min(1, kE)), cr = mezcla(COPA.roble, f.est, Math.min(1, kE));
-    s.arboles.forEach((t, i) => {
-      const vivo = t.c > 0, esc = vivo ? 0.3 + 0.7 * t.c : 0, rot = (i * 2.399) % 6.28, base = 0.85 + ((i * 37) % 10) / 30;
-      _m.compose(_p.set(t.x, 0, t.z), _q.setFromAxisAngle(UP, rot), _s.setScalar(vivo ? esc * base : 0));
-      (t.v ? robles : pinos).setMatrixAt(i, _m); (t.v ? pinos : robles).setMatrixAt(i, _m.makeScale(0, 0, 0));
-      _m.compose(_p.set(t.x, 0, t.z), _q.setFromAxisAngle(UP, rot), _s.setScalar(t.c === 0 || (t.c > 0 && t.c < 0.25) ? base : 0)); tocones.setMatrixAt(i, _m);
-      (t.v ? robles : pinos).setColorAt(i, _c.setRGB(...(t.v ? cr : cp), THREE.SRGBColorSpace));
-      (t.v ? pinos : robles).setColorAt(i, _c.setRGB(1, 1, 1));
-    });
-    for (const im of [pinos, robles, tocones]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
-    O.suelo.material.color.copy(SUELO[f.est]).lerp(SUELO[(f.est + 1) % 4], Math.min(1, kE));
-    agua.color.setHex(f.est === 3 && kE < 0.5 ? 0xb8d4e4 : 0x3f86b0); agua.roughness = f.est === 3 ? 0.5 : 0.12;
-  }
-  function actualizarRecursos(s) {
-    s.rocas.forEach((r, i) => { _m.compose(_p.set(r.x, -0.1, r.z), _q.setFromAxisAngle(UP, r.t * 6), _s.setScalar(r.q > 0 ? 0.55 + Math.min(1, r.q / 60) * 0.7 : 0)); rocas.setMatrixAt(i, _m); });
-    rocas.instanceMatrix.needsUpdate = true;
-    const inv = fecha(s).est === 3;
-    s.arbustos.forEach((b, i) => { _m.compose(_p.set(b.x, 0, b.z), _q.identity(), _s.setScalar(inv ? 0.8 : 1)); arbustos.setMatrixAt(i, _m); _m.compose(_p.set(b.x, 0, b.z), _q.identity(), _s.setScalar(b.b >= 1 ? 0.5 + b.b / 16 : 0)); bayas.setMatrixAt(i, _m); });
-    arbustos.instanceMatrix.needsUpdate = bayas.instanceMatrix.needsUpdate = true;
-    tumbas.count = Math.min(48, s.tumbas.length);
-    s.tumbas.slice(-48).forEach((t, i) => { _m.compose(_p.set(t.x, 0, t.z), _q.setFromAxisAngle(UP, s.cementerio.ang + Math.PI / 2), _s.setScalar(1)); tumbas.setMatrixAt(i, _m); });
-    tumbas.instanceMatrix.needsUpdate = true;
-    // tierra pisada: crece con cada aldea
-    tierras.forEach((m, i) => {
-      const A = s.aldeas[i]; m.visible = !!A; if (!A) return;
-      const r = Math.max(5, ...s.edificios.filter((b) => b.al === A.id && !['muralla', 'campo', 'muelle'].includes(b.tipo)).map((b) => Math.hypot(b.x - A.x, b.z - A.z) + TIPOS[b.tipo].radio * 0.6));
-      m.position.set(A.x, 0.012 + i * 0.001, A.z); m.scale.setScalar(Math.min(28, r * 0.9));
-    });
+    p.g.traverse((o) => { if (o.isMesh) o.castShadow = o.parent === p.torso || o === p.torso; });
+    return p;
   }
 
   // ------------------------------------------------------------ cada cuadro
-  let sel = null, tHumo = 0;
-  const camPos = V();
-  function actualizar(s, dt, mult) {
-    const alfa = Math.min(1, s.resto / PASO), hr = horaDe(s), L = O.luz;
-    tAcum += dt;
-    if (tAcum > 0.35 || ultEst < 0) { tAcum = 0; ultEst = 1; actualizarBosque(s); actualizarRecursos(s); rehacerEstaticas(s); rehacerCampos(s); rehacerMuralla(s); actualizarObras(s); }
-    matVent.emissiveIntensity = 0.05 + L.noche * 1.8 + (hr > 17 && hr < 21 ? 0.4 : 0);
-    // fogata
-    const tt = performance.now() / 1000, Fs = s.edificios.filter((b) => b.tipo === 'fogata' && !s.aldeas[b.al]?.vacia);
-    fogatas.forEach(({ l, luz }, i) => {
-      const F = Fs[i]; l.visible = !!F && s.gente.length > 0;
-      if (!l.visible) { luz.intensity = 0; return; }
-      l.position.set(F.x, 0.65, F.z); l.scale.set(1 + Math.sin(tt * 13 + i) * 0.1, 1 + Math.sin(tt * 9 + i) * 0.18 + L.noche * 0.3, 1 + Math.cos(tt * 11 + i) * 0.1);
-      luz.position.set(F.x, 1.6, F.z); luz.intensity = (6 + L.noche * 55) * (0.85 + Math.sin(tt * 17 + i) * 0.08 + Math.sin(tt * 7) * 0.07);
-    });
-    // incendios
-    let nl = 0;
-    for (const b of s.edificios) if (b.fuego > 0 && nl < 36) { const r = TIPOS[b.tipo].radio || 2; for (let i = 0; i < 6 && nl < 40; i++) { const a = i * 1.7 + tt * 0.3, k = 0.7 + Math.sin(tt * 10 + i * 3) * 0.3; _m.compose(_p.set(b.x + Math.cos(a) * r * 0.5, 1 + (i % 3) * 0.7, b.z + Math.sin(a) * r * 0.5), _q.identity(), _s.set(k, k * (1.2 + (i % 2) * 0.5), k)); llamas.setMatrixAt(nl++, _m); } }
-    llamas.count = nl; llamas.instanceMatrix.needsUpdate = true;
-    // humo: fogata, chimeneas al amanecer y al anochecer (y todo el invierno), herrería trabajando, incendios
-    tHumo += dt;
-    const emis = [];
-    if (s.gente.length) for (const F of Fs) emis.push([F.x, 1.2, F.z, 1]);
-    const cocinan = (hr > 5.5 && hr < 8.5) || (hr > 17 && hr < 21) || fecha(s).est === 3;
-    for (const b of s.edificios) {
-      if (!b.hecho) continue;
-      if (b.tipo === 'casa' && cocinan) { const c = Math.cos(b.rot), sn = Math.sin(b.rot); emis.push([b.x + 1.2 * c + -0.6 * sn, 4.3, b.z - 1.2 * sn + -0.6 * c, 0.5]); }
-      if (b.tipo === 'herreria' && s.gente.some((a) => a.acc?.tipo === 'forjar' && a.acc.llego)) { const c = Math.cos(b.rot), sn = Math.sin(b.rot); emis.push([b.x - 1.2 * c - 1 * sn, 4.8, b.z + 1.2 * sn - 1 * c, 1]); }
-      if (b.fuego > 0) emis.push([b.x, 3, b.z, 3]);
+  let tLento = 1, firmaFar = '', vh = -1;
+  function actualizar(s1, dt, mult) {
+    s = s1;
+    const hr = (s.t % 1440) / 60, L = O.luz, tt = performance.now() / 1000, D = s.destino, fase = D?.fase || 0;
+    tLento += dt;
+    if (tLento > 0.5) {
+      tLento = 0;
+      if (s.vh !== vh) { vh = s.vh; relieve(); }
+      const cambio = ciudad(); if (cambio) { pintar(); ponerFaroles(); } else if (s.dia % 6 === 0 && firmaFar !== `${s.dia}`) { firmaFar = `${s.dia}`; pintar(); }
+      bosque();
+      borde.visible = s.era >= 3;
+      const cont = s.contaminacion;
+      agua.color.set(cont > 0.25 ? '#5a6a50' : Math.floor((s.dia % 24) / 6) === 3 ? '#a8c4d4' : '#3f86b0');
+      if (!O.scene.fog) O.scene.fog = new THREE.Fog(0x9a948a, 400, 900);
+      O.scene.fog.near = 200 - cont * 170; O.scene.fog.far = 420 - cont * 260;
+      O.scene.fog.color.set(D?.tipo === 'destruccion' ? '#4a3a30' : cont > 0.3 ? '#7a7060' : '#b8c0c8');
+      if (D?.tipo === 'colmena' && firmaRed !== s.vc) { firmaRed = s.vc; hacerRed(); }
     }
-    const tot = emis.reduce((n, e) => n + e[3], 0);
-    let nuevos = Math.min(4, Math.round(dt * 40 + Math.random() * 0.6));
+    // ventanas y faroles de noche (más luz en las eras eléctricas)
+    matVent.emissiveIntensity = L.noche * (s.era >= 5 ? 1.8 : s.era >= 1 ? 1.1 : 0.5) + (hr > 17 && hr < 21 ? 0.25 : 0);
+    matVent.color.set(s.era >= 6 ? '#8aa8c8' : '#7d8fa3');
+    faroles.visible = s.era >= 4 && L.noche > 0.3 && !(D?.tipo === 'destruccion'); faroles.material.opacity = L.noche;
+    // fogatas (eras tempranas) y ruinas que arden
+    let nl = 0;
+    const fog = s.era <= 1 ? s.celdas.filter((c) => c.fogata && !c.ru) : [];
+    for (const c of fog) if (nl < 48) { const k = 1 + Math.sin(tt * 11 + c.k) * 0.15; _m.compose(_p.set(c.x, alt(c.x, c.z) + 0.6, c.z), _q.identity(), _s.set(k, k * (1 + L.noche * 0.3), k)); llamas.setMatrixAt(nl++, _m); }
+    if (fog[0]) { luzF.position.set(fog[0].x, 2, fog[0].z); luzF.intensity = (6 + L.noche * 50) * (0.9 + Math.sin(tt * 17) * 0.1); } else luzF.intensity = 0;
+    const arde = (D?.tipo === 'destruccion' && fase < 0.8) || s.guerra;
+    if (arde) for (const [x, y, z] of ruinasFuego) if (nl < 48) { const k = 0.8 + Math.sin(tt * 9 + x) * 0.3; _m.compose(_p.set(x, y + 1, z), _q.identity(), _s.set(k * 1.6, k * 2.2, k * 1.6)); llamas.setMatrixAt(nl++, _m); }
+    llamas.count = nl; llamas.instanceMatrix.needsUpdate = true;
+    // humo: fogatas, chimeneas de fábricas y centrales (eras 4-5), incendios
+    const emis = [];
+    for (const c of fog) emis.push([c.x, 1.2, c.z, 1]);
+    if (!D) for (const c of s.celdas) if (!c.ru && ((c.u === 'taller' && c.e >= 4 && c.e <= 5) || (c.u === 'central' && c.e >= 4 && c.e <= 5))) emis.push([c.x + 0.9, alt(c.x, c.z) + 3.2, c.z - 0.7, c.u === 'central' ? 2 : 1]);
+    if (arde) for (const r of ruinasFuego.slice(0, 10)) emis.push([r[0], r[1] + 2, r[2], 2]);
+    matHumo.color.set(s.era >= 4 ? '#6a645c' : '#c8c4bc');
+    const tot = emis.reduce((n, e) => n + e[3], 0); let nuevos = Math.min(6, Math.round(dt * 60));
     for (let i = 0; i < NH; i++) {
-      if (humoVida[i] < 0) {
-        if (!emis.length || nuevos <= 0) continue;
-        nuevos--;
-        let r = Math.random() * tot, e = emis[0]; for (const x of emis) { r -= x[3]; if (r <= 0) { e = x; break; } }
-        humoVida[i] = 0; humoPos.set([e[0] + (Math.random() - 0.5) * 0.4, e[1], e[2] + (Math.random() - 0.5) * 0.4], i * 3);
-      } else {
-        humoVida[i] += dt; humoPos[i * 3 + 1] += dt * 1.6; humoPos[i * 3] += dt * 0.25 * Math.sin(i + tt * 0.3); humoPos[i * 3 + 2] += dt * 0.15;
-        if (humoVida[i] > 5) { humoVida[i] = -1; humoPos[i * 3 + 1] = -50; }
-      }
+      if (humoVida[i] < 0) { if (!emis.length || nuevos <= 0) continue; nuevos--; let r = Math.random() * tot, e = emis[0]; for (const x of emis) { r -= x[3]; if (r <= 0) { e = x; break; } } humoVida[i] = 0; humoPos.set([e[0] + (Math.random() - 0.5) * 0.4, e[1], e[2] + (Math.random() - 0.5) * 0.4], i * 3); }
+      else { humoVida[i] += dt; humoPos[i * 3 + 1] += dt * 1.6; humoPos[i * 3] += dt * 0.3 * Math.sin(i + tt * 0.3); if (humoVida[i] > 5) { humoVida[i] = -1; humoPos[i * 3 + 1] = -50; } }
     }
     humoGeo.attributes.position.needsUpdate = true;
-    // lluvia y nieve
-    const est = fecha(s).est;
-    lluvia.visible = s.clima.lluvia > 0 && est !== 3;
-    nieve.visible = s.clima.nieve > 0 && est === 3;
+    lluvia.visible = s.clima.lluvia > 0 && Math.floor((s.dia % 24) / 6) !== 3;
     if (lluvia.visible) { for (let i = 0; i < NL; i++) { let y = lluPos[i * 6 + 1] - dt * 30; if (y < 0) y += 40; lluPos[i * 6 + 1] = y; lluPos[i * 6 + 4] = y + 1.1; } lluGeo.attributes.position.needsUpdate = true; }
-    if (nieve.visible) { for (let i = 0; i < NN; i++) { let y = niePos[i * 3 + 1] - dt * 2.2; if (y < 0) y += 40; niePos[i * 3 + 1] = y; niePos[i * 3] += Math.sin(tt + i) * dt * 0.3; } nieGeo.attributes.position.needsUpdate = true; }
-    actualizarAnimales(s, tt);
-    // lobos: salen del bosque, rondan y se van
-    const Lb = s.lobos && s.t < s.lobos.hasta ? s.lobos : null;
-    lobos.forEach((m, i) => {
-      m.visible = !!Lb; if (!Lb) return;
-      const k = (s.t + s.resto - Lb.t) / (Lb.hasta - Lb.t), ida = Math.sin(Math.min(1, k) * Math.PI) * 0.6, tx = Lb.tx ?? 0, tz = Lb.tz ?? 0;
-      const dx = tx - Lb.x, dz = tz - Lb.z, l = Math.hypot(dx, dz) || 1, px = -dz / l, pz = dx / l, o = (i - 1.5) * 1.3 + Math.sin(tt * 0.6 + i) * 0.4;
-      m.position.set(Lb.x + dx * ida + px * o, Math.abs(Math.sin(tt * 8 + i)) * 0.08, Lb.z + dz * ida + pz * o);
-      m.rotation.y = Math.atan2(dx * (k < 0.5 ? 1 : -1), dz * (k < 0.5 ? 1 : -1));
-    });
-    // bandidos: avanzan hacia el punto de ataque y pelean
-    const Am = s.amenaza?.tipo === 'bandidos' ? s.amenaza : null;
-    bandidos.forEach((p, i) => {
-      p.g.visible = !!Am && i < Math.min(6, Am.n); if (!p.g.visible) return;
-      const k = Math.min(1, (s.t + s.resto - (Am.hasta - 12 * 60)) / (2 * 60)), A = s.aldeas[Am.al] || { x: 0, z: 0 };
-      let dx = Am.x - A.x, dz = Am.z - A.z; if (Math.hypot(dx, dz) < 0.5) { dx = Am.x || 1; dz = Am.z; } const l = Math.hypot(dx, dz), ux = dx / l, uz = dz / l, o = (i - 2.5) * 0.9;
-      let sx = Am.x + ux * 18, sz = Am.z + uz * 18; const rr = Math.hypot(sx, sz); if (rr > 43) { sx *= 43 / rr; sz *= 43 / rr; }
-      p.g.position.set(sx + (Am.x + ux * 1.5 - sx) * k - uz * o, 0, sz + (Am.z + uz * 1.5 - sz) * k + ux * o); p.g.rotation.y = Math.atan2(-ux, -uz);
-      animarPersona(p, k < 1 ? 'corre' : 'golpe', dt);
-    });
-    // personas: las cercanas a la cámara con cuerpo, el resto como figuras
-    camPos.copy(O.controls.target);
-    const lejos = O.camera.position.distanceTo(O.controls.target) > 150;
-    const orden = s.gente.map((a) => [a, (a.x - camPos.x) ** 2 + (a.z - camPos.z) ** 2]).sort((x, y) => x[1] - y[1]);
-    const vivos = new Set(); let nf = 0; gruposDet.length = 0;
-    const ix = new Map(s.gente.map((a) => [a.id, a]));
-    orden.forEach(([a], i) => {
+    moverAutos(dt, mult);
+    efectosDestino(D, fase, tt, dt);
+    gente(dt, hr, D, fase);
+  }
+  function efectosDestino(D, fase, tt, dt) {
+    const mega = s.mega, puerto = s.celdas.find((c) => c.u === 'puerto' && !c.ru);
+    // estelar: el ascensor crece con el megaproyecto; en el epílogo despegan las naves
+    const est = (mega?.k === 'estelar' ? mega.prog : 0) || (D?.tipo === 'estelar' ? 1 : 0);
+    ascensor.visible = est > 0.05 && !!puerto; estacion.visible = est > 0.4;
+    if (puerto && ascensor.visible) { ascensor.position.set(puerto.x, alt(puerto.x, puerto.z), puerto.z); ascensor.scale.set(1, 10 + est * 70, 1); estacion.position.set(puerto.x, 10 + est * 70, puerto.z); estacion.rotation.z = tt * 0.1; }
+    let nc = 0;
+    if (D?.tipo === 'estelar' && puerto) for (let i = 0; i < 24; i++) { const k = ((tt * 0.12 + i / 24) % 1), y = alt(puerto.x, puerto.z) + k * k * 120; if (y > 115) continue; _m.compose(_p.set(puerto.x + Math.sin(i * 2.3) * (2 + k * 12), y, puerto.z + Math.cos(i * 2.3) * (2 + k * 12)), _q.identity(), _s.setScalar(1 + (i % 3) * 0.3)); cohetes.setMatrixAt(nc++, _m); }
+    cohetes.count = nc; cohetes.instanceMatrix.needsUpdate = true;
+    // trascendencia: el orbe brilla; la gente sube como luces
+    const tras = D?.tipo === 'trascendencia' ? fase : mega?.k === 'trascendencia' ? mega.prog * 0.25 : 0;
+    const gaia = D?.tipo === 'gaia' ? fase : 0, colm = D?.tipo === 'colmena' ? fase : mega?.k === 'colmena' ? mega.prog * 0.5 : 0, nuc = D?.tipo === 'destruccion' && D.causa === 'nuclear' ? fase : 0, ia = D?.tipo === 'destruccion' && D.causa === 'ia';
+    matBrillo.opacity = tras * 0.22 + gaia * 0.12 + colm * 0.08 + (nuc > 0 && nuc < 0.08 ? (1 - nuc / 0.08) * 0.8 : 0) + (ia ? 0.1 : 0);
+    matBrillo.color.set(tras ? '#ffe8a0' : gaia ? '#9cf09a' : colm ? '#6ae8ff' : ia ? '#ff3030' : '#ffffff');
+    luces.visible = tras > 0;
+    if (luces.visible) { for (let i = 0; i < NLZ; i++) { const a = i * 2.399, r = (i % 40) * 0.9 + 2, k = ((tt * 0.05 + i / NLZ) % 1); luzPos.set([Math.cos(a) * r, k * 60 * (0.3 + tras), Math.sin(a) * r], i * 3); } luzGeo.attributes.position.needsUpdate = true; luces.material.opacity = Math.min(1, tras * 2); }
+    red.visible = colm > 0.05; if (red.visible) red.material.opacity = 0.15 + Math.sin(tt * 3) * 0.08 + colm * 0.2;
+    hongo.visible = nuc > 0 && nuc < 0.85; if (hongo.visible) { const C = s.ciudades[0]; hongo.position.set(C.x, 0, C.z); hongo.scale.setScalar(0.4 + Math.min(1, nuc * 4) * 1.2); }
+  }
+  function gente(dt, hr, D, fase) {
+    const C0 = O.controls.target, lejos = O.camera.position.distanceTo(C0) > 150, ix = [];
+    for (const a of s.gente) ix.push([a, (vis.get(a.id)?.x ?? 0) - C0.x, (vis.get(a.id)?.z ?? 0) - C0.z]);
+    ix.sort((x, y) => x[1] * x[1] + x[2] * x[2] - y[1] * y[1] - y[2] * y[2]);
+    let nf = 0; gruposDet.length = 0; const vivos = new Set();
+    const brillo = D?.tipo === 'trascendencia' ? fase : 0, colm = D?.tipo === 'colmena';
+    ix.forEach(([a], i) => {
       vivos.add(a.id);
-      let v = vis.get(a.id);
-      const tx = a.px + (a.x - a.px) * alfa, tz = a.pz + (a.z - a.pz) * alfa;
-      if (!v) { v = { x: tx, z: tz, rot: 0, p: null, k: '' }; vis.set(a.id, v); }
-      const dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz);
-      if (d > 10) { v.x = tx; v.z = tz; } else { const kk = 1 - Math.exp(-dt * 14); v.x += dx * kk; v.z += dz * kk; }
-      const c = a.acc, moviendo = a.ruta.length > 0 && d > 0.002;
-      if (moviendo) v.rot = angLerp(v.rot, Math.atan2(dx, dz), Math.min(1, dt * 10));
-      else if (c?.ox != null) v.rot = angLerp(v.rot, Math.atan2(c.ox - v.x, c.oz - v.z), Math.min(1, dt * 6));
-      let modo = moviendo ? (c?.prisa ? 'corre' : 'camina') : ANIM[c?.tipo] || 'quieto';
-      if (!moviendo && c?.tipo === 'dormir' && !a.dentro) modo = 'muerto';
-      v.modo = modo;
-      const escala = a.ap.alto * (a.edad < 15 ? 0.36 + 0.64 * Math.min(1, a.edad / 15) : a.edad > 70 ? 0.96 : 1);
-      let y = 0;
-      if (a.edad < 3) { const m = a.padres.map((id) => ix.get(id)).find((p) => p && p.edad >= 3), vm = m && vis.get(m.id); if (vm && !a.dentro) { v.x = vm.x + Math.sin(vm.rot + 1.6) * 0.32; v.z = vm.z + Math.cos(vm.rot + 1.6) * 0.32; v.rot = vm.rot; y = vm.modo === 'sentado' ? 0.35 : 0.85; modo = 'sentado'; } }
-      v.y = y;
-      const det = !lejos && i < NDET && !a.dentro;
+      const C = s.ciudades[a.al], L = lugar(a, colm ? 19 : hr, C);
+      let v = vis.get(a.id); if (!v) { v = { x: L.p[0], z: L.p[1], rot: 0, p: null, k: '' }; vis.set(a.id, v); }
+      const dx = L.p[0] - v.x, dz = L.p[1] - v.z, d = Math.hypot(dx, dz);
+      if (d > 6) { v.x = L.p[0]; v.z = L.p[1]; } else { const k = 1 - Math.exp(-dt * 6); v.x += dx * k; v.z += dz * k; }
+      if (d > 0.05) v.rot = angLerp(v.rot, Math.atan2(dx, dz), Math.min(1, dt * 8));
+      const modo = L.dentro ? 'quieto' : d > 0.3 ? 'camina' : colm ? 'quieto' : L.modo;
+      v.dentro = L.dentro && !brillo; v.modo = modo;
+      const y = alt(v.x, v.z) + brillo * (hash(a.id) * 25);
+      const esc = a.ap.alto * (a.edad < 15 ? 0.36 + 0.64 * Math.min(1, a.edad / 15) : 1);
+      const det = !lejos && i < NDET && !v.dentro;
       if (det) {
-        const k = claveAspecto(a);
-        if (!v.p || v.k !== k) { if (v.p) M.remove(v.p.g); const h = hacerPersona(a); v.p = h.p; v.k = h.k; M.add(v.p.g); }
-        v.p.g.visible = true; v.p.g.position.set(v.x, y, v.z); v.p.g.rotation.y = v.rot; v.p.g.scale.setScalar(escala);
-        animarPersona(v.p, modo, dt, 1.4);
-        gruposDet.push(v.p.g);
+        const k = `${s.era}:${a.clase}:${a.edad >= 64 ? 'b' : a.edad >= 52 ? 'g' : 'n'}`;
+        if (!v.p || v.k !== k) { if (v.p) M.remove(v.p.g); v.p = hacerPersona(a); v.k = k; M.add(v.p.g); }
+        v.p.g.visible = true; v.p.g.position.set(v.x, y, v.z); v.p.g.rotation.y = v.rot; v.p.g.scale.setScalar(esc);
+        animarPersona(v.p, modo, dt, 1.4); gruposDet.push(v.p.g);
       } else {
         if (v.p) v.p.g.visible = false;
-        if (!a.dentro && nf < 260) { _m.compose(_p.set(v.x, y, v.z), _q.setFromEuler(_e.set(modo === 'muerto' ? -Math.PI / 2 : 0, v.rot, 0)), _s.setScalar(escala)); if (modo === 'muerto') _m.setPosition(v.x, 0.2, v.z); figuras.setMatrixAt(nf, _m); figuras.setColorAt(nf, _c.setHex(a.ap.ropa)); nf++; }
+        if (!v.dentro && nf < MAXP) { _m.compose(_p.set(v.x, y, v.z), _q.setFromAxisAngle(UP, v.rot), _s.setScalar(esc)); figuras.setMatrixAt(nf, _m); figuras.setColorAt(nf, _c.setHex(colm ? 0x6ae8ff : brillo ? 0xfff2c0 : ropaDe(s.era, a))); nf++; }
       }
     });
-    figuras.count = nf; figuras.instanceMatrix.needsUpdate = true; if (figuras.instanceColor) figuras.instanceColor.needsUpdate = true;
+    figuras.count = nf; figuras.instanceMatrix.needsUpdate = true; figuras.instanceColor.needsUpdate = true;
     for (const [id, v] of vis) if (!vivos.has(id)) { if (v.p) M.remove(v.p.g); vis.delete(id); }
-    // anillo bajo la persona elegida
-    const vs = sel != null && vis.get(sel), aSel = sel != null && ix.get(sel);
-    anillo.visible = !!vs && !aSel?.dentro; if (anillo.visible) { anillo.position.set(vs.x, 0.05, vs.z); anillo.scale.setScalar(1 + Math.sin(tt * 4) * 0.08); }
+    const vs = sel != null && vis.get(sel);
+    anillo.visible = !!vs && !vs.dentro; if (anillo.visible) { anillo.position.set(vs.x, alt(vs.x, vs.z) + 0.06, vs.z); anillo.scale.setScalar(1 + Math.sin(performance.now() / 250) * 0.08); }
   }
-
-  // persona tocada: primero por rayo sobre los cuerpos; si no, la más cercana al punto del suelo
-  function personaEn(ev, s) {
+  // persona tocada: rayo sobre los cuerpos; si no, la más cercana al punto del suelo
+  function personaEn(ev) {
     const id = O.tocar(ev, gruposDet); if (id != null) return id;
     const p = O.sueloEn(ev); if (!p) return null;
-    let mejor = null, md = 2.4;
-    for (const a of s.gente) { const v = vis.get(a.id); if (!v || a.dentro) continue; const d = Math.hypot(v.x - p.x, v.z - p.z); if (d < md) { md = d; mejor = a.id; } }
+    let mejor = null, md = 2.4; for (const a of s.gente) { const v = vis.get(a.id); if (!v || v.dentro) continue; const d = Math.hypot(v.x - p.x, v.z - p.z); if (d < md) { md = d; mejor = a.id; } }
     return mejor;
   }
-  function edificioEn(ev, s) { const p = O.sueloEn(ev); if (!p) return null; return s.edificios.find((b) => b.tipo !== 'muralla' && Math.hypot(b.x - p.x, b.z - p.z) < (TIPOS[b.tipo].radio || 2) * 0.9)?.id ?? null; }
-  function posDe(id) { const v = vis.get(id); return v ? V(v.x, 1.2 + (v.y || 0), v.z) : null; }
-  return { actualizar, personaEn, edificioEn, posDe, elegir(id) { sel = id; }, get elegido() { return sel; }, contarLlamadas: () => O.renderer.info.render.calls };
+  function celdaEn(ev) { const p = O.sueloEn(ev); return p ? U.celdaEn(s, p.x, p.z) : null; }
+  function posDe(id) { const v = vis.get(id); return v ? V(v.x, alt(v.x, v.z) + 1.2, v.z) : null; }
+  relieve(); pintar(); ciudad(); bosque(); ponerFaroles();
+  return { actualizar, personaEn, celdaEn, posDe, elegir(id) { sel = id; }, get elegido() { return sel; }, estaDentro: (id) => !!vis.get(id)?.dentro, reiniciar(s2) { s = s2; firmaC = ''; firmaA = ''; vh = -1; } };
 }
