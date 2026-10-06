@@ -27,7 +27,7 @@ export const UTILERIA_DE = {
   regar: ['regadera', 'r'], sacarAgua: ['balde', 'r'], ordenar: ['balde', 'l'], alimentar: ['balde', 'r'], alimentarGanado: ['balde', 'r'],
   recogerHuevos: ['cesta', 'l'], recogerFruta: ['cesta', 'l'], vendimia: ['cesta', 'l'], cosecharHierba: ['cesta', 'l'], cosechar: ['cesta', 'l'], recogerFlores: ['cesta', 'l'],
   sembrar: ['pala', 'r'], limpiar: ['pala', 'r'], abonar: ['pala', 'r'], arrancar: ['pala', 'r'], fumigar: ['regadera', 'r'], cuidarJardin: ['pala', 'r'],
-  construir: ['martillo', 'r'], reparar: ['martillo', 'r'], renovar: ['martillo', 'r'], esculpir: ['martillo', 'r'], tallar: ['martillo', 'r'],
+  construir: ['martillo', 'r'], empedrar: ['martillo', 'r'], reparar: ['martillo', 'r'], renovar: ['martillo', 'r'], esculpir: ['martillo', 'r'], tallar: ['martillo', 'r'],
   leer: ['libro', 'r'], tejer: ['agujas', 'r'], tomarVino: ['copa', 'r'], fumar: ['porro', 'r'],
   cocinar: ['sarten', 'r'], hornear: ['sarten', 'r'], hacerConservas: ['sarten', 'r'], segar: ['guadana', 'r'], esquilar: ['tijeras', 'r'], cepillar: ['tijeras', 'r'],
 };

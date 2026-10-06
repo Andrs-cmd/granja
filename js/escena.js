@@ -13,7 +13,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM, etapaDe } from './sim.js';
+import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM, etapaDe, CAMINOS, largoCamino, puntoCamino } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -493,6 +493,24 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     for (let z = 7.6; z < 28.4; z += 0.95) { if (z > 15.2 && z < 21.2) continue; const g = new THREE.CylinderGeometry(0.42 + rand() * 0.08, 0.46, 0.08, 7); g.rotateY(rand() * 3); g.translate(pathX(z), 0.03, z); geos.push(g); }
     const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ color: 0xbdb7aa, roughness: 0.95, flatShading: true })); m.receiveShadow = true; root.add(m);
   }
+
+  // caminos que va empedrando Andrés: dos hileras de lajas que aparecen a medida que avanza
+  const caminosVis = (() => {
+    const mat = new THREE.MeshStandardMaterial({ color: 0xc4bcae, roughness: 0.95, flatShading: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    return CAMINOS.map((c) => {
+      const largo = largoCamino(c), n = Math.max(2, Math.round(largo / 0.85)), piedras = [];
+      for (let i = 0; i < n; i++) {
+        const f = (i + 0.5) / n, p = puntoCamino(c, f), q = puntoCamino(c, Math.min(1, f + 0.01));
+        const ang = Math.atan2(q.z - p.z, q.x - p.x), nx = -Math.sin(ang), nz = Math.cos(ang);
+        for (const lado of [-1, 1]) {
+          const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3 + rand() * 0.06, 0.33, 0.06, 6), mat);
+          m.position.set(p.x + nx * lado * 0.34 + (rand() - 0.5) * 0.08, 0.035, p.z + nz * lado * 0.34 + (rand() - 0.5) * 0.08); m.rotation.y = rand() * 3;
+          m.receiveShadow = true; m.visible = false; root.add(m); piedras.push(m);
+        }
+      }
+      return { id: c.id, piedras, n: 0 };
+    });
+  })();
 
   // huerto: 6 parcelas con cerca baja
   const parcelas = [];
@@ -1912,6 +1930,10 @@ uniform float uRafaga;
     if (hornillas) hornillas.emissiveIntensity = cocinando ? 1.6 + Math.sin(t * 9) * 0.3 : 0;
     if (fuego) fuego.emissiveIntensity = (night > 0.4 || s.clima.lluvia || (s.t / MIN_DIA / 28 | 0) % 4 === 3) ? 1.8 + Math.sin(t * 7) * 0.4 + Math.sin(t * 13) * 0.2 : 0;
     asegurarHijos(s);
+    for (const cv of caminosVis) {   // lajas puestas según el avance
+      const k = Math.floor((s.caminos?.[cv.id]?.progreso || 0) * cv.piedras.length + 1e-6);
+      if (k !== cv.n) { cv.n = k; cv.piedras.forEach((m, i) => { m.visible = i < k; }); }
+    }
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     crisisVis(s, t, dt);
     efectos(s, dt);
@@ -2049,7 +2071,7 @@ uniform float uRafaga;
     if (prev) prev.fadeOut(0.3);
     v.clip = nombre;
   }
-  const RODILLA = ['curarHerida', 'repararPozo', 'sembrar', 'cosechar', 'limpiar', 'cuidarJardin', 'recogerFlores', 'cosecharHierba', 'vendimia', 'regar', 'fumigar', 'arrancar', 'abonar', 'renovar', 'construir', 'reparar'];
+  const RODILLA = ['empedrar', 'curarHerida', 'repararPozo', 'sembrar', 'cosechar', 'limpiar', 'cuidarJardin', 'recogerFlores', 'cosecharHierba', 'vendimia', 'regar', 'fumigar', 'arrancar', 'abonar', 'renovar', 'construir', 'reparar'];
   const AGACHADO = ['ordenar', 'cepillar', 'curar', 'jugarGato', 'jugarPerro', 'esquilar', 'recogerHuevos'];
   const CARGA = ['apagarFuego', 'sacarAgua', 'alimentarGanado', 'segar', 'alimentar', 'recogerFruta', 'voltearCompost', 'secar'];
   const SENTADO_FUERA = ['descansar', 'leer', 'siesta', 'tallar', 'tejer', 'esculpir', 'tomarVino', 'fumar'];

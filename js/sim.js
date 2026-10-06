@@ -56,6 +56,39 @@ export const PARRAS = [{ x: 21, z: 30.5 }, { x: 24.5, z: 30.5 }, { x: 28, z: 30.
   { x: 17.5, z: 30.5 }, { x: 17.5, z: 33.6 }, { x: 14, z: 30.5 }, { x: 14, z: 33.6 }];   // las 4 últimas, con el proyecto del viñedo
 const PARRAS_BASE = 8;
 export const LUGAR_GYM = { x: 11.5, z: 23 };
+// caminos que Andrés va empedrando, primero por donde más se camina (sobre un camino terminado se anda más rápido)
+export const CAMINOS = [
+  { id: 'pozo', nombre: 'el camino al pozo', pts: [{ x: -2.6, z: 8.6 }, { x: -5.4, z: 10.3 }] },
+  { id: 'corral', nombre: 'el camino al corral', pts: [{ x: -3.0, z: 8.3 }, { x: -8.7, z: 8.5 }] },
+  { id: 'taller', nombre: 'el camino al taller y la piscina', pts: [{ x: -1.4, z: 8.4 }, { x: 4.2, z: 9.6 }, { x: 7.4, z: 9.9 }, { x: 10.0, z: 10.6 }, { x: 12.2, z: 11.4 }] },   // (rodea el tanque)
+  { id: 'gallinero', nombre: 'el camino al gallinero', pts: [{ x: 12.2, z: 11.4 }, { x: 13.3, z: 7.6 }, { x: 13.3, z: -4.8 }] },
+  { id: 'vinedo', nombre: 'el camino al viñedo', pts: [{ x: 12.2, z: 11.4 }, { x: 13.0, z: 18.4 }, { x: 17.5, z: 22.5 }, { x: 20.0, z: 28.6 }] },
+  { id: 'carreta', nombre: 'el camino de la carreta', pts: [{ x: 13.0, z: 18.4 }, { x: 22.5, z: 18.6 }, { x: 33.2, z: 14.6 }] },
+  { id: 'mirador', nombre: 'el sendero al mirador', pts: [{ x: -3.2, z: 22.6 }, { x: -8.4, z: 23.4 }, { x: -12.6, z: 23.9 }] },
+];
+export const largoCamino = (c) => c.pts.reduce((t, p, i) => t + (i ? Math.hypot(p.x - c.pts[i - 1].x, p.z - c.pts[i - 1].z) : 0), 0);
+export function puntoCamino(c, f) {   // punto a la fracción f del recorrido
+  let resto = largoCamino(c) * Math.max(0, Math.min(1, f));
+  for (let i = 1; i < c.pts.length; i++) { const a = c.pts[i - 1], b = c.pts[i], l = Math.hypot(b.x - a.x, b.z - a.z); if (resto <= l) { const u = l ? resto / l : 0; return { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u }; } resto -= l; }
+  return { ...c.pts.at(-1) };
+}
+const distTramo = (p, a, b) => { const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz; const u = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / l2)) : 0; return Math.hypot(p.x - a.x - dx * u, p.z - a.z - dz * u); };
+const distCamino = (p, c) => { let m = 1e9; for (let i = 1; i < c.pts.length; i++) m = Math.min(m, distTramo(p, c.pts[i - 1], c.pts[i])); return m; };
+let caminosHechos = [], sCaminos = null;
+function refrescarCaminos(s) { sCaminos = s; caminosHechos = CAMINOS.filter((c) => (s.caminos?.[c.id]?.progreso || 0) >= 1); }
+const caminosNuevos = () => Object.fromEntries(CAMINOS.map((c) => [c.id, { progreso: 0, uso: 0 }]));
+function caminoPendiente(s) {
+  const C = s.caminos || {};
+  return CAMINOS.find((c) => C[c.id] && C[c.id].progreso > 0 && C[c.id].progreso < 1)
+    || CAMINOS.filter((c) => C[c.id] && C[c.id].progreso < 1).sort((x, y) => C[y.id].uso - C[x.id].uso)[0];
+}
+// cada 10 minutos: por dónde caminan (los caminos más pisados se empiedran primero)
+function pisadas(s) {
+  for (const a of s.agentes) {
+    if (!a.vivo || a.dentro || (a.tipo !== 'humano' && a.tipo !== 'nino') || !a.tarea || a.tarea.fase !== 'camino') continue;
+    for (const c of CAMINOS) { const C = s.caminos[c.id]; if (C && C.progreso < 1 && distCamino(a.pos, c) < 1.8) C.uso += 1; }
+  }
+}
 export const MATAS = [{ x: 33.6, z: 24.5 }, { x: 36, z: 24.5 }, { x: 33.6, z: 27.3 }, { x: 36, z: 27.3 }, { x: 33.6, z: 30.1 }, { x: 36, z: 30.1 }];
 // el comerciante: lo que paga (o cobra) por cada cosa, en monedas, y cómo cambia con la estación [prim, ver, oto, inv]
 export const MERCADO = {
@@ -178,7 +211,7 @@ const AREA = {
   cocinar: 'casa', limpiarCasa: 'casa', tejer: 'casa', ordenar: 'granja', recogerHuevos: 'granja', esquilar: 'granja', segar: 'granja', alimentarGanado: 'granja',
   reparar: 'carpinteria', curar: 'cuidado', recogerFruta: 'huerto',
   cepillar: 'cuidado', fumigar: 'huerto', arrancar: 'huerto', abonar: 'huerto', voltearCompost: 'granja',
-  construir: 'carpinteria', esculpir: 'carpinteria', cuidarJardin: 'huerto', hacerConservas: 'casa', hacerQueso: 'granja', secar: 'casa',
+  construir: 'carpinteria', empedrar: 'carpinteria', esculpir: 'carpinteria', cuidarJardin: 'huerto', hacerConservas: 'casa', hacerQueso: 'granja', secar: 'casa',
   vendimia: 'huerto', pisarUva: 'casa', cosecharHierba: 'huerto', renovar: 'carpinteria',
 };
 
@@ -672,7 +705,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), familia: familiaNueva(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
+    ...placeresNuevos(), familia: familiaNueva(), caminos: caminosNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -729,6 +762,7 @@ function climaAhora(s) {
 // ---------------------------------------------------------------- avance del tiempo (continuo)
 export function avanzar(s, minutos) {
   if (!(minutos > 0) || !Number.isFinite(minutos)) return;
+  if (s !== sCaminos) refrescarCaminos(s);
   while (minutos > 1e-9 && !s.fin) {
     const d = Math.min(1, minutos);
     try {
@@ -879,6 +913,7 @@ function tick(s, d) {
   if (s.fuegos?.length || s.lobos || s.ladron || s.forastero) crisisTick(s, d);
   if (s.comercio?.visita) comercioTick(s);
   if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); heridasTick(s); quiebres(s); familiaTick(s); }
+  if (s.caminos && Math.floor(s.t / 10) !== Math.floor((s.t - d) / 10)) pisadas(s);
 }
 
 function nuevoDia(s) {
@@ -1415,7 +1450,7 @@ function soltarTarea(s, a) {
 const DENTRO = ['cuidarBebe', 'comer', 'beber', 'dormir', 'filtrar', 'cocinar', 'cenar', 'limpiarCasa', 'hacerConservas', 'hacerQueso', 'hornear', 'reposo'];
 const AFUERA_URGENTE = ['filtrar'];
 const DURACION = {
-  cuidarBebe: 20, comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
+  empedrar: 60, cuidarBebe: 20, comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
   descansar: 40, leer: 60, tallar: 50, contemplar: 35, jugarGato: 25, pasearPerro: 0, conversar: 25, cocinar: 45, cenar: 35, limpiarCasa: 40, siesta: 50,
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
   reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
@@ -1449,6 +1484,7 @@ function crearTarea(s, a, tipo, extra = {}) {
   else if (tipo === 'nadar') t.destino = { ...LUGAR.piscina };
   else if (tipo === 'reparar') t.destino = { x: LUGAR.taller.x + 0.6, z: LUGAR.taller.z + 1.0 };
   else if (tipo === 'construir') { const o = OBRAS.find((x) => x[0] === t.obra); t.destino = { x: o[3] + 1.6, z: o[4] + 1.2 }; }
+  else if (tipo === 'empedrar') { const c = CAMINOS.find((x) => x.id === t.tramo), q = puntoCamino(c, s.caminos[t.tramo].progreso + 0.02); t.destino = { x: q.x + 0.75, z: q.z + 0.45 }; }
   else if (tipo === 'voltearCompost') t.destino = { x: LUGAR.compost.x + 1.2, z: LUGAR.compost.z + 0.4 };
   else if (tipo === 'esculpir') t.destino = { x: LUGAR.taller.x - 0.4, z: LUGAR.taller.z + 1.0 };
   else if (tipo === 'cuidarJardin') { const j = s.jardines[t.jardin]; t.destino = { x: j.x - 2.1, z: j.z + 0.3 }; }
@@ -1482,7 +1518,8 @@ function crearTarea(s, a, tipo, extra = {}) {
   return t;
 }
 function mover(a, destino, d) {
-  const dx = destino.x - a.pos.x, dz = destino.z - a.pos.z, dist = Math.hypot(dx, dz), v = VEL[a.tipo] * d * (cojea(a) ? 0.55 : 1);   // cojea con la pierna herida
+  const dx = destino.x - a.pos.x, dz = destino.z - a.pos.z, dist = Math.hypot(dx, dz), v = VEL[a.tipo] * d * (cojea(a) ? 0.55 : 1)   // cojea con la pierna herida
+    * (caminosHechos.length && !a.dentro && caminosHechos.some((c) => distCamino(a.pos, c) < 1.1) ? 1.35 : 1);   // por el camino empedrado se anda más rápido
   if (dist <= v) { a.pos.x = destino.x; a.pos.z = destino.z; return true; }
   a.pos.x += (dx / dist) * v; a.pos.z += (dz / dist) * v;
   return false;
@@ -1591,6 +1628,9 @@ function elegirTarea(s, a) {
   // obras de Andrés (o de quien tenga el oficio)
   { const o = (s.obras || []).find((x) => x.id === s.politica?.obra && x.progreso < 1) || (s.obras || []).find((x) => x.progreso < 1);
     if (o && !yaHace('construir') && (tiene(a, 'manitas') || nivel(a.xp.carpinteria) >= 3)) opciones.push([34 + (tiene(a, 'manitas') ? 14 : 0) + (o.id === 'bodega' && R.raciones > 120 ? 10 : 0), 'construir', { obra: o.id }]); }
+  // caminos: Andrés (o quien sepa) empiedra donde más se camina
+  { const c = caminoPendiente(s); if (c && !llueve && h >= 7 && h < 18 && e !== 3 && diasVividos(s) >= 3 && !yaHace('empedrar') && (tiene(a, 'manitas') || a.heredero))   // es cosa de Andrés (el manitas)
+    opciones.push([24 + Math.min(12, (s.caminos[c.id].uso || 0) / 25), 'empedrar', { tramo: c.id }]); }
   // jardines de María
   { const j = (s.jardines || []).filter((x) => x.cuidado < 0.85).sort((x, y) => x.cuidado - y.cuidado)[0];
     if (j && e !== 3 && !yaHace('cuidarJardin') && (tiene(a, 'manoVerde') || tiene(a, 'romantico'))) opciones.push([30 + (tiene(a, 'manoVerde') ? 12 : 0) + (j.cuidado < 0.3 ? 12 : 0), 'cuidarJardin', { jardin: j.id }]); }
@@ -1711,7 +1751,7 @@ export const ACCION = {
   leer: 'Leyendo', tallar: 'Tallando madera', contemplar: 'Contemplando el paisaje', jugarGato: 'Jugando con el gato', pasearPerro: 'Paseando al perro',
   conversar: 'Conversando', cocinar: 'Cocinando la cena', cenar: 'Cenando juntos', limpiarCasa: 'Limpiando la casa', siesta: 'Tomando la siesta',
   ordenar: 'Ordeñando a la vaca', recogerHuevos: 'Recogiendo huevos', esquilar: 'Esquilando una oveja', segar: 'Segando pasto para heno', alimentarGanado: 'Alimentando la granja',
-  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', cepillar: 'Cepillando y calmando un animal', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
+  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', empedrar: 'Empedrando un camino', cepillar: 'Cepillando y calmando un animal', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
   recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', beberPiscina: 'Tomando agua de la piscina', apagarFuego: 'Apagando el fuego', guardia: 'Haciendo guardia', repararPozo: 'Reparando el pozo', defender: 'Defendiendo el ganado', reposo: 'Haciendo reposo', curarHerida: 'Curando una herida', deambular: 'Caminando sin rumbo', vendimia: 'Vendimiando', renovar: 'Construyendo un proyecto', entrenar: 'Entrenando', hornear: 'Horneando', pisarUva: 'Pisando uva en el lagar', cosecharHierba: 'Cosechando la hierba', tomarVino: 'Tomando vino', fumar: 'Fumando', comerciar: 'Haciendo trueque con el comerciante', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
   seguir: 'Acompañando a la pareja', robarComida: 'Robando comida', beberPiscina: 'Tomando agua de la piscina', defender: 'Defendiendo el ganado', trepar: 'Trepado mirando todo', huir: 'Huyendo', molestarGallinas: 'Persiguiendo gallinas', perseguir: 'Persiguiendo al gato', pelea: 'Peleando', ladrar: 'Ladrando', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
 };
@@ -1997,6 +2037,19 @@ function completar(s, a, T) {
       const sube = 30 * mod(a, 'carpinteria') * (1 + 0.05 * nivel(a.xp.carpinteria));
       s.casa.estado = Math.min(100, (s.casa.estado ?? 100) + sube);
       log(s, `🔨 ${a.nombre} reparó la casa (${Math.round(s.casa.estado)} %).`, 'bueno'); recuerdo(s, a, 'Arregló la casa', 4, 12);
+      break;
+    }
+    case 'empedrar': {
+      const c = CAMINOS.find((x) => x.id === T.tramo), C = s.caminos?.[T.tramo]; if (!c || !C || C.progreso >= 1) break;
+      if (C.progreso === 0) log(s, `🪨 ${a.nombre} empezó a empedrar ${c.nombre}${C.uso > 30 ? ': es por donde más pasan' : ''}.`, 'info');
+      C.progreso = Math.min(1, C.progreso + (DURACION.empedrar / 480) / largoCamino(c) *   // ~8 horas de trabajo por cada metro de camino: cada uno le lleva varios días
+         mod(a, 'carpinteria') * (1 + 0.05 * nivel(a.xp.carpinteria)));
+      if (C.progreso >= 1) {
+        log(s, `🪨 ${a.nombre} terminó ${c.nombre}: ahora por ahí se camina más rápido y sin barro.`, 'logro');
+        recuerdo(s, a, `Terminó ${c.nombre}`, 8, 24); memoria(s, a, `Empedró ${c.nombre}`, 1);
+        for (const h of humanos(s)) if (h !== a) recuerdo(s, h, `${a.nombre} hizo ${c.nombre}`, 4, 12);
+        refrescarCaminos(s);
+      }
       break;
     }
     case 'construir': {
@@ -3388,7 +3441,7 @@ function migrar(s) {
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
     if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
-    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva();
+    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
     if (!s.jugador) Object.assign(s, jugadorNuevo());
