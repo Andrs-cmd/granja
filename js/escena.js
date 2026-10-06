@@ -646,7 +646,10 @@ uniform float uRafaga;
   }
   // árboles y arbustos
   const trees = [];
-  const LEAFS = [0x5f8f34, 0x7faa3f, 0x9cc04f, 0x4d7a2b, 0x8bb848].map((c) => LEAF(c));
+  // follaje que cambia con las estaciones (árboles, frutales y arbustos): color base y color de otoño propios
+  const follaje = [], OTONO = [0xd8a032, 0xc8602a, 0xa83a22, 0xe0c040, 0xb8742c];
+  const deEstacion = (m) => { m.userData.colorVivo = true; m.userData.base = m.color.clone(); m.userData.otono = new THREE.Color(OTONO[follaje.length % OTONO.length]); follaje.push(m); return m; };
+  const LEAFS = [0x5f8f34, 0x7faa3f, 0x9cc04f, 0x4d7a2b, 0x8bb848].map((c) => deEstacion(LEAF(c)));
   const bark = new THREE.MeshStandardMaterial({ color: 0x6b5644, roughness: 1, flatShading: true });
   function makeTree(x, z, s) {
     if (!SOMBRAS.corral.concat(SOMBRAS.aves).some((q) => q.x === x && q.z === z) && enPieza(x, z, null, 1.2)) return;   // un bloque se mudó aquí
@@ -684,7 +687,7 @@ uniform float uRafaga;
   }
   // arbustos con flores, rocas con musgo, troncos caídos, hongos y colmenas
   {
-    const verdes = [0x4d7a2b, 0x5f8f34, 0x6f9a44].map((c) => LEAF(c));
+    const verdes = [0x4d7a2b, 0x5f8f34, 0x6f9a44].map((c) => deEstacion(LEAF(c)));
     const floresB = [0xe4507a, 0xf2c94c, 0xf5f1e6, 0x9b6ad8, 0xf28c3a].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }));
     const roca = new THREE.MeshStandardMaterial({ color: 0x8f8a82, roughness: 1, flatShading: true }), musgo = LEAF(0x5a8a3a);
     const tronco = new THREE.MeshStandardMaterial({ color: 0x6b5644, roughness: 1, flatShading: true });
@@ -746,14 +749,17 @@ uniform float uRafaga;
     const t = new THREE.Group(); t.position.set(f.x, 0, f.z); root.add(t);
     const tr = new THREE.CylinderGeometry(0.12, 0.2, 1.9, 6); tr.translate(0, 0.95, 0); const tm = new THREE.Mesh(tr, bark); tm.castShadow = true; t.add(tm);
     const copa = new THREE.Group(); copa.position.y = 2.3; t.add(copa);
-    const hoja = LEAF(f.tipo === 'naranjo' ? 0x3f7a35 : 0x5d9a3c);
+    const hoja = deEstacion(LEAF(f.tipo === 'naranjo' ? 0x3f7a35 : 0x5d9a3c));
     for (let i = 0; i < 9; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.3, 0), hoja); const a = rand() * 6.28, r = rand() * 0.9; m.position.set(Math.cos(a) * r, (rand() - 0.3) * 0.8, Math.sin(a) * r); m.castShadow = true; copa.add(m); }
     const fm = viento(new THREE.MeshStandardMaterial({ color: f.tipo === 'naranjo' ? 0xf28c1e : 0xd2342c, roughness: 0.5 }));
     const frutas = [];
     for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), fm); const a = i * 2.4, r = 0.85 + (i % 3) * 0.2; m.position.set(Math.cos(a) * r, -0.3 + (i % 4) * 0.3, Math.sin(a) * r); copa.add(m); frutas.push(m); }
     // cerco bajo alrededor del tronco
     const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 5, 14), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 })); anillo.rotation.x = Math.PI / 2; anillo.position.y = 0.06; t.add(anillo);
-    return { copa, frutas, fase: rand() * 6 };
+    const flores = new THREE.Group(); flores.visible = false; copa.add(flores);   // flores de primavera
+    const petalo = new THREE.MeshStandardMaterial({ color: f.tipo === 'naranjo' ? 0xfaf6ee : 0xf6c2d2, roughness: 0.7 });
+    for (let i = 0; i < 22; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 0), petalo); const a = rand() * 6.28, r = 0.5 + rand() * 0.75; m.position.set(Math.cos(a) * r, -0.2 + rand() * 0.9, Math.sin(a) * r); flores.add(m); }
+    return { copa, frutas, flores, fase: rand() * 6 };
   });
 
   // ------------------------------------------------------------ jardines de María: canteros con flores
@@ -1763,7 +1769,25 @@ uniform float uRafaga;
 
   // ------------------------------------------------------------ actualización por cuadro
   const sunPos = V(0, 0, 0), moonPos = V(0, 0, 0), dir = V(0, 0, 0);
-  let lluviaK = 0;
+  let lluviaK = 0, nieve = 0, estVista = -1, primaveraVista = null;
+  const NIEVE = new THREE.Color(0xf2f4f7), INVIERNO = new THREE.Color(0x7a6a4a), BROTE = new THREE.Color(0x9ccc5a), tmpC = new THREE.Color();
+  // el follaje sigue a la estación (con transición en el último tercio de cada una) y a la nieve
+  let cadaEst = 0;
+  function estaciones(s, dt) {
+    if ((cadaEst -= dt) > 0) return; cadaEst = 0.5;
+    const d = s.t / MIN_DIA, e = Math.floor(d / 28) % 4, f = (d % 28) / 28, pasa = THREE.MathUtils.smoothstep(f, 0.66, 1);
+    const color = (m, est) => est === 0 ? tmpC.copy(m.userData.base).lerp(BROTE, 0.22) : est === 1 ? tmpC.copy(m.userData.base) : est === 2 ? tmpC.copy(m.userData.base).lerp(m.userData.otono, 0.85) : tmpC.copy(m.userData.base).lerp(INVIERNO, 0.55);
+    for (const m of follaje) {
+      const a = color(m, e).clone(), b = color(m, (e + 1) % 4);
+      m.color.copy(a.lerp(b, e === 2 ? Math.max(pasa, 0) : pasa)).lerp(NIEVE, nieve * 0.45);
+    }
+    // otoño avanzado e invierno: los árboles pierden hojas (se cambia una vez por estación)
+    const ralo = (e === 2 && f > 0.6) || e === 3;
+    if (ralo !== estVista) { estVista = ralo; for (const tr of trees) tr.crown.children.forEach((c, i) => { c.visible = !ralo || i % 3 === 0; }); frutales.forEach((v) => v.copa.children.forEach((c, i) => { if (c.isMesh && c.geometry.type === 'IcosahedronGeometry' && c.material.userData.colorVivo) c.visible = !ralo || i % 2 === 0; })); }
+    // primavera temprana: los frutales florecen
+    const flor = e === 0 && f < 0.6;
+    if (flor !== primaveraVista) { primaveraVista = flor; frutales.forEach((v) => { v.flores.visible = flor; }); }
+  }
   function update(s, t, dt) {
     if (parcelas.length === 0) s.parcelas.forEach((p, i) => crearParcela(i, p.x, p.z));
     const minDia = s.t % MIN_DIA, ph = (((minDia / 60 - 6) / 24) % 1 + 1) % 1;
@@ -1799,15 +1823,17 @@ uniform float uRafaga;
     haloMat.opacity = homeOn;
 
     // lluvia
-    rainMat.opacity = lluviaK * (s.clima.granizando ? 0.95 : 0.55);
-    rainMat.color.setHex(s.clima.granizando ? 0xffffff : 0xcfe2ff);
+    const nevando = lluviaK > 0.1 && (s.clima.temp ?? 10) <= 1.5;
+    nieve = THREE.MathUtils.clamp(nieve + (nevando ? dt * 0.03 : (s.clima.temp ?? 10) > 2.5 ? -dt * 0.012 : 0), 0, 1);
+    rainMat.opacity = lluviaK * (s.clima.granizando || nevando ? 0.95 : 0.55);
+    rainMat.color.setHex(s.clima.granizando || nevando ? 0xffffff : 0xcfe2ff);
     rain.visible = lluviaK > 0.02;
     if (rain.visible) {
       const pa = rainGeo.attributes.position;
       for (let i = 0; i < RAIN; i++) {
-        let y = pa.getY(i * 2) - rainV[i] * dt;
+        let y = pa.getY(i * 2) - rainV[i] * dt * (nevando ? 0.16 : 1);
         if (y < 0.1) y = 40 + Math.random() * 3;
-        pa.setY(i * 2, y); pa.setY(i * 2 + 1, y - 0.6);
+        pa.setY(i * 2, y); pa.setY(i * 2 + 1, y - (nevando ? 0.12 : 0.6));   // copos cortos y lentos
       }
       pa.needsUpdate = true;
     }
@@ -1852,11 +1878,12 @@ uniform float uRafaga;
     });
 
     const escarcha = Math.max(0, Math.min(1, -(s.clima.temp ?? 10) / 4 + 0.2)) * (night > 0.2 || (s.t % MIN_DIA) / 60 < 9 ? 1 : 0.3);
-    pastoTerreno.color.copy(PASTO_BASE).lerp(ESCARCHA, escarcha * 0.7);
+    pastoTerreno.color.copy(PASTO_BASE).lerp(ESCARCHA, Math.max(escarcha * 0.7, nieve * 0.88));
+    estaciones(s, dt);
     compostVis.scale.set(1, Math.max(0.15, Math.min(1.6, (s.rec.pila || 0) / 60)), 1);
     tankLevel(s.rec.cruda / TANQUE_MAX);
     poseGanado(s, t, dt);
-    pastoMat.color.setHSL(0.18 + Math.min(1, s.granja.pasto / 100) * 0.1, 0.45, 0.28 + Math.min(1, s.granja.pasto / 100) * 0.08); pastoPiso.color.copy(pastoMat.color);
+    pastoMat.color.setHSL(0.18 + Math.min(1, s.granja.pasto / 100) * 0.1, 0.45, 0.28 + Math.min(1, s.granja.pasto / 100) * 0.08); pastoMat.color.lerp(NIEVE, nieve * 0.6); pastoPiso.color.copy(pastoMat.color).lerp(NIEVE, nieve * 0.7);   // la nieve también cubre el potrero
     matas.scale.y = 0.3 + Math.min(1, s.granja.pasto / 100) * 0.9;
     pacas.forEach((m, i) => { m.visible = s.rec.heno > i * 22; });
     pesebreHeno.scale.y = Math.max(0.05, Math.min(1, s.rec.pesebre / 10)); pesebreHeno.visible = s.rec.pesebre > 0.2;
@@ -2052,6 +2079,7 @@ uniform float uRafaga;
         const m = gs[i].scene, k = v.h * ESCALA_PERSONA / MODELOS[id][1];   // más altos que el muñeco viejo: en proporción con los animales y la casa
         m.scale.setScalar(k); m.quaternion.copy(qDePie);
         m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+        if (id === 'lucia') m.traverse((o) => { if (o.isMesh) for (const mt of [].concat(o.material)) { if (/calzas/i.test(mt.name)) { mt.color.setHex(0x7d8a6e); mt.roughness = 0.82; } if (/polera/i.test(mt.name)) mt.roughness = 0.72; } });   // calzas mate, más claras
         v.g.children.forEach((c) => { c.visible = false; });
         v.g.add(m);
         m.updateMatrixWorld(true);

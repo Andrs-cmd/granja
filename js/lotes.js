@@ -26,6 +26,7 @@ export function crearLotes(scene, { excluir = () => false } = {}) {
   let cacheFirma = new Map();
   const hex = (c) => (c ? c.getHex() : -1);
   function aspecto(m) {
+    if (m.userData.colorVivo) return 'vivo|' + m.uuid;   // su color cambia con la estación: el lote usa ese mismo material
     let f = cacheFirma.get(m); if (f) return f;
     f = [m.type, hex(m.color), hex(m.emissive), m.emissiveIntensity, m.roughness, m.metalness, m.map?.uuid, m.normalMap?.uuid, m.roughnessMap?.uuid,
       m.side, m.flatShading, m.vertexColors, m.alphaTest, m.transparent, m.opacity, m.wireframe, m.fog, m.depthWrite, m.polygonOffset, m.visible, m.customProgramCacheKey?.()].join('|');
