@@ -1,0 +1,17 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Visor de diseños</title>
+<style>html,body{margin:0;height:100%;background:#9cc4e4;overflow:hidden;font:12px system-ui}#l{position:fixed;top:6px;left:8px;color:#123}</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head><body><div id="l">filas: establo · gallinero · caseta · pozo — columnas: rústico · mediterránea · nórdica · tropical · asiática · americana</div><script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { construirDiseno, ESTILO_OBJ } from '../js/disenos.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(devicePixelRatio); r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x9cc4e4);
+const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 400); cam.position.set(19, 14, 52); window.cam = cam;
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(19, 1.5, 12); window.ctl = ctl;
+sc.add(new THREE.HemisphereLight(0xffffff, 0x556644, 1.6)); const d = new THREE.DirectionalLight(0xffffff, 2.6); d.position.set(20, 40, 30); d.castShadow = true; d.shadow.mapSize.set(2048, 2048); Object.assign(d.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40 }); d.target.position.set(19, 0, 12); sc.add(d, d.target);
+const piso = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: 0x6f9a44 })); piso.rotation.x = -Math.PI / 2; piso.receiveShadow = true; sc.add(piso);
+const estilos = Object.keys(ESTILO_OBJ);
+['establo', 'gallinero', 'caseta', 'pozo'].forEach((o, fila) => estilos.forEach((e, col) => { const g = construirDiseno(o, e); g.position.set(col * 7.6, 0, fila * 8); sc.add(g); }));
+r.setAnimationLoop(() => { ctl.update(); r.render(sc, cam); });
+</script></body></html>

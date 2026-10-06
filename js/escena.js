@@ -8,6 +8,7 @@ import { montarUtileria } from './utileria.js';
 import { armarPerro, armarGato } from './mascotas3d.js';
 import { montarFemenino } from './femenino.js';
 import { crearLotes } from './lotes.js';
+import { construirDiseno } from './disenos.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -222,7 +223,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const andamioCasa = new THREE.MeshStandardMaterial({ color: 0xc9a46c, roughness: 0.9 });
   function construirCasa(s) {
     const K = s.casa || {}, hechos = new Set(K.mejoras || []), obra = K.obra;
-    const est = hechos.has('fachada') ? (K.estilo || 'rustico') : 'rustico', P = PALETA[est] || PALETA.rustico;
+    const est = vistaPrevia.casa || (hechos.has('fachada') || s.diseno?.casa ? (K.estilo || 'rustico') : 'rustico'), P = PALETA[est] || PALETA.rustico;
     const parte = (id) => (hechos.has(id) ? 1 : obra?.id === id ? Math.max(0.06, obra.progreso) : 0);
     casaRoot.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); } });
     casaRoot.clear(); transparentables.length = 0; windows.length = 0;
@@ -597,19 +598,8 @@ uniform float uRafaga;
     return p;
   }
 
-  // pozo
-  {
-    const g = new THREE.Group(); g.position.set(LUGAR.pozo.x, 0, LUGAR.pozo.z); root.add(g);
-    const stone = new THREE.MeshStandardMaterial({ color: 0x9c968c, roughness: 1, flatShading: true });
-    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 1.0, 14, 1, true), stone); ring.position.y = 0.5; ring.material.side = THREE.DoubleSide; ring.castShadow = true; g.add(ring);
-    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.12, 6, 14), stone); lip.rotation.x = Math.PI / 2; lip.position.y = 1.0; g.add(lip);
-    const water = new THREE.Mesh(new THREE.CircleGeometry(0.9, 14), new THREE.MeshStandardMaterial({ color: 0x1d4f6b, roughness: 0.2 })); water.rotation.x = -Math.PI / 2; water.position.y = 0.3; g.add(water);
-    for (const sx of [-1, 1]) box(0.12, 2.0, 0.12, woodMat, sx * 0.95, 1.0, 0, g);
-    box(2.2, 0.08, 0.08, woodMat, 0, 1.75, 0, g);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.8, 4), TEMA.techo); roof.position.y = 2.3; roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
-    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.28, 8), darkMat); bucket.position.set(0, 1.3, 0); g.add(bucket); g.userData.bucket = bucket;
-    var pozoGrupo = g;
-  }
+  // pozo (su diseño se arma aparte: ver vestir())
+  const pozoGrupo = new THREE.Group(); pozoGrupo.position.set(LUGAR.pozo.x, 0, LUGAR.pozo.z); root.add(pozoGrupo);
 
   // tanque de lluvia con nivel visible
   const tankLevel = (() => {
@@ -638,13 +628,7 @@ uniform float uRafaga;
     aguaBowl.rotation.x = -Math.PI / 2; aguaBowl.position.set(LUGAR.comedero.x - 0.9, 0.14, LUGAR.comedero.z); root.add(aguaBowl);
   }
   // caseta del perro
-  {
-    const g = new THREE.Group(); g.position.set(LUGAR.caseta.x, 0, LUGAR.caseta.z); g.rotation.y = -Math.PI / 2; root.add(g);
-    const wall = TEMA.muro;
-    box(1.8, 1.2, 1.6, wall, 0, 0.6, 0, g);
-    const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 1.35, 0.8, 4, 1), TEMA.techo); roof.rotation.y = Math.PI / 4; roof.position.y = 1.6; roof.scale.set(1, 1, 0.95); roof.castShadow = true; g.add(roof);
-    box(0.7, 0.75, 0.05, new THREE.MeshStandardMaterial({ color: 0x1b1410 }), 0, 0.4, 0.81, g);
-  }
+  const casetaG = new THREE.Group(); casetaG.position.set(LUGAR.caseta.x, 0, LUGAR.caseta.z); casetaG.rotation.y = -Math.PI / 2; root.add(casetaG);
   // banca (mira al huerto)
   {
     const b = new THREE.Group(); b.position.set(LUGAR.banca.x, 0, LUGAR.banca.z); root.add(b);
@@ -1036,17 +1020,8 @@ uniform float uRafaga;
     for (let i = 0; i < 520; i++) { const g = new THREE.ConeGeometry(0.1, 0.35 + rand() * 0.3, 4); g.translate(CORRAL.x0 + 0.5 + rand() * (CORRAL.x1 - CORRAL.x0 - 1), 0.2, CORRAL.z0 + 0.5 + rand() * (CORRAL.z1 - CORRAL.z0 - 1)); geos.push(g); }
     var matas = new THREE.Mesh(mergeGeometries(geos), pastoMat); root.add(matas);
   }
-  const rojoGranero = TEMA.granero, tejado = TEMA.techo;
-  {
-    // establo abierto hacia el corral
-    const g = new THREE.Group(); var establoG = g; g.position.set(LUGAR.establo.x, 0, LUGAR.establo.z); root.add(g);
-    box(0.2, 3.2, 4.6, rojoGranero, -2.2, 1.6, 0, g);
-    box(4.6, 3.2, 0.2, rojoGranero, 0, 1.6, -2.3, g);
-    box(4.6, 3.2, 0.2, rojoGranero, 0, 1.6, 2.3, g).scale.x = 0.25;
-    g.children.at(-1).position.x = -1.7;
-    for (const sz of [-1, 1]) { const r = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.15, 2.8), tejado); r.position.set(0, 3.75, sz * 1.25); r.rotation.x = sz * 0.5; r.castShadow = true; g.add(r); }
-    const paja = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.08, 4.4), new THREE.MeshStandardMaterial({ color: 0xd8c27a, roughness: 1 })); paja.position.y = 0.05; g.add(paja);
-  }
+  // establo abierto hacia el corral
+  const establoG = new THREE.Group(); establoG.position.set(LUGAR.establo.x, 0, LUGAR.establo.z); root.add(establoG);
   // heno guardado (crece con las reservas)
   const henoMat = new THREE.MeshStandardMaterial({ color: 0xd9bf6a, roughness: 1, flatShading: true });
   const pacas = [];
@@ -1056,19 +1031,21 @@ uniform float uRafaga;
   box(2.3, 0.5, 0.85, fenceMat, LUGAR.pesebre.x, 0.25, LUGAR.pesebre.z);
   box(2.3, 0.45, 0.85, new THREE.MeshStandardMaterial({ color: 0x6b6f75, roughness: 0.5, metalness: 0.4 }), LUGAR.bebederoGanado.x, 0.22, LUGAR.bebederoGanado.z);
   const aguaGanado = box(2.0, 0.05, 0.6, new THREE.MeshStandardMaterial({ color: 0x4a9fd0, roughness: 0.2 }), LUGAR.bebederoGanado.x, 0.4, LUGAR.bebederoGanado.z);
-  {
-    // gallinero sobre patas, con rampa
-    const g = new THREE.Group(); var gallineroG = g; g.position.set(LUGAR.gallinero.x, 0, LUGAR.gallinero.z); root.add(g);
-    const madera = TEMA.muro;
-    for (const [x, z] of [[-1.3, -1], [1.3, -1], [-1.3, 1], [1.3, 1]]) box(0.14, 0.8, 0.14, fenceMat, x, 0.4, z, g);
-    box(3.0, 1.6, 2.4, madera, 0, 1.6, 0, g);
-    box(0.5, 0.6, 0.06, new THREE.MeshStandardMaterial({ color: 0x2a2018 }), -1.0, 1.3, 1.22, g);
-    for (const sz of [-1, 1]) { const r = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 1.6), rojoGranero); r.position.set(0, 2.75, sz * 0.7); r.rotation.x = sz * 0.55; r.castShadow = true; g.add(r); }
-    const rampa = box(0.6, 0.06, 1.6, madera, -1.0, 0.45, 1.85, g); rampa.rotation.x = -0.55;
-  }
+  // gallinero sobre patas, con rampa
+  const gallineroG = new THREE.Group(); gallineroG.position.set(LUGAR.gallinero.x, 0, LUGAR.gallinero.z); root.add(gallineroG);
   box(1.2, 0.18, 0.6, fenceMat, LUGAR.grano.x, 0.15, LUGAR.grano.z);
   const granoMat = new THREE.MeshStandardMaterial({ color: 0xe8c24a, roughness: 1 });
   const granos = box(1.0, 0.06, 0.45, granoMat, LUGAR.grano.x, 0.27, LUGAR.grano.z);
+
+  // ------------------------------------------------------------ diseño de cada construcción (catálogo)
+  const ESTRUCTURAS = { pozo: pozoGrupo, caseta: casetaG, gallinero: gallineroG, establo: establoG };
+  const vistaPrevia = {};   // objeto -> estilo que se está mirando en el catálogo (sin comprar)
+  function vestir(obj, est) {
+    const cont = ESTRUCTURAS[obj]; if (!cont) return;
+    for (const c of [...cont.children]) { if (c.userData.diseno) { cont.remove(c); c.traverse((o) => { if (o.isMesh) o.geometry.dispose(); }); } }
+    const d = construirDiseno(obj, est); d.userData.diseno = true; cont.add(d); cont.userData.est = est;
+    if (d.userData.bucket) cont.userData.bucket = d.userData.bucket;
+  }
 
   // ------------------------------------------------------------ piscina
   const PW = PISCINA.x1 - PISCINA.x0 - 0.02, PD = PISCINA.z1 - PISCINA.z0 - 0.02;
@@ -1873,10 +1850,11 @@ uniform float uRafaga;
     // la casa y los proyectos: se reconstruye la casa solo cuando algo cambió
     {
       const K = s.casa || {}, hechos = K.mejoras || [], O = K.obra;
-      const clave = `${K.estilo}|${hechos.join(',')}|${O ? O.id + ':' + Math.floor(O.progreso * 10) : ''}`;
+      const clave = `${vistaPrevia.casa || ''}${K.estilo}|${hechos.join(',')}|${O ? O.id + ':' + Math.floor(O.progreso * 10) : ''}`;
       if (clave !== casaClave) { casaClave = clave; construirCasa(s); }
       const estVis = hechos.includes('fachada') ? (K.estilo || 'rustico') : 'rustico';
       if (estVis !== temaActual) aplicarTema(estVis);
+      for (const obj in ESTRUCTURAS) { const e = vistaPrevia[obj] || s.diseno?.[obj] || estVis; if (ESTRUCTURAS[obj].userData.est !== e) vestir(obj, e); }
       const k = (id) => (hechos.includes(id) ? 1 : O?.id === id ? Math.max(0.06, O.progreso) : 0);
       for (const id of ['bodegaVino', 'cultivoCaseta', 'piscina', 'jacuzzi', 'gimnasio']) { const g = proy[id], kk = k(id); g.visible = kk > 0; g.scale.y = kk || 1; }
       proy.cultivoCaseta.userData.luz.visible = hechos.includes('cultivoPro');
@@ -2251,6 +2229,14 @@ uniform float uRafaga;
     // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
     proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,
+    // catálogo de diseños: mirar un estilo sin comprarlo, y llevar la cámara hasta la construcción
+    previsualizar(obj, est) { if (est) vistaPrevia[obj] = est; else delete vistaPrevia[obj]; },
+    enfocar(obj) {
+      const P = { casa: { x: 0, z: 0, d: 34 }, pozo: { ...LUGAR.pozo, d: 14 }, caseta: { ...LUGAR.caseta, d: 12 }, gallinero: { ...LUGAR.gallinero, d: 18 }, establo: { ...LUGAR.establo, d: 22 } }[obj]; if (!P) return;
+      const off = camera.position.clone().sub(controls.target); off.y = Math.max(off.y, off.length() * 0.45);
+      const t = V(P.x, 1.5, P.z);
+      vuelo = { t: 0, de: [controls.target.clone(), camera.position.clone()], a: [t, t.clone().add(off.setLength(P.d))] };
+    },
     get cargada() { return cargada; },
     set ocupado(v) { ocupado = v; },
   };

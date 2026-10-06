@@ -114,6 +114,12 @@ export const ESTILOS = {
   asiatica: { nombre: 'Villa asiática', pista: 'madera rojiza, techos con aleros curvos, bambú' },
   americana: { nombre: 'Granja americana', pista: 'tablas blancas, porche, granero rojo' },
 };
+// catálogo de diseños por construcción: el jugador elige cuando quiera, paga y Andrés lo rehace
+export const DISENO_ESTILOS = { rustico: { nombre: 'Rústica', pista: 'madera, piedra y granero rojo clásico' }, ...ESTILOS };
+export const DISENO_OBJ = {
+  casa: { nombre: 'La casa', precio: 300, horas: 16 }, establo: { nombre: 'El establo', precio: 160, horas: 10 },
+  gallinero: { nombre: 'El gallinero', precio: 120, horas: 8 }, caseta: { nombre: 'La caseta de Berlín', precio: 50, horas: 3 }, pozo: { nombre: 'El pozo', precio: 70, horas: 4 },
+};
 // [id, nombre, costo en monedas, horas de obra, efecto, requisitos]
 export const MEJORAS_CASA = [
   // la casa
@@ -211,7 +217,7 @@ const AREA = {
   cocinar: 'casa', limpiarCasa: 'casa', tejer: 'casa', ordenar: 'granja', recogerHuevos: 'granja', esquilar: 'granja', segar: 'granja', alimentarGanado: 'granja',
   reparar: 'carpinteria', curar: 'cuidado', recogerFruta: 'huerto',
   cepillar: 'cuidado', fumigar: 'huerto', arrancar: 'huerto', abonar: 'huerto', voltearCompost: 'granja',
-  construir: 'carpinteria', empedrar: 'carpinteria', esculpir: 'carpinteria', cuidarJardin: 'huerto', hacerConservas: 'casa', hacerQueso: 'granja', secar: 'casa',
+  construir: 'carpinteria', empedrar: 'carpinteria', remodelar: 'carpinteria', esculpir: 'carpinteria', cuidarJardin: 'huerto', hacerConservas: 'casa', hacerQueso: 'granja', secar: 'casa',
   vendimia: 'huerto', pisarUva: 'casa', cosecharHierba: 'huerto', renovar: 'carpinteria',
 };
 
@@ -406,6 +412,29 @@ function planRuta(from, to) {
   }
   pasos.push({ ...to });
   return pasos;
+}
+
+// ---------------------------------------------------------------- diseño de cada construcción (lo encarga el jugador)
+export const estiloGeneral = (s) => (casaTiene(s, 'fachada') || s.diseno?.casa ? s.casa.estilo || 'rustico' : 'rustico');
+export const disenoActual = (s, obj) => (obj === 'casa' ? estiloGeneral(s) : s.diseno?.[obj] || estiloGeneral(s));
+export function encargarDiseno(s, obj, est) {
+  const O = DISENO_OBJ[obj], E = DISENO_ESTILOS[est];
+  if (!O || !E) return { ok: false, msg: 'Ese diseño no existe.' };
+  if (disenoActual(s, obj) === est) return { ok: false, msg: `${O.nombre} ya tiene el estilo ${E.nombre.toLowerCase()}.` };
+  s.encargos ||= [];
+  if (s.encargos.some((x) => x.objeto === obj)) return { ok: false, msg: `Ya hay una obra encargada para ${O.nombre.toLowerCase()}.` };
+  if ((s.comercio?.monedas || 0) < O.precio) return { ok: false, msg: `No alcanza: cuesta ${O.precio} monedas y hay ${Math.floor(s.comercio?.monedas || 0)}.` };
+  s.comercio.monedas -= O.precio;
+  s.encargos.push({ objeto: obj, estilo: est, progreso: 0, desde: s.t });
+  log(s, `🛠 Encargaste rehacer ${O.nombre.toLowerCase()} en estilo ${E.nombre.toLowerCase()} (${O.precio} monedas).`, 'decision');
+  return { ok: true, msg: `Encargado: ${O.nombre.toLowerCase()} en estilo ${E.nombre.toLowerCase()}. Andrés lo va a construir.` };
+}
+export function cancelarEncargo(s, obj) {
+  const E = (s.encargos || []).find((x) => x.objeto === obj); if (!E) return false;
+  const O = DISENO_OBJ[obj], vuelve = Math.round(O.precio * (1 - E.progreso) * 0.8);
+  s.encargos = s.encargos.filter((x) => x !== E); s.comercio.monedas += vuelve;
+  log(s, `🛠 Cancelaste la obra de ${O.nombre.toLowerCase()}: se recuperan ${vuelve} monedas.`, 'decision');
+  return true;
 }
 
 // ---------------------------------------------------------------- familia: embarazo, parto e hijos que crecen
@@ -705,7 +734,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), familia: familiaNueva(), caminos: caminosNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
+    ...placeresNuevos(), familia: familiaNueva(), diseno: {}, encargos: [], caminos: caminosNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -1450,7 +1479,7 @@ function soltarTarea(s, a) {
 const DENTRO = ['cuidarBebe', 'comer', 'beber', 'dormir', 'filtrar', 'cocinar', 'cenar', 'limpiarCasa', 'hacerConservas', 'hacerQueso', 'hornear', 'reposo'];
 const AFUERA_URGENTE = ['filtrar'];
 const DURACION = {
-  empedrar: 60, cuidarBebe: 20, comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
+  remodelar: 90, empedrar: 60, cuidarBebe: 20, comer: 30, beber: 3, dormir: 60, filtrar: 60, sacarAgua: 60, regar: 12, sembrar: 20, cosechar: 30, limpiar: 15, alimentar: 10,
   descansar: 40, leer: 60, tallar: 50, contemplar: 35, jugarGato: 25, pasearPerro: 0, conversar: 25, cocinar: 45, cenar: 35, limpiarCasa: 40, siesta: 50,
   ordenar: 20, recogerHuevos: 10, esquilar: 30, segar: 60, alimentarGanado: 15, tejer: 80, nadar: 40,
   reparar: 70, curar: 25, reconciliar: 20, recogerFlores: 30, jugarPerro: 20, recogerFruta: 30,
@@ -1484,6 +1513,7 @@ function crearTarea(s, a, tipo, extra = {}) {
   else if (tipo === 'nadar') t.destino = { ...LUGAR.piscina };
   else if (tipo === 'reparar') t.destino = { x: LUGAR.taller.x + 0.6, z: LUGAR.taller.z + 1.0 };
   else if (tipo === 'construir') { const o = OBRAS.find((x) => x[0] === t.obra); t.destino = { x: o[3] + 1.6, z: o[4] + 1.2 }; }
+  else if (tipo === 'remodelar') { const E = s.encargos?.[0], L = E && (E.objeto === 'casa' ? sitioProyecto(s) : LUGAR[E.objeto]); t.encargo = E?.objeto; t.destino = L ? { x: L.x + 1.8, z: L.z + 1.6 } : { ...LUGAR.puerta }; }
   else if (tipo === 'empedrar') { const c = CAMINOS.find((x) => x.id === t.tramo), q = puntoCamino(c, s.caminos[t.tramo].progreso + 0.02); t.destino = { x: q.x + 0.75, z: q.z + 0.45 }; }
   else if (tipo === 'voltearCompost') t.destino = { x: LUGAR.compost.x + 1.2, z: LUGAR.compost.z + 0.4 };
   else if (tipo === 'esculpir') t.destino = { x: LUGAR.taller.x - 0.4, z: LUGAR.taller.z + 1.0 };
@@ -1628,6 +1658,9 @@ function elegirTarea(s, a) {
   // obras de Andrés (o de quien tenga el oficio)
   { const o = (s.obras || []).find((x) => x.id === s.politica?.obra && x.progreso < 1) || (s.obras || []).find((x) => x.progreso < 1);
     if (o && !yaHace('construir') && (tiene(a, 'manitas') || nivel(a.xp.carpinteria) >= 3)) opciones.push([34 + (tiene(a, 'manitas') ? 14 : 0) + (o.id === 'bodega' && R.raciones > 120 ? 10 : 0), 'construir', { obra: o.id }]); }
+  // lo que encargaste en el catálogo de diseños: va antes que los caminos y las obras propias
+  if (s.encargos?.length && !llueve && h >= 7 && h < 18.5 && !yaHace('remodelar') && (tiene(a, 'manitas') || a.heredero || !humanos(s).some((x) => tiene(x, 'manitas'))))
+    opciones.push([58 + (tiene(a, 'manitas') ? 10 : 0), 'remodelar']);
   // caminos: Andrés (o quien sepa) empiedra donde más se camina
   { const c = caminoPendiente(s); if (c && !llueve && h >= 7 && h < 18 && e !== 3 && diasVividos(s) >= 3 && !yaHace('empedrar') && (tiene(a, 'manitas') || a.heredero))   // es cosa de Andrés (el manitas)
     opciones.push([24 + Math.min(12, (s.caminos[c.id].uso || 0) / 25), 'empedrar', { tramo: c.id }]); }
@@ -1751,7 +1784,7 @@ export const ACCION = {
   leer: 'Leyendo', tallar: 'Tallando madera', contemplar: 'Contemplando el paisaje', jugarGato: 'Jugando con el gato', pasearPerro: 'Paseando al perro',
   conversar: 'Conversando', cocinar: 'Cocinando la cena', cenar: 'Cenando juntos', limpiarCasa: 'Limpiando la casa', siesta: 'Tomando la siesta',
   ordenar: 'Ordeñando a la vaca', recogerHuevos: 'Recogiendo huevos', esquilar: 'Esquilando una oveja', segar: 'Segando pasto para heno', alimentarGanado: 'Alimentando la granja',
-  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', empedrar: 'Empedrando un camino', cepillar: 'Cepillando y calmando un animal', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
+  tejer: 'Tejiendo un abrigo', nadar: 'Nadando', reparar: 'Reparando la casa', curar: 'Curando a un animal', recogerFruta: 'Recogiendo fruta', construir: 'Construyendo', empedrar: 'Empedrando un camino', remodelar: 'Rehaciendo una construcción', cepillar: 'Cepillando y calmando un animal', fumigar: 'Tratando una plaga', arrancar: 'Arrancando plantas enfermas', abonar: 'Abonando la tierra', voltearCompost: 'Volteando el compost', esculpir: 'Tallando una escultura', cuidarJardin: 'Cuidando el jardín', hacerConservas: 'Haciendo conservas', hacerQueso: 'Haciendo queso', secar: 'Secando fruta al sol', jugarJuntos: 'Jugando a perseguirse', explorar: 'Explorando', reconciliar: 'Haciendo las paces',
   recogerFlores: 'Recogiendo flores', jugarPerro: 'Jugando a la pelota', beberPiscina: 'Tomando agua de la piscina', apagarFuego: 'Apagando el fuego', guardia: 'Haciendo guardia', repararPozo: 'Reparando el pozo', defender: 'Defendiendo el ganado', reposo: 'Haciendo reposo', curarHerida: 'Curando una herida', deambular: 'Caminando sin rumbo', vendimia: 'Vendimiando', renovar: 'Construyendo un proyecto', entrenar: 'Entrenando', hornear: 'Horneando', pisarUva: 'Pisando uva en el lagar', cosecharHierba: 'Cosechando la hierba', tomarVino: 'Tomando vino', fumar: 'Fumando', comerciar: 'Haciendo trueque con el comerciante', vigilar: 'Vigilando el gallinero', pelota: 'Trae la pelota', regazo: 'En un regazo',
   seguir: 'Acompañando a la pareja', robarComida: 'Robando comida', beberPiscina: 'Tomando agua de la piscina', defender: 'Defendiendo el ganado', trepar: 'Trepado mirando todo', huir: 'Huyendo', molestarGallinas: 'Persiguiendo gallinas', perseguir: 'Persiguiendo al gato', pelea: 'Peleando', ladrar: 'Ladrando', cazar: 'Cazando ratones', dormirCon: 'Durmiendo acurrucado', pedir: 'Pidiendo atención', jugar: 'Jugando', pasear: 'De paseo', refugio: 'Refugiado de la lluvia',
 };
@@ -2037,6 +2070,21 @@ function completar(s, a, T) {
       const sube = 30 * mod(a, 'carpinteria') * (1 + 0.05 * nivel(a.xp.carpinteria));
       s.casa.estado = Math.min(100, (s.casa.estado ?? 100) + sube);
       log(s, `🔨 ${a.nombre} reparó la casa (${Math.round(s.casa.estado)} %).`, 'bueno'); recuerdo(s, a, 'Arregló la casa', 4, 12);
+      break;
+    }
+    case 'remodelar': {
+      const E = (s.encargos || []).find((x) => x.objeto === T.encargo) || s.encargos?.[0]; if (!E) break;
+      const O = DISENO_OBJ[E.objeto];
+      if (E.progreso === 0) log(s, `🛠 ${a.nombre} empezó a rehacer ${O.nombre.toLowerCase()} (${DISENO_ESTILOS[E.estilo].nombre.toLowerCase()}).`, 'info');
+      E.progreso = Math.min(1, E.progreso + (DURACION.remodelar / 60) / O.horas * mod(a, 'carpinteria') * (1 + 0.05 * nivel(a.xp.carpinteria)));
+      if (E.progreso >= 1) {
+        s.encargos = s.encargos.filter((x) => x !== E);
+        (s.diseno ||= {})[E.objeto] = E.estilo;
+        if (E.objeto === 'casa') { s.casa.estilo = E.estilo; s.casa.diaEstilo = dia(s); }
+        log(s, `🛠 ${a.nombre} terminó ${O.nombre.toLowerCase()} en estilo ${DISENO_ESTILOS[E.estilo].nombre.toLowerCase()}.`, 'logro');
+        for (const h of humanos(s)) recuerdo(s, h, `${O.nombre} quedó como nuevo`, 8, 24);
+        memoria(s, a, `Rehizo ${O.nombre.toLowerCase()}`, 1);
+      }
       break;
     }
     case 'empedrar': {
@@ -3441,7 +3489,7 @@ function migrar(s) {
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
     if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
-    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
+    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.diseno ??= {}; s.encargos ??= []; s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
     if (!s.jugador) Object.assign(s, jugadorNuevo());

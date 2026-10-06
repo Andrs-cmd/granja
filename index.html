@@ -100,6 +100,27 @@
   .dilema .uno.urge .plazo { color: #ff9d94; opacity: 1; }
   .dilema .sino { font-size: 11px; margin: 7px 0 0; padding: 6px 8px; border-radius: 8px; background: rgba(224,87,79,.1); border-left: 3px solid #e0574f; color: rgba(241,238,232,.88); }
   .dilema .vacia { font-size: 12px; opacity: .7; padding: 6px 2px 4px; }
+  /* catálogo de diseños: panel al costado (abajo en el celular) para ver la construcción mientras se elige */
+  .btn-dis { position: fixed; left: 12px; bottom: 108px; z-index: 5; background: rgba(18,18,22,.7); color: #f1eee8; border: 1px solid rgba(255,255,255,.15); border-radius: 99px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .disenoP { position: fixed; right: 12px; top: 12px; bottom: 12px; width: min(360px, calc(100vw - 24px)); z-index: 7; background: rgba(24,22,30,.95); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px; overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .disenoP.off { display: none; }
+  .disenoP .cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .disenoP .cab b { font-size: 14px; color: #e7c46a; }
+  .disenoP .cab button { background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; padding: 2px 8px; }
+  .disenoP .objs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+  .disenoP .objs button { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); color: inherit; font: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 99px; cursor: pointer; }
+  .disenoP .objs button.on { background: rgba(231,196,106,.95); color: #1b1a17; }
+  .disenoP .estado { font-size: 11.5px; opacity: .8; margin-bottom: 8px; }
+  .disenoP .estilos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .disenoP .est { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: inherit; font: inherit; border-radius: 10px; padding: 7px 8px; cursor: pointer; min-height: 62px; }
+  .disenoP .est b { display: block; font-size: 12.5px; } .disenoP .est small { display: block; font-size: 10.5px; opacity: .65; margin-top: 2px; line-height: 1.3; }
+  .disenoP .est .tag { font-size: 10px; color: #7cc36a; font-weight: 700; } .disenoP .est.viendo { border-color: #b48ae0; background: rgba(180,138,224,.18); }
+  .disenoP .muestra { display: flex; gap: 3px; margin-top: 4px; } .disenoP .muestra i { width: 14px; height: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); }
+  .disenoP .comprar { margin-top: 10px; width: 100%; background: #2e7d4f; border: 0; color: #fff; font: inherit; font-weight: 700; font-size: 13px; padding: 10px; border-radius: 10px; cursor: pointer; }
+  .disenoP .comprar:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); cursor: default; }
+  .disenoP .nota { font-size: 11px; opacity: .7; margin-top: 7px; line-height: 1.4; } .disenoP .cancelar { background: none; border: 0; color: #ff9d94; font: inherit; font-size: 11px; cursor: pointer; text-decoration: underline; padding: 0; }
+  @media (max-width: 640px) { .disenoP { top: auto; left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 48vh; } .btn-dis { bottom: 152px; } body.datos .btn-dis { display: none; } }
+  @media (pointer: coarse) and (max-width: 640px) { .btn-dis { bottom: calc(160px + env(safe-area-inset-bottom)); min-height: 38px; padding: 9px 14px; } }
+  @media (max-height: 480px) and (min-width: 641px) { .btn-dis { bottom: 100px; } }
   /* alertas y prioridades (estilo RimWorld) */
   .alertas { position: fixed; right: 12px; bottom: 70px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 46vw; pointer-events: none; }
   .alertas div { font-size: 11.5px; padding: 4px 9px; border-radius: 8px; background: rgba(24,22,30,.86); border-left: 3px solid #e3b341; color: #f1eee8; }
@@ -183,6 +204,8 @@
 <div class="influ" id="influ" title="Influencia: se recarga cada día"></div>
 <div class="alertas" id="alertas"></div>
 <button class="btn-trabajo" id="btnTrabajo">⚙ Trabajo</button>
+<button class="btn-dis" id="btnDis">🛠 Diseño</button>
+<div class="disenoP off" id="disenoP"></div>
 <button class="btn-dec vacio" id="btnDec">⚖ Decisiones <span class="n">0</span></button>
 <div class="prioridades off" id="prioridades"><div class="caja"><h3>Prioridades de trabajo</h3><p>1 = lo hace primero · 4 = lo deja para el final · – = no lo hace (salvo emergencias). Toca una casilla para cambiarla.</p><table id="tablaP"></table><button class="cerrarP" id="cerrarP">Listo</button></div></div>
 
@@ -400,7 +423,7 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
 
 // ---------------------------------------------------------------- alertas y prioridades de trabajo
 const elAlertas = document.getElementById('alertas'), elPrio = document.getElementById('prioridades'), tablaP = document.getElementById('tablaP');
@@ -446,6 +469,45 @@ function pintarJugador(forzar = false) {
   if (ops !== htmlFicha) { elFicha.querySelector('.ops').innerHTML = ops; htmlFicha = ops; }
   elFicha.classList.remove('off');
 }
+// ---------------------------------------------------------------- catálogo de diseños por construcción
+const elDis = document.getElementById('disenoP');
+const COLORES_EST = { rustico: ['#b5643a', '#a63b2c', '#4a3a32'], mediterranea: ['#f3efe6', '#c4683a', '#2f5d8a'], nordica: ['#3b3f44', '#7a2a22', '#c9a274'], tropical: ['#a86f3e', '#b89a5a', '#5a3d22'], asiatica: ['#e9dfcc', '#8a3a22', '#2f3a3a'], americana: ['#f2efe8', '#a3322a', '#4b4f55'] };
+let disObj = 'casa', disVer = null, disMsg = '', htmlDis = '';
+function abrirDiseno(abrir) {
+  elDis.classList.toggle('off', !abrir);
+  if (abrir) {
+    if (angosto()) escena.encuadrar(0, 0, innerHeight * 0.48 + 8); else escena.encuadrar(0, Math.min(372, innerWidth - 24), 0);
+    escena.enfocar(disObj); pintarDiseno(true);
+  } else { escena.previsualizar(disObj, null); disVer = null; disMsg = ''; encuadre(); }
+}
+function pintarDiseno(forzar) {
+  if (elDis.classList.contains('off')) return;
+  const s = estado, O = Sim.DISENO_OBJ[disObj], actual = Sim.disenoActual(s, disObj), enc = (s.encargos || []).find((x) => x.objeto === disObj);
+  const ver = disVer || actual, mon = Math.floor(s.comercio?.monedas || 0);
+  const puede = ver !== actual && !enc && mon >= O.precio;
+  const h = `<div class="cab"><b>🛠 Diseño · 🪙 ${mon}</b><button data-cerrar-dis="1" aria-label="Cerrar">×</button></div>
+    <div class="objs">${Object.entries(Sim.DISENO_OBJ).map(([k, o]) => `<button data-obj="${k}" class="${k === disObj ? 'on' : ''}">${esc(o.nombre.replace(/^(La|El) /, ''))}</button>`).join('')}</div>
+    <div class="estado">${esc(O.nombre)}: <b>${esc(Sim.DISENO_ESTILOS[actual].nombre)}</b>${enc ? ` · en obra → ${esc(Sim.DISENO_ESTILOS[enc.estilo].nombre)} (${Math.round(enc.progreso * 100)} %) <button class="cancelar" data-cancelar="1">cancelar</button>` : ''}</div>
+    <div class="estilos">${Object.entries(Sim.DISENO_ESTILOS).map(([k, e]) => `<button class="est ${k === ver ? 'viendo' : ''}" data-est="${k}"><b>${esc(e.nombre)}${k === actual ? ' <span class="tag">✓ actual</span>' : ''}</b><small>${esc(e.pista)}</small><span class="muestra">${(COLORES_EST[k] || []).map((c) => `<i style="background:${c}"></i>`).join('')}</span></button>`).join('')}</div>
+    <button class="comprar" data-comprar="1" ${puede ? '' : 'disabled'}>${ver === actual ? 'Toca un diseño para verlo' : enc ? 'Ya hay una obra en curso aquí' : `Encargar ${esc(Sim.DISENO_ESTILOS[ver].nombre)} · 🪙 ${O.precio}${mon < O.precio ? ' (no alcanza)' : ''}`}</button>
+    <div class="nota">${disMsg ? esc(disMsg) + '<br>' : ''}Lo que tocas se ve al instante en la granja. Al encargarlo, Andrés lo construye en unas ${O.horas} horas de trabajo.${disObj === 'casa' ? ' El estilo de la casa también cambia todo lo que no tenga un diseño propio.' : ''}</div>`;
+  if (h !== htmlDis || forzar) { elDis.innerHTML = h; htmlDis = h; }
+}
+document.getElementById('btnDis').addEventListener('click', () => abrirDiseno(elDis.classList.contains('off')));
+elDis.addEventListener('click', (e) => {
+  if (e.target.closest('[data-cerrar-dis]')) return abrirDiseno(false);
+  const bo = e.target.closest('[data-obj]');
+  if (bo) { escena.previsualizar(disObj, null); disObj = bo.dataset.obj; disVer = null; disMsg = ''; escena.enfocar(disObj); return pintarDiseno(true); }
+  const be = e.target.closest('[data-est]');
+  if (be) { disVer = be.dataset.est; disMsg = ''; escena.previsualizar(disObj, disVer === Sim.disenoActual(estado, disObj) ? null : disVer); return pintarDiseno(true); }
+  if (e.target.closest('[data-cancelar]')) { Sim.cancelarEncargo(estado, disObj); guardar(); return pintarDiseno(true); }
+  if (e.target.closest('[data-comprar]') && disVer) {
+    const r = Sim.encargarDiseno(estado, disObj, disVer); disMsg = r.msg; aviso(r.msg);
+    if (r.ok) { escena.previsualizar(disObj, null); disVer = null; guardar(); pintarDatos(); }
+    pintarDiseno(true);
+  }
+});
+
 // ---------------------------------------------------------------- decisiones: lista que se abre con el botón
 const btnDec = document.getElementById('btnDec');
 let panelDec = false, vistos = new Set(), avisados = new Set();
