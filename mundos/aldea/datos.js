@@ -203,18 +203,29 @@ export const CAUSAS = {
 };
 
 // poderes del espíritu del orbe
+// poderes del espíritu del orbe: el jugador no gobierna, solo bendice o castiga (t: 'b' bendición, 'c' catástrofe, 'p' a una persona)
+// poderes del espíritu del orbe: el jugador no gobierna, solo bendice o castiga (t: 'b' bendición, 'c' catástrofe, 'p' a una persona)
+// poderes del espíritu del orbe: el jugador no gobierna, solo bendice o castiga (t: 'b' bendición, 'c' catástrofe, 'p' a una persona)
 export const PODERES = {
-  aconsejar: { n: 'Aconsejar', costo: 1, d: 'Susurra a favor de una opción de la decisión pendiente (convence a una parte de la gente).' },
-  forzar: { n: 'Imponer', costo: 3, d: 'La opción que elijas gana sí o sí. Los creyentes se maravillan; quienes pensaban distinto te temen y se resienten.' },
-  lluvia: { n: 'Lluvia', costo: 1, d: 'Termina la sequía y riega los campos.' },
-  bendicion: { n: 'Bendición', costo: 2, d: 'Sana a todos y levanta el ánimo.' },
-  revelacion: { n: 'Revelación', costo: 2, d: 'Una visión del espíritu: la fe crece en todo el orbe.' },
-  chispa: { n: 'Chispa de genio', costo: 2, d: 'Un descubrimiento inesperado: avanza la investigación.' },
-  calma: { n: 'Calma', costo: 2, d: 'Apacigua odios: baja la tensión entre ciudades y los movimientos violentos.' },
-  inspirar: { n: 'Inspirar', costo: 1, d: 'La persona elegida tiene una idea que la cambia (y tal vez a todos).' },
-  rayo: { n: 'Rayo', costo: 1, d: 'Castigo: cae un rayo sobre la ciudad y algo arde.' },
-  plaga: { n: 'Plaga', costo: 1, d: 'Una fiebre se extiende.' },
-  errantes: { n: 'Llamar errantes', costo: 2, d: 'Guía a viajeros hasta el orbe (también si quedó vacío).' },
+  aconsejar: { n: 'Aconsejar', costo: 1, d: 'Susurra a favor de una opción de la decisión pendiente.' },   // (ya no se ofrece: decide la sociedad)
+  forzar: { n: 'Imponer', costo: 3, d: 'La opción elegida gana sí o sí.' },                              // (ya no se ofrece)
+  lluvia: { t: 'b', i: '🌧', n: 'Lluvia', costo: 1, d: 'Termina la sequía y riega los campos.' },
+  cosecha: { t: 'b', i: '🌾', n: 'Cosecha abundante', costo: 1, d: 'Los graneros se llenan y el hambre se va.' },
+  bendicion: { t: 'b', i: '💛', n: 'Sanación', costo: 2, d: 'Sana a todos y levanta el ánimo.' },
+  fertilidad: { t: 'b', i: '👶', n: 'Fertilidad', costo: 2, d: 'Nacen niños en muchas familias.' },
+  bosque: { t: 'b', i: '🌳', n: 'Bosque renace', costo: 1, d: 'Brotan árboles y el aire se limpia.' },
+  chispa: { t: 'b', i: '💡', n: 'Chispa de genio', costo: 2, d: 'Un descubrimiento inesperado: avanza la ciencia.' },
+  revelacion: { t: 'b', i: '🌟', n: 'Revelación', costo: 2, d: 'Una visión del espíritu: la fe crece en todo el orbe.' },
+  calma: { t: 'b', i: '🕊', n: 'Calma', costo: 2, d: 'Apacigua odios, guerras y revueltas.' },
+  errantes: { t: 'b', i: '🧳', n: 'Llamar errantes', costo: 2, d: 'Guía a viajeros hasta el orbe (también si quedó vacío).' },
+  inspirar: { t: 'p', i: '✨', n: 'Inspirar', costo: 1, d: 'La persona elegida tiene una idea que la cambia (y tal vez a todos).' },
+  rayo: { t: 'c', i: '⚡', n: 'Rayo', costo: 1, d: 'Cae un rayo sobre la ciudad y algo arde.' },
+  sequia: { t: 'c', i: '☀', n: 'Sequía', costo: 1, d: 'Deja de llover: los campos se secan.' },
+  plaga: { t: 'c', i: '🦠', n: 'Plaga', costo: 1, d: 'Una fiebre se extiende por una ciudad.' },
+  incendio: { t: 'c', i: '🔥', n: 'Incendio', costo: 2, d: 'El fuego arrasa un bosque y los edificios cercanos.' },
+  inundacion: { t: 'c', i: '🌊', n: 'Inundación', costo: 2, d: 'El lago se desborda y se lleva campos y casas de la orilla.' },
+  terremoto: { t: 'c', i: '🌋', n: 'Terremoto', costo: 3, d: 'La tierra tiembla: edificios en ruinas y víctimas.' },
+  meteorito: { t: 'c', i: '☄', n: 'Meteorito', costo: 4, d: 'Una roca del cielo abre un cráter donde caiga.' },
 };
 
 export const NOM_M = ['Tomás', 'Mateo', 'Joaquín', 'Elías', 'Simón', 'Gabriel', 'Andrés', 'Lucas', 'Martín', 'Julián', 'Esteban', 'Ramiro', 'Bruno', 'Iván', 'Félix', 'Gonzalo', 'Hernán', 'Ismael', 'Lorenzo', 'Nicolás', 'Pablo', 'Rodrigo', 'Samuel', 'Vicente', 'Emilio', 'Fabián', 'Germán', 'Hugo', 'Ciro', 'Dante', 'Abel', 'Benjamín', 'Camilo', 'Damián', 'Eusebio', 'Facundo', 'Jacinto', 'León', 'Marcos', 'Octavio', 'Rafael', 'Salvador', 'Tadeo', 'Ulises', 'Aurelio', 'Baltasar', 'Cristóbal', 'Darío', 'Evaristo', 'Fermín', 'Gael', 'Leandro', 'Matías', 'Renato', 'Thiago', 'Iker', 'Joel', 'Kai', 'Nilo', 'Orión'];

@@ -14,6 +14,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { geometrias, aspecto, ropaDe, ARQ } from './urbe3d.js';
 import * as U from './ciudad.js';
 import { crearAereos } from './aereos.js';
+import { crearMultitud } from './multitud.js';
+import { crearEfectos } from './efectos.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _e = new THREE.Euler(), UP = V(0, 1, 0);
@@ -53,6 +55,7 @@ export function crearEscenaAldea(O, s0) {
       else if (c.u) col = c.fogata && c.e <= 1 ? '#8c7a56' : CALLE[Math.min(7, c.e)] === '#c9d2dc' && (s.ejes.ni < -15 || s.destino?.tipo === 'gaia') ? '#7a9a6a' : mezclar(CALLE[Math.min(7, c.e)], '#a8a29a', 0.35);
       if (c.o && !c.u) col = '#9a8460';
       if (c.ru) col = '#4a4640';
+      if (c.cr) col = mezclar(col, '#2a221c', c.cr);   // cráter de meteorito: tierra quemada
       if (c.cont > 0.05) col = mezclar(col, '#2e2a26', c.cont * 0.8);
       ctx.fillStyle = col; ctx.fillRect(px(c.x - 1.5), px(c.z - 1.5), cel + 0.6, cel + 0.6);
       if (c.u === 'campo' && est !== 3) { ctx.fillStyle = 'rgba(70,50,30,.35)'; for (let k = 0; k < 4; k++) ctx.fillRect(px(c.x - 1.3), px(c.z - 1.1 + k * 0.7), cel * 0.85, 1); }
@@ -155,6 +158,7 @@ export function crearEscenaAldea(O, s0) {
   // ------------------------------------------------------------ vehículos de tierra: autos (era moderna en adelante); los del cielo están en aereos.js
   const autos = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0xffffff, 0, 0.18, 0, 0.32, 0.18, 0.62], [GEO.caja, 0x2a3440, 0, 0.33, -0.04, 0.28, 0.14, 0.32]]), MAT_VERTICE, 70); autos.count = 0; for (let i = 0; i < 70; i++) autos.setColorAt(i, _c.setHSL((i * 0.137) % 1, 0.5, 0.5)); M.add(autos);
   const aereos = crearAereos(M, (x, z) => alt(x, z));
+  const multitud = crearMultitud(M, (x, z) => alt(x, z)), efectos = crearEfectos(M, (x, z) => alt(x, z));
   const carros = [...Array(70)].map((_, i) => ({ de: null, a: null, t: 0, v: 3 + (i % 5) }));
   function moverAutos(dt, mult) {
     const n = s.era >= 5 && !s.destino ? Math.min(70, Math.floor(nodos.length / 6)) : 0;
@@ -172,7 +176,7 @@ export function crearEscenaAldea(O, s0) {
 
   // ------------------------------------------------------------ fuego, humo y faroles
   const matLlama = new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff6a10, emissiveIntensity: 2.2, transparent: true, opacity: 0.9 });
-  const llamas = new THREE.InstancedMesh(new THREE.ConeGeometry(0.45, 1.2, 7), matLlama, 48); llamas.count = 0; M.add(llamas);
+  const llamas = new THREE.InstancedMesh(new THREE.ConeGeometry(0.45, 1.2, 7), matLlama, 96); llamas.count = 0; llamas.frustumCulled = false; M.add(llamas);
   const luzF = new THREE.PointLight(0xffa04a, 0, 26, 1.6); M.add(luzF);
   const humoTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
   const NH = 260, humoPos = new Float32Array(NH * 3).fill(-50), humoVida = new Float32Array(NH).fill(-1), humoGeo = new THREE.BufferGeometry(); humoGeo.setAttribute('position', new THREE.BufferAttribute(humoPos, 3));
@@ -219,14 +223,25 @@ export function crearEscenaAldea(O, s0) {
     const jit = (k, r) => [(hash(a.id * 7 + k) - 0.5) * r, (hash(a.id * 11 + k) - 0.5) * r];
     const P = (c, k, r = 2) => { if (!c) { const [jx, jz] = jit(k, 6); return [plaza.x + jx, plaza.z + jz]; } const [jx, jz] = jit(k, r); return [c.x + jx, c.z + jz]; };
     const enCasa = P(casa, 1, 1.2), enTrab = a.edad < 14 ? P(centro(a.hogar), 5, 7) : P(trab, 2, 2.6), enPlaza = P(null, 3);
-    const lerp = (A, B, k) => [A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, true];
+    // ir de A a B por las calles (las líneas entre manzanas), no atravesando edificios; desde la era moderna
+    // los trayectos largos se hacen en auto (y en la futura, en nave): la persona desaparece en el tráfico
+    const viaje = (A, B, k) => { const r = ruta(A, B, k); return { p: r.p, modo: 'camina', dentro: s.era >= 5 && r.largo > 16 && k > 0.06 && k < 0.94 }; };
     if (a.edad < 3) return { p: enCasa, dentro: hh < 7 || hh > 19, modo: 'quieto' };
     if (hh < 6 || hh >= 22) return { p: enCasa, dentro: true, modo: 'quieto' };
-    if (hh < 7.3) return { p: lerp(enCasa, enTrab, (hh - 6) / 1.3), modo: 'camina' };
+    if (hh < 7.3) return viaje(enCasa, enTrab, (hh - 6) / 1.3);
     if (hh < 17) { if (a.edad >= 70 || !a.oficio) return { p: P(casa, 4, 3.5), modo: 'sentado' }; return { p: enTrab, modo: a.edad < 14 ? 'corre' : hh > 12 && hh < 13 ? 'sentado' : MODO[a.oficio] || 'trabaja' }; }
-    if (hh < 18.3) return { p: lerp(enTrab, a.p.ext > 0.45 ? enPlaza : enCasa, (hh - 17) / 1.3), modo: 'camina' };
+    if (hh < 18.3) return viaje(enTrab, a.p.ext > 0.45 ? enPlaza : enCasa, (hh - 17) / 1.3);
     if (hh < 21) return { p: a.p.ext > 0.45 ? enPlaza : P(casa, 6, 3), modo: s.fiesta && s.dia <= s.fiesta ? 'baila' : 'quieto' };
-    return { p: lerp(a.p.ext > 0.45 ? enPlaza : enCasa, enCasa, hh - 21), modo: 'camina' };
+    return viaje(a.p.ext > 0.45 ? enPlaza : enCasa, enCasa, hh - 21);
+  }
+  // camino en "L" por la cuadrícula de calles (x y z ≡ 1,5 módulo 3): A → calle → esquina → calle → B
+  const calle = (v) => Math.round((v - 1.5) / 3) * 3 + 1.5;
+  function ruta(A, B, k) {
+    const P = [A, [calle(A[0]), A[1]], [calle(A[0]), calle(B[1])], [B[0], calle(B[1])], B], L = [];
+    let tot = 0; for (let i = 1; i < P.length; i++) { const d = Math.abs(P[i][0] - P[i - 1][0]) + Math.abs(P[i][1] - P[i - 1][1]); L.push(d); tot += d; }
+    let q = Math.max(0, Math.min(1, k)) * tot;
+    for (let i = 0; i < L.length; i++) { if (q <= L[i] || i === L.length - 1) { const u = L[i] ? Math.min(1, q / L[i]) : 1; return { p: [P[i][0] + (P[i + 1][0] - P[i][0]) * u, P[i][1] + (P[i + 1][1] - P[i][1]) * u], largo: tot }; } q -= L[i]; }
+    return { p: B, largo: tot };
   }
   const MODO = { comida: 'trabaja', materiales: 'golpe', metal: 'golpe', energia: 'trabaja', bienes: 'trabaja', ciencia: 'quieto', fe: 'sentado', salud: 'trabaja', comercio: 'quieto', seguridad: 'quieto', cultura: 'baila', construir: 'trabaja' };
   function hacerPersona(a) {
@@ -267,13 +282,16 @@ export function crearEscenaAldea(O, s0) {
     if (fog[0]) { luzF.position.set(fog[0].x, 2, fog[0].z); luzF.intensity = (6 + L.noche * 50) * (0.9 + Math.sin(tt * 17) * 0.1); } else luzF.intensity = 0;
     const arde = (D?.tipo === 'destruccion' && fase < 0.8) || s.guerra;
     if (arde) for (const [x, y, z] of ruinasFuego) if (nl < 48) { const k = 0.8 + Math.sin(tt * 9 + x) * 0.3; _m.compose(_p.set(x, y + 1, z), _q.identity(), _s.set(k * 1.6, k * 2.2, k * 1.6)); llamas.setMatrixAt(nl++, _m); }
+    const ef = efectos.actualizar(s, dt);   // meteoritos, terremotos, incendios, inundaciones y rayos del espíritu
+    for (const [x, y, z, k] of ef.fuego) if (nl < 96) { const kk = k * (0.85 + Math.sin(tt * 10 + x * 3) * 0.2); _m.compose(_p.set(x, y + 0.6 * kk, z), _q.identity(), _s.set(kk, kk * 1.8, kk)); llamas.setMatrixAt(nl++, _m); }
     llamas.count = nl; llamas.instanceMatrix.needsUpdate = true;
     // humo: fogatas, chimeneas de fábricas y centrales (eras 4-5), incendios
     const emis = [];
     for (const c of fog) emis.push([c.x, 1.2, c.z, 1]);
     if (!D) for (const c of s.celdas) if (!c.ru && ((c.u === 'taller' && c.e >= 4 && c.e <= 5) || (c.u === 'central' && c.e >= 4 && c.e <= 5))) emis.push([c.x + 0.9, alt(c.x, c.z) + 3.2, c.z - 0.7, c.u === 'central' ? 2 : 1]);
     if (arde) for (const r of ruinasFuego.slice(0, 10)) emis.push([r[0], r[1] + 2, r[2], 2]);
-    for (const e of aereos.actualizar(s, dt, tt, D, L.noche)) emis.push(e);   // globos, aviones, drones, naves y estelas de cohetes
+    for (const e of aereos.actualizar(s, dt, tt, D, L.noche)) emis.push(e);
+    for (const e of ef.humo) emis.push(e);   // globos, aviones, drones, naves y estelas de cohetes
     matHumo.color.set(s.era >= 4 ? '#6a645c' : '#c8c4bc');
     const tot = emis.reduce((n, e) => n + e[3], 0); let nuevos = Math.min(6, Math.round(dt * 60));
     for (let i = 0; i < NH; i++) {
@@ -284,6 +302,7 @@ export function crearEscenaAldea(O, s0) {
     lluvia.visible = s.clima.lluvia > 0 && Math.floor((s.dia % 24) / 6) !== 3;
     if (lluvia.visible) { for (let i = 0; i < NL; i++) { let y = lluPos[i * 6 + 1] - dt * 30; if (y < 0) y += 40; lluPos[i * 6 + 1] = y; lluPos[i * 6 + 4] = y + 1.1; } lluGeo.attributes.position.needsUpdate = true; }
     moverAutos(dt, mult);
+    multitud.actualizar(s, dt, hr, { nodos, aristas }, D, mult);
     efectosDestino(D, fase, tt, dt);
     gente(dt, hr, D, fase);
   }
@@ -320,9 +339,9 @@ export function crearEscenaAldea(O, s0) {
       if (d > 6) { v.x = L.p[0]; v.z = L.p[1]; } else { const k = 1 - Math.exp(-dt * 6); v.x += dx * k; v.z += dz * k; }
       if (d > 0.05) v.rot = angLerp(v.rot, Math.atan2(dx, dz), Math.min(1, dt * 8));
       const modo = L.dentro ? 'quieto' : d > 0.3 ? 'camina' : colm ? 'quieto' : L.modo;
-      v.dentro = L.dentro && !brillo; v.modo = modo;
+      v.dentro = !!L.dentro && !brillo; v.modo = modo;
       const y = alt(v.x, v.z) + brillo * (hash(a.id) * 25);
-      const esc = a.ap.alto * (a.edad < 15 ? 0.36 + 0.64 * Math.min(1, a.edad / 15) : 1);
+      const esc = a.ap.alto * (a.edad < 15 ? 0.36 + 0.64 * Math.min(1, a.edad / 15) : 1) * (0.9 + Math.min(7, s.era) * 0.018);   // cada era come mejor: la gente es más alta
       const det = !lejos && i < NDET && !v.dentro;
       if (det) {
         const k = `${s.era}:${a.clase}:${a.edad >= 64 ? 'b' : a.edad >= 52 ? 'g' : 'n'}`;

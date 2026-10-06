@@ -498,7 +498,7 @@ function irse(s, a, C, causa = 'era infeliz') {
 
 // ---------------------------------------------------------------- estaciones, años, clima
 function estacion(s, f) {
-  s.esp.influencia = Math.min(8, s.esp.influencia + (f.est % 2 === 0 ? 1 : 0) + (s.esp.fe > 60 && f.est === 1 ? 1 : 0));
+  s.esp.influencia = Math.min(10, s.esp.influencia + 1 + (s.esp.fe > 60 && f.est === 1 ? 1 : 0));
   const C = s.clima;
   if (f.est === 1 && prob(s, 0.12)) { C.sequia = 6; log(s, 'Una sequía golpea los campos.', 'malo'); } else C.sequia = 0;
   C.lluvia = prob(s, [0.4, 0.2, 0.35, 0.2][f.est]) ? 2 : 0; C.nieve = f.est === 3 && prob(s, 0.5) ? 3 : 0;
@@ -514,6 +514,7 @@ function anual(s, f) {
   for (const C of vivas(s)) { if (!vivo(s, C.lider) || C.mandato <= f.anio) elegirLider(s, C, 'mandato'); }
   riesgos(s);
   if (!s.destino) fundarCiudad(s);
+  for (const c of s.celdas) if (c.cr) { c.cr = +(c.cr * 0.85).toFixed(2); if (c.cr < 0.08) delete c.cr; s.vc++; }   // los cráteres se cubren de hierba
 }
 function llegan(s, n, C = vivas(s)[0] || s.ciudades[0]) {
   const ap = pick(s, APELLIDOS), nuevos = [];
@@ -597,7 +598,7 @@ export function abrirDecision(s, k, ctx = {}) {
   const txt = (x) => x.replace('{A}', s.ciudades[ctx.a ?? 0]?.nombre || '').replace('{B}', s.ciudades[ctx.b ?? 0]?.nombre || '').replace('{M}', ctx.m || '');
   s.decision = { k, t: k === 'salto' ? 'El gran salto' : txt(D.t), q: k === 'salto' ? 'La civilización puede dar el último paso. ¿Hacia dónde?' : txt(D.q), ops: ops.map((o) => ({ ...o })), abre: s.dia, cierra: s.dia + (D?.crisis ? 12 : DIAS_ANIO), ctx, consejo: {}, forzada: null, crisis: !!D?.crisis };
   log(s, `⚖ La sociedad debe decidir: ${s.decision.t}.`, 'decision');
-  s.pausar = true;   // la página puede pausar para que el jugador alcance a mirar
+  // la sociedad decide sola: nadie pausa el tiempo para esperar al jugador
   return true;
 }
 // el voto de una persona en la decisión pendiente (y por qué)
@@ -958,13 +959,50 @@ export function usarPoder(s, k, arg = null) {
     case 'chispa': { const I = s.inv.c; if (I) I.p += TEC[I.k].costo * 0.35; const a = pick(s, s.gente.filter((x) => x.oficio === 'ciencia')) || pick(s, s.gente); if (a) inventar(s, a); log(s, 'Una chispa de genio ilumina a los sabios.', 'espiritu'); break; }
     case 'calma': for (const k2 of Object.keys(s.lazos)) s.lazos[k2] = Math.max(s.lazos[k2], 20); for (const Mv of s.movimientos) if (Mv.tipo === 'revolucion') Mv.fuerza *= 0.5; for (const a of s.gente) a.op.lider = Math.max(a.op.lider, -0.2); log(s, 'Una calma extraña apaga los odios.', 'espiritu'); break;
     case 'inspirar': { const a = vivo(s, arg); if (!a) return 'Elige primero a alguien.'; a.v.curiosidad = +clamp(a.v.curiosidad + 0.2, 0, 1).toFixed(2); a.edu += 15; inventar(s, a); M.recordar(a, sello(s), 'El espíritu le habló en sueños', 16, 'religion', 0.2); a.fama += 15; log(s, `${a.nombre} despierta con una idea que nadie había tenido.`, 'espiritu'); break; }
-    case 'rayo': { const c = pick(s, s.celdas.filter((x) => x.u && !x.ru)); if (c) { c.ru = true; s.vc++; } for (const a of s.gente) M.recordar(a, sello(s), 'El cielo castigó la ciudad', -6, 'religion', a.v.fe > 0.5 ? 0.06 : -0.04); log(s, 'Un rayo cae sobre la ciudad y deja ruinas.', 'espiritu'); break; }
+    case 'rayo': { const c = pick(s, s.celdas.filter((x) => x.u && !x.ru)); if (c) { c.ru = true; s.vc++; s.efecto = { k: 'rayo', x: c.x, z: c.z, t: s.t, r: 3 }; } for (const a of s.gente) M.recordar(a, sello(s), 'El cielo castigó la ciudad', -6, 'religion', a.v.fe > 0.5 ? 0.06 : -0.04); log(s, 'Un rayo cae sobre la ciudad y deja ruinas.', 'espiritu'); break; }
     case 'plaga': { const C = pick(s, vivas(s)); if (C) { s.epidemia = { al: C.id, hasta: s.dia + 20 }; log(s, `Una fiebre cae sobre ${C.nombre}.`, 'espiritu'); } break; }
+    case 'cosecha': for (const C of vivas(s)) { C.res.comida += gentes(s, C.id).length * 10; C.hambre = 0; } log(s, 'Los campos dan el doble: graneros llenos en todo el orbe.', 'espiritu'); break;
+    case 'fertilidad': { const madres = s.gente.filter((a) => a.sexo === 'f' && a.pareja && a.edad >= 18 && a.edad < 44); let n = 0; for (const m of madres) { if (s.gente.length >= MAX_PERSONAS || n >= 8) break; if (prob(s, 0.6)) { parto(s, m); n++; } } log(s, n ? `Una primavera de cunas: nacen ${n} niños bendecidos.` : 'El espíritu bendice a las familias, pero no hay quién espere un hijo.', 'espiritu'); break; }
+    case 'bosque': U.reforestar(s, 30); for (const c of s.celdas) c.cont *= 0.5; s.contaminacion *= 0.5; s.vc++; log(s, 'El bosque renace: brotan árboles en las praderas y el aire se limpia.', 'espiritu'); break;
+    case 'sequia': s.clima.sequia = 14; s.clima.lluvia = 0; log(s, 'El cielo se cierra: empieza una sequía.', 'espiritu'); break;
+    case 'incendio': {
+      const t0 = pick(s, s.arboles.filter((x) => x.c > 0.3)) || pick(s, s.celdas.filter((c) => c.u && !c.ru)); if (!t0) return 'No hay nada que arda.';
+      let arb = 0, edif = 0; for (const x of s.arboles) if (x.c > 0 && Math.hypot(x.x - t0.x, x.z - t0.z) < 9) { x.c = -1; arb++; }
+      for (const c of s.celdas) if (Math.hypot(c.x - t0.x, c.z - t0.z) < 7) { if (c.t === 'b') c.t = 'p'; if (c.u && !c.ru && prob(s, 0.5)) { c.ru = true; edif++; } }
+      for (const a of [...s.gente]) { const c = U.mapa(s).get(a.hogar); if (c && Math.hypot(c.x - t0.x, c.z - t0.z) < 6 && prob(s, 0.12)) morir(s, a, 'el incendio'); }
+      s.efecto = { k: 'incendio', x: t0.x, z: t0.z, t: s.t, r: 9 }; s.vc++;
+      log(s, `Un incendio arrasa ${arb} árboles${edif ? ` y ${edif} edificios` : ''}.`, 'espiritu'); break;
+    }
+    case 'inundacion': {
+      const L = s.lago; let n = 0;
+      for (const c of s.celdas) { const d = Math.hypot(c.x - L.x, c.z - L.z); if (d < L.r + 9 && c.u && !c.ru && prob(s, 0.6)) { c.ru = true; if (c.u === 'campo') c.u = null; n++; } }
+      for (const C of vivas(s)) C.res.comida *= 0.6;
+      for (const a of [...s.gente]) { const c = U.mapa(s).get(a.hogar); if (c && Math.hypot(c.x - L.x, c.z - L.z) < L.r + 6 && prob(s, 0.08)) morir(s, a, 'la inundación'); }
+      s.efecto = { k: 'inundacion', x: L.x, z: L.z, t: s.t, r: L.r + 9 }; s.vc++;
+      log(s, `El lago se desborda: el agua se lleva ${n} construcciones de la orilla.`, 'espiritu'); break;
+    }
+    case 'terremoto': {
+      const C = pick(s, vivas(s)); if (!C) return 'No hay ciudades.';
+      let n = 0; for (const c of s.celdas) { const d = Math.hypot(c.x - C.x, c.z - C.z); if (c.u && !c.ru && c.u !== 'campo' && prob(s, Math.max(0.04, 0.5 - d / 60) * (c.n > 6 ? 1.4 : 1))) { c.ru = true; n++; } }
+      for (const a of [...gentes(s, C.id)]) if (prob(s, 0.06)) morir(s, a, 'el terremoto');
+      s.efecto = { k: 'terremoto', x: C.x, z: C.z, t: s.t, r: 30 }; s.vc++;
+      log(s, `La tierra tiembla bajo ${C.nombre}: ${n} edificios caen.`, 'espiritu'); break;
+    }
+    case 'meteorito': {
+      const hechas = s.celdas.filter((c) => c.u && !c.ru && Math.hypot(c.x, c.z) < 34), c0 = hechas.length && prob(s, 0.75) ? pick(s, hechas) : pick(s, s.celdas.filter((c) => c.t !== 'a' && Math.hypot(c.x, c.z) < 34)); if (!c0) return 'No hay dónde caer.';
+      const R0 = 7, m = U.mapa(s); let n = 0;
+      for (const c of s.celdas) { const d = Math.hypot(c.x - c0.x, c.z - c0.z); if (d > R0) continue; if (c.u || c.o) { c.ru = true; c.o = null; if (c.u === 'campo') c.u = null; n++; } if (c.t !== 'a' && c.t !== 'v') { c.t = 'r'; c.cr = +Math.max(c.cr || 0, 1 - (d / R0) * 0.6).toFixed(2); if (c.h > 0) c.h = +(c.h * 0.4).toFixed(2); } }   // tierra quemada (se borra con los años)
+      for (const x of s.arboles) if (Math.hypot(x.x - c0.x, x.z - c0.z) < R0 + 2) x.c = -1;
+      for (const a of [...s.gente]) { const c = m.get(a.hogar), w = m.get(a.trabajo); if ([c, w].some((z) => z && Math.hypot(z.x - c0.x, z.z - c0.z) < R0) && prob(s, 0.45)) morir(s, a, 'el meteorito'); }
+      s.efecto = { k: 'meteorito', x: c0.x, z: c0.z, t: s.t, r: R0 }; s.vc++; s.vh = (s.vh || 0) + 1;
+      log(s, `☄ Un meteorito cae del cielo: un cráter donde había ${n ? `${n} construcciones` : 'campo abierto'}.`, 'espiritu'); break;
+    }
     case 'errantes': llegan(s, 3); if (s.fin && !s.destino) { s.fin = false; s.vacioDesde = null; } break;
   }
   s.esp.influencia -= P.costo;
-  s.esp.fe = clamp(s.esp.fe + (['rayo', 'plaga'].includes(k) ? 2 : 5));
-  if (k !== 'aconsejar' && k !== 'forzar') for (const a of creyentes) M.recordar(a, sello(s), ['rayo', 'plaga'].includes(k) ? 'Teme la ira del espíritu' : 'El espíritu nos escucha', ['rayo', 'plaga'].includes(k) ? -4 : 6, 'religion', 0.04);
+  const ira = P.t === 'c';
+  s.esp.fe = clamp(s.esp.fe + (ira ? 2 : 5));
+  if (k !== 'aconsejar' && k !== 'forzar') for (const a of creyentes.filter((x) => vivo(s, x.id))) M.recordar(a, sello(s), ira ? 'Teme la ira del espíritu' : 'El espíritu nos escucha', ira ? -4 : 6, 'religion', 0.04);
   return null;
 }
 
