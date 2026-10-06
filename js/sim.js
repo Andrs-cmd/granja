@@ -549,6 +549,15 @@ function pensar(s, a) {
   for (const m of a.metas || []) add(30, m.tipo === 'nivel' ? `Voy en nivel ${nivel(a.xp[m.hab])} de ${PASATIEMPOS[m.hab].nombre.toLowerCase()}. Quiero llegar a ${m.objetivo}.` : m.tipo === 'ahorro' ? `Tenemos ${Math.round(s.comercio.monedas)} de ${m.objetivo} para ${MEJORAS_CASA.find((x) => x[0] === m.obra)?.[1] || 'la obra'}.` : 'Algún día voy a sacar la trucha gigante.');
   const rec = [...a.recuerdos].filter((r) => r.hasta > s.t).sort((x, y) => Math.abs(y.valor) - Math.abs(x.valor))[0];
   if (rec && Math.abs(rec.valor) >= 8) add(30, rec.valor > 0 ? `Sigo contento por esto: ${rec.texto.toLowerCase()}.` : `No me saco de la cabeza: ${rec.texto.toLowerCase()}.`);
+  const F = s.fauna;
+  if (F) {
+    if (F.peces < 30) add(40, c > 0.45 ? 'Quedan pocos peces. Mejor dejar descansar el estanque un tiempo.' : 'Los peces ya no pican como antes… ¿qué les pasará?');
+    if (F.conejos > (F.cercado ? 32 : 11)) add(45, F.cercado ? 'Cuántos conejos… menos mal que cercamos el huerto.' : 'Los conejos se están comiendo el huerto. Hay que hacer algo.');
+    if (F.zorros > 0 && F.conejos / Math.max(0.5, F.zorros) < 1.5) add(40, 'Los zorros tienen hambre. Hay que cuidar a las gallinas.');
+    if (F.zorros === 0 && F.conejos > 18) add(25, 'Ya no hay zorros y los conejos no paran de multiplicarse.');
+    if (estacion(s) === 0 && F.pajaros > 10) add(15, 'Qué lindo cantan los pájaros en la mañana.');
+    if (F.ranas > 15 && s.clima.lluviaHoy) add(12, 'Con esta lluvia, las ranas están felices.');
+  }
   if (tiene(a, 'hiperactivo')) add(10, 'No me puedo quedar quieto. ¿Qué hago ahora?');
   if (tiene(a, 'tranquilo')) add(10, 'Qué silencio tan rico hay hoy.');
   if (tiene(a, 'manoVerde')) add(10, 'Las flores necesitan que las cuide.');
@@ -573,6 +582,102 @@ function decisionPropia(s, d) {
   return d.defecto;
 }
 
+// ---------------------------------------------------------------- ecosistema: fauna silvestre con poblaciones que dependen unas de otras
+// peces ← pesca y sequía · conejos ← pasto, jardines y zorros (y se comen el huerto si son muchos) · zorros ← conejos (con hambre, al gallinero)
+// pájaros ← árboles, flores y estación (migran; se comen los insectos y algo de fruta) · ranas ← lluvia (se comen los insectos)
+export const FAUNA = {
+  peces: { nombre: 'Peces del estanque', icono: '🐟', desc: 'Se reproducen en primavera y verano. Si se pesca más de lo que nacen, el estanque se vacía.' },
+  conejos: { nombre: 'Conejos', icono: '🐇', desc: 'Se multiplican rápido. Si hay demasiados, se comen el huerto. Los zorros los mantienen a raya.' },
+  zorros: { nombre: 'Zorros', icono: '🦊', desc: 'Viven de los conejos. Si se quedan sin conejos, el hambre los lleva al gallinero.' },
+  pajaros: { nombre: 'Pájaros', icono: '🐦', desc: 'Llegan con los árboles y las flores. Se comen los insectos del huerto; si son muchos, picotean la fruta. Migran en otoño.' },
+  ranas: { nombre: 'Ranas', icono: '🐸', desc: 'Aman la lluvia y sufren la sequía. Se comen los insectos de las plantas.' },
+};
+const faunaNueva = () => ({ peces: 90, conejos: 8, zorros: 2, pajaros: 22, ranas: 14, cercado: false, danos: 0, avisos: {} });
+export function capacidadFauna(s) {
+  const F = s.fauna, e = estacion(s), seco = s.sequia > 0;
+  const arboles = (s.frutales || []).length, jard = (s.jardines || []).length;
+  return {
+    peces: seco ? 110 : 180,
+    conejos: Math.max(4, 16 + jard * 1.5 - (e === 3 ? 7 : 0)),
+    zorros: Math.max(0.5, 0.6 + F.conejos / 8),
+    pajaros: (20 + arboles * 2 + jard * 2.5 + (s.belleza || 0) * 0.12) * (e === 3 ? 0.35 : e === 2 ? 0.8 : 1),
+    ranas: seco ? 6 : 24 + (casaTiene(s, 'piscina') ? 0 : 0),
+  };
+}
+const crece = (P, r, K) => P + r * P * (1 - P / Math.max(0.1, K));
+const avisoFauna = (s, k, dias, texto, tipo = 'info') => { const A = s.fauna.avisos; if ((A[k] ?? -1e9) + dias > dia(s)) return false; A[k] = dia(s); log(s, texto, tipo); return true; };
+function faunaDelDia(s) {
+  s.fauna ??= faunaNueva();
+  const F = s.fauna, e = estacion(s), dE = dia(s) % DIAS_ESTACION, K = capacidadFauna(s), llovio = !!s.clima.lluviaHoy;
+  const antes = { ...F };
+  // peces: crecen en primavera y verano; el estanque congelado los frena
+  F.peces = Math.max(0, crece(F.peces, [0.09, 0.07, 0.035, 0.005][e], K.peces));
+  if (F.peces < 2) F.peces = 0;   // sin peces no hay quien se reproduzca (hasta que llegue un cardumen)
+  // conejos: nacen mucho, los cazan los zorros, el invierno los diezma
+  const cazados = Math.min(F.conejos * 0.3, F.zorros * Math.min(1.2, F.conejos / 8) * 0.3);
+  F.conejos = Math.max(0, crece(F.conejos, [0.22, 0.16, 0.05, -0.025][e], K.conejos) - cazados);
+  const perro = s.agentes.find((a) => a.vivo && a.tipo === 'perro' && !a.nombreCria), gato = s.agentes.find((a) => a.vivo && a.tipo === 'gato');
+  if (perro && F.conejos > 6 && rng(s) < 0.06) { F.conejos -= 1; avisoFauna(s, 'perroConejo', 6, `🐕🐇 ${perro.nombre} persiguió conejos por todo el potrero y atrapó uno.`); }
+  if (F.conejos < 1.2 && e !== 3 && rng(s) < 0.08) { F.conejos += 2; avisoFauna(s, 'conejosVuelven', 10, '🐇 Volvieron a verse conejos cerca del bosque.'); }
+  // zorros: viven de los conejos; sin conejos, el hambre los acerca al gallinero o se van
+  const comidaZ = F.conejos / Math.max(0.5, F.zorros);
+  F.zorros = Math.max(0, F.zorros + (e === 0 ? 0.035 : 0.006) * F.zorros * Math.min(1, comidaZ / 4) - 0.012 * F.zorros - (comidaZ < 1.5 ? 0.02 * F.zorros : 0));
+  F.zorros = Math.min(F.zorros, K.zorros + 1);
+  if (F.zorros < 0.4) F.zorros = 0;
+  if (F.zorros === 0 && F.conejos > 14 && rng(s) < 0.05) { F.zorros = 1; avisoFauna(s, 'zorroLlega', 8, '🦊 Con tantos conejos, un zorro se mudó al bosque del orbe.', 'aviso'); }
+  // pájaros: migran en otoño, vuelven en primavera; el gato caza alguno
+  if (e === 2 && dE > 12) F.pajaros *= 0.93;
+  else F.pajaros = crece(Math.max(F.pajaros, e === 0 ? 2 : 0.5), [0.2, 0.08, 0.02, -0.02][e], K.pajaros);
+  if (gato && F.pajaros > 5 && rng(s) < 0.05) { F.pajaros -= 1; avisoFauna(s, 'gatoPajaro', 8, `🐈 ${gato.nombre} cazó un pájaro y lo dejó de regalo en la puerta.`); }
+  if (e === 0 && dE === 2) log(s, '🐦 Volvieron las golondrinas: la primavera ya está aquí.', 'clima');
+  if (e === 2 && dE === 13 && F.pajaros > 4) log(s, '🐦 Las bandadas se van al sur: el orbe se queda más callado.', 'clima');
+  // ranas: con lluvia se multiplican, con sequía y frío desaparecen
+  F.ranas = Math.max(0, crece(Math.max(F.ranas, 0.5), (llovio ? 0.14 : 0.03) * (e === 3 ? -1 : 1) - (s.sequia > 0 ? 0.08 : 0), K.ranas));
+  if (llovio && F.ranas > antes.ranas + 1.5) avisoFauna(s, 'ranas', 10, '🐸 Con la lluvia, el estanque se llenó de ranas: de noche no paran de cantar.');
+  // los insectos del huerto: pájaros y ranas los controlan
+  const control = Math.min(0.06, F.pajaros * 0.0012 + F.ranas * 0.0012);
+  for (const q of s.parcelas) if (q.plaga > 0 && q.plagaTipo === 'insecto' && !q.langosta) q.plaga = Math.max(0, q.plaga - control);
+  // demasiados pájaros en verano: picotean la fruta
+  if (e === 1 && F.pajaros > K.pajaros * 0.85) { for (const f of s.frutales || []) f.fruta = Math.max(0, f.fruta - 0.4); avisoFauna(s, 'pajaroFruta', 12, '🐦 Las bandadas picotean la fruta de los árboles.', 'aviso'); }
+  // conejos de más: se comen el huerto (si no está cercado)
+  const tope = F.cercado ? 32 : 11, exceso = F.conejos - tope;
+  const brotes = s.parcelas.filter((q) => q.estado === 'creciendo');
+  if (exceso > 0 && brotes.length && rng(s) < Math.min(0.5, exceso * 0.04)) {
+    const q = brotes[Math.floor(rng(s) * brotes.length)]; q.crec = Math.max(0, q.crec * 0.65); q.salud = Math.max(0, (q.salud ?? 100) - 15); F.danos++; s.stats.conejos = (s.stats.conejos || 0) + 1;
+    log(s, `🐇 Los conejos se comieron los brotes de la parcela ${q.id + 1}.`, 'aviso');
+    if (F.danos >= 2) proponer(s, 'conejos', 'Los conejos se comen el huerto', `Hay unos ${Math.round(F.conejos)} conejos y ya dañaron ${F.danos} veces el huerto.`, [
+      { k: 'cercar', txt: 'Cercar el huerto (60 monedas)', pista: 'protege para siempre; los conejos siguen en el bosque' },
+      { k: 'cazar', txt: 'Salir a cazar conejos', pista: 'carne para la despensa… pero los zorros se quedan sin comida' },
+      { k: 'perro', txt: 'Que el perro los espante', pista: 'gratis; ayuda un poco' },
+      { k: 'nada', txt: 'Dejarlos: es su orbe también', pista: 'se seguirán comiendo los brotes' },
+    ], 'nada', {}, 24, 6);
+  }
+  // avisos de cómo va el estanque
+  if (F.peces < 25 && antes.peces >= 25) log(s, '🐟 Quedan pocos peces en el estanque. Si siguen pescando así, se van a acabar.', 'aviso');
+  if (F.peces === 0 && antes.peces > 0) log(s, '🐟💀 El estanque se quedó sin peces. Tardará en recuperarse… si es que algo llega.', 'malo');
+  if (F.peces >= 120 && antes.peces < 120) avisoFauna(s, 'pecesOk', 20, '🐟 El estanque está lleno de vida otra vez.', 'bueno');
+  if (F.zorros > 0 && comidaZ < 1.5) avisoFauna(s, 'zorroHambre', 10, '🦊 Los zorros pasan hambre: casi no quedan conejos. Se les ha visto cerca del gallinero.', 'aviso');
+  if (F.conejos > 20 && antes.conejos <= 20) log(s, '🐇 El orbe está lleno de conejos: se los ve por todas partes.', 'info');
+}
+function resolverConejos(s, k) {
+  const F = s.fauna, R = s.rec;
+  F.danos = 0;
+  if (k === 'cercar' && s.comercio.monedas >= 60) { s.comercio.monedas -= 60; F.cercado = true; log(s, '🪵 Cercaron el huerto con malla: los conejos ya no entran.', 'bueno'); }
+  else if (k === 'cercar') log(s, 'No alcanzó la plata para la malla.', 'aviso');
+  if (k === 'cazar') {
+    const n = Math.floor(F.conejos * 0.45); F.conejos -= n; R.raciones += n * 1.5;
+    log(s, `🏹 Cazaron ${n} conejos: +${Math.round(n * 1.5)} raciones. El bosque quedó más callado.`, 'info');
+    for (const h of humanos(s)) if (tiene(h, 'manoVerde') || tiene(h, 'tranquilo')) recuerdo(s, h, 'Le dio pena cazar conejos', -4, 24);
+  }
+  if (k === 'perro') { F.conejos *= 0.85; const p = s.agentes.find((a) => a.vivo && a.tipo === 'perro'); if (p) { p.n.diversion = Math.min(100, p.n.diversion + 30); log(s, `🐕 ${p.nombre} se pasó el día corriendo conejos. Feliz.`, 'info'); } }
+}
+// probabilidad de que un zorro ronde el gallinero esta noche: más zorros y más hambre, más riesgo
+function riesgoZorro(s) {
+  const F = s.fauna; if (!F || F.zorros <= 0) return 0;
+  const hambre = Math.max(0, 1 - F.conejos / (F.zorros * 5));
+  return Math.min(0.35, 0.025 * F.zorros * (1 + hambre * 3) * (estacion(s) === 3 ? 1.6 : 1));
+}
+
 // ---------------------------------------------------------------- el espíritu del orbe: poderes (cuestan influencia)
 export const PODERES = {
   lluvia: { nombre: 'Lluvia', icono: '🌧', costo: 2, desc: 'Llueve unas horas: se llena el tanque y se riega todo. Termina la sequía.' },
@@ -583,6 +688,7 @@ export const PODERES = {
   visitante: { nombre: 'Llamar al comerciante', icono: '🛒', costo: 2, desc: 'Don Ramiro llega mañana con su carreta.' },
   tormenta: { nombre: 'Tormenta', icono: '⛈', costo: 2, desc: 'Llueve fuerte con granizo: riega, pero puede dañar lo sembrado.' },
   rayo: { nombre: 'Rayo', icono: '⚡', costo: 3, desc: 'Cae un rayo y empieza un incendio. Pon a prueba a tu gente.' },
+  vida: { nombre: 'Primavera salvaje', icono: '🐇', costo: 2, desc: 'La fauna florece: más conejos, pájaros, ranas y peces (y los zorros lo notan).' },
   plaga: { nombre: 'Plaga', icono: '🦗', costo: 2, desc: 'Llegan langostas al huerto.' },
   lobos: { nombre: 'Lobos', icono: '🐺', costo: 3, desc: 'Una manada ronda el potrero esta noche.' },
 };
@@ -597,7 +703,8 @@ export function usarPoder(s, k) {
   if (k === 'sol') { if (s.clima.lluviaHoy && s.clima.lluviaHoy.hasta > s.t) s.clima.lluviaHoy.hasta = s.t; s.clima.granizando = false; log(s, '☀ El cielo se despejó de golpe.', 'info'); }
   if (k === 'bendicion') { for (const p of s.parcelas) if (p.estado === 'creciendo' && p.cultivo) { const C = CULTIVOS[p.cultivo]; p.crec = Math.min(C.dias, p.crec + C.dias * 0.35); p.agua = 100; } for (const f of s.frutales || []) f.fruta = Math.min(14, (f.fruta || 0) + 4); for (const m of s.matas || []) if (m.estado === 'creciendo') m.crec = Math.min(0.99, m.crec + 0.25); log(s, '🌱 Una bendición cayó sobre los cultivos: crecieron de golpe.', 'bueno'); for (const h of humanos(s)) recuerdo(s, h, 'Un milagro en el huerto', 8, 24); }
   if (k === 'curar') { const t = s.agentes.filter((x) => x.vivo).sort((x, y) => (x.n.salud - severidad(x) * 60 - (x.enfermo > 0 ? 30 : 0)) - (y.n.salud - severidad(y) * 60 - (y.enfermo > 0 ? 30 : 0)))[0]; if (t) { t.heridas = []; t.enfermo = 0; t.n.salud = Math.min(100, t.n.salud + 50); log(s, `💖 ${t.nombre} se sanó de golpe. Nadie se lo explica.`, 'bueno'); recuerdo(s, t, 'Se curó como por milagro', 12, 48); } }
-  if (k === 'cardumen') { s.cardumen = s.t + 2 * MIN_DIA; log(s, '🐟 El estanque amaneció lleno de peces.', 'bueno'); }
+  if (k === 'vida') { const F = s.fauna, Kf = capacidadFauna(s); for (const x of ['conejos', 'pajaros', 'ranas', 'peces']) F[x] = Math.min(Kf[x] * 1.3, F[x] * 1.4 + (x === 'peces' ? 25 : 3)); if (F.zorros === 0) F.zorros = 1; log(s, '🐇🐦 La vida silvestre del orbe florece de golpe.', 'bueno'); }
+  if (k === 'cardumen') { if (s.fauna) s.fauna.peces = Math.min(220, s.fauna.peces + 60); s.cardumen = s.t + 2 * MIN_DIA; log(s, '🐟 El estanque amaneció lleno de peces.', 'bueno'); }
   if (k === 'visitante') { s.comercio.proxima = dia(s) + 1; log(s, `🛒 Algo le dijo a ${COMERCIANTE} que pasara mañana por la granja.`, 'info'); }
   if (k === 'rayo') { lanzarCrisis(s, 'incendio', 1); log(s, '⚡ Cayó un rayo sobre la granja.', 'malo'); }
   if (k === 'plaga') lanzarCrisis(s, 'langostas', 1);
@@ -608,7 +715,7 @@ export function usarPoder(s, k) {
 function cronica(s) {
   const H = humanos(s), K = hijos(s);
   const habs = H.map((a) => Object.keys(PASATIEMPOS).reduce((t, k) => t + nivel(a.xp[k]), 0));
-  (s.historia ||= []).push({ d: dia(s), m: Math.round(s.comercio?.monedas || 0), an: Math.round(H.reduce((t, a) => t + a.animo, 0) / Math.max(1, H.length)), gen: H.length + K.length, mas: s.agentes.filter((a) => a.vivo && esMascota(a)).length, gan: s.ganado.filter((g) => g.vivo).length, cos: s.stats.cosechas || 0, bel: Math.round(s.belleza || 0), hab: habs.length ? Math.round(habs.reduce((t, x) => t + x, 0) / habs.length) : 0, peces: s.stats.peces || 0, obras: (s.casa.mejoras || []).length });
+  (s.historia ||= []).push({ d: dia(s), m: Math.round(s.comercio?.monedas || 0), an: Math.round(H.reduce((t, a) => t + a.animo, 0) / Math.max(1, H.length)), gen: H.length + K.length, mas: s.agentes.filter((a) => a.vivo && esMascota(a)).length, gan: s.ganado.filter((g) => g.vivo).length, cos: s.stats.cosechas || 0, bel: Math.round(s.belleza || 0), hab: habs.length ? Math.round(habs.reduce((t, x) => t + x, 0) / habs.length) : 0, peces: s.stats.peces || 0, obras: (s.casa.mejoras || []).length, fp: Math.round(s.fauna?.peces || 0), fc: Math.round(s.fauna?.conejos || 0), fz: +(s.fauna?.zorros || 0).toFixed(1), fa: Math.round(s.fauna?.pajaros || 0), fr: Math.round(s.fauna?.ranas || 0) });
   if (s.historia.length > 500) s.historia.shift();
 }
 
@@ -981,7 +1088,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
       uvas: 0, vino: 6, hierba: 3, medicina: 1, libros: 0 },
     granja: { pasto: 80 },
     casa: { limpieza: 80, estado: 100, estilo: null, mejoras: [], obra: null, turno: 0 },
-    desbloqueos: [], zorro: null,
+    desbloqueos: [], zorro: null, fauna: faunaNueva(),
     pareja: { afinidad: 70, tension: 0, pendiente: null, discusiones: 0, charlas: 0, intimidad: 0, ultimaCena: -1, ultimaIntimidad: -1, recetaNueva: false },
     parcelas: PARCELAS.map((p, i) => ({ id: i, x: p.x, z: p.z, cultivo: null, crec: 0, agua: 60, estado: 'vacia', secoMin: 0, listaMin: 0, reservada: null, ...sueloNuevo() })),
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
@@ -1230,6 +1337,7 @@ function nuevoDia(s) {
   comercioDelDia(s);
   dilemasDelDia(s);
   familiaDelDia(s);
+  faunaDelDia(s);
   cronica(s);
   for (const a of humanos(s)) { if ((a.metas || []).length < 2 && rng(s) < 0.35) nuevaMeta(s, a); revisarMetas(s, a); if (a.metas) a.metas = a.metas.filter((m) => s.t - m.desde < 40 * MIN_DIA); }
   narradorDelDia(s);
@@ -1408,7 +1516,7 @@ function mascotasDelDia(s) {
     }
   }
   // un zorro puede rondar el gallinero esta noche
-  if (!s.zorro && s.ganado.some((g) => g.vivo && esAve(g.tipo)) && rng(s) < (estacion(s) === 3 ? 0.11 : 0.05)) {
+  if (!s.zorro && s.ganado.some((g) => g.vivo && esAve(g.tipo)) && rng(s) < riesgoZorro(s)) {
     s.zorro = { t: dia(s) * MIN_DIA + 60 * (23 + rng(s) * 5) };
   }
 }
@@ -2045,7 +2153,7 @@ function elegirTarea(s, a) {
   if (h >= 13 && h < 15.5 && n.energia < 60) ocio.push([(60 - n.energia) * (calor(s) ? 1.6 : 1) * (tiene(a, 'hiperactivo') ? 0.3 : 1), 'siesta']);
   // pasatiempos con habilidad: mientras más nivel, más ganas (le encuentran el gusto)
   const enGusto = (k) => 1 + nivel(a.xp[PASA[k]]) * 0.07 + (gustaHacer(a, k) ? 0.5 : 0);
-  if (exterior && h >= 5.5 && h < 19 && (e !== 3 || nivel(a.xp.pesca) >= 3)) ocio.push([necesitaOcio * 0.85 * enGusto('pescar') * (tiene(a, 'tranquilo') ? 1.35 : 1) + (escasez(s) ? 20 : 0) + (s.cardumen > s.t ? 15 : 0), 'pescar']);
+  if (exterior && h >= 5.5 && h < 19 && (e !== 3 || nivel(a.xp.pesca) >= 3)) ocio.push([((s.fauna?.peces ?? 90) < 30 && criterio(a) > 0.45 && !escasez(s) ? 0.15 : (s.fauna?.peces ?? 90) < 5 ? 0.05 : 1) * necesitaOcio * 0.85 * enGusto('pescar') * (tiene(a, 'tranquilo') ? 1.35 : 1) + (escasez(s) ? 20 : 0) + (s.cardumen > s.t ? 15 : 0), 'pescar']);
   if (otro && libreParaPareja(s, otro) && (llueve || h >= 19 || frio(s)) && !irritable(a)) ocio.push([(necesitaOcio * 0.6 + necesitaSocial * 0.6) * enGusto('jugarMesa'), 'jugarMesa']);
   if (casaTiene(s, 'skatepark') && exterior && n.energia > 40) ocio.push([necesitaOcio * enGusto('patinar') * (tiene(a, 'hiperactivo') ? 1.6 : 1) * (tiene(a, 'atletico') ? 1.2 : 1) * (a.edad < 40 ? 1 : 0.5), 'patinar']);
   // arte: Andrés talla esculturas en su tiempo libre (cuando ya puso todas, hace obras para vender); María cuida sus flores por gusto
@@ -2485,9 +2593,11 @@ function completar(s, a, T) {
       const nv = nvp, banco = s.cardumen > s.t ? 2 : 1, hielo = estacion(s) === 3;
       let peces = 0, grande = false, trofeo = false;
       const intentos = 2 + Math.floor(nv / 3);
-      for (let i = 0; i < intentos; i++) if (rng(s) < (0.18 + nv * 0.05) * banco * (hielo ? 0.6 : 1) * (lloviendo(s) ? 1.2 : 1)) { peces++; if (rng(s) < 0.06 + nv * 0.04) grande = true; }
+      const hay = Math.min(1.4, (s.fauna?.peces ?? 90) / 90);
+      for (let i = 0; i < intentos; i++) if (rng(s) < (0.18 + nv * 0.05) * hay * banco * (hielo ? 0.6 : 1) * (lloviendo(s) ? 1.2 : 1)) { peces++; if (rng(s) < 0.06 + nv * 0.04) grande = true; }
       if (nv >= 6 && rng(s) < 0.02 + (nv - 6) * 0.015) { trofeo = true; peces += 3; }
       R.pescado = (R.pescado || 0) + peces + (grande ? 1 : 0); s.stats.peces = (s.stats.peces || 0) + peces;
+      if (s.fauna) s.fauna.peces = Math.max(0, s.fauna.peces - peces - (trofeo ? 1 : 0));
       if (trofeo) { a.trofeoPesca = true; revisarMetas(s, a); log(s, `🐟🏆 ¡${a.nombre} sacó una trucha gigante del estanque! Se va a acordar toda la vida.`, 'logro'); recuerdo(s, a, 'La trucha gigante', 18, 72); memoria(s, a, 'La trucha gigante', 1.5); for (const h of humanos(s)) if (h !== a) recuerdo(s, h, `${a.nombre} pescó una trucha gigante`, 6, 24); }
       else if (peces) { recuerdo(s, a, peces > 2 ? 'Buena pesca' : 'Pescó algo', 3 + peces, 10); if (grande || rng(s) < 0.25) log(s, `🎣 ${a.nombre} pescó ${peces} ${peces === 1 ? 'pez' : 'peces'}${grande ? ', uno bien grande' : ''}.`, 'info'); }
       else recuerdo(s, a, nv < 2 ? 'No picó nada (todavía no le sabe)' : 'Hoy no picaron', nv < 2 ? -1 : 1, 6);
@@ -3009,6 +3119,7 @@ function resolver(s, d, k, jugador) {
     case 'parto': { const F = s.familia; if (k === 'partera' && s.comercio.monedas >= 80) { s.comercio.monedas -= 80; F.parto = 'partera'; log(s, '🧑‍⚕️ La partera del pueblo vendrá para el parto (80 monedas).', 'info'); } else { F.parto = 'casa'; if (k === 'partera') log(s, 'No alcanzó el dinero para la partera: el parto será en casa.', 'aviso'); } break; }
     case 'nombre': { const h = s.agentes.find((x) => x.id === d.datos.hijo); if (h && h.nombre !== k) { log(s, `Le pusieron ${k} (antes le decían ${h.nombre}).`, 'info'); h.nombre = k; } break; }
     case 'mayoria': { const h = s.agentes.find((x) => x.id === d.datos.hijo && x.vivo); if (h && k === 'estudiar') irseAlPueblo(s, h); break; }
+    case 'conejos': resolverConejos(s, k); break;
     case 'incendio': case 'lobos': case 'ladron': case 'fiebre': case 'forastero': case 'pozo': case 'langostas': case 'tratamiento': resolverCrisis(s, d, k); break;
     case 'estilo': s.casa.estilo = k; s.casa.diaEstilo = dia(s); empezarMejora(s, 'fachada'); break;
     case 'reforma': if (k !== 'no' && s.comercio.monedas >= 300) { s.comercio.monedas -= 300; s.casa.obra = { id: 'reforma', progreso: 0, estilo: k }; s.casa.diaEstilo = dia(s); log(s, `🎨 Empieza la reforma a estilo ${ESTILOS[k].nombre.toLowerCase()} (300 monedas).`, 'logro'); } break;
@@ -3907,7 +4018,7 @@ function migrar(s) {
     s.comercio ??= comercioNuevo(s.t);
     if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
     s.plano ??= {}; aplicarPlano(s.plano);
-    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.diseno ??= {}; s.encargos ??= []; s.crias ??= {}; s.historia ??= []; for (const a of s.agentes) if (a.xp) for (const k of Object.keys(PASATIEMPOS)) a.xp[k] ??= 0; s.cardumen ??= 0; s.rec.pescado ??= 0; s.rec.arte ??= 0; s.hitos ??= s.diario.filter((l) => l.tipo === 'logro' || l.tipo === 'muerte').reverse();
+    s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {}; s.familia ??= familiaNueva(); s.diseno ??= {}; s.encargos ??= []; s.crias ??= {}; s.historia ??= []; s.fauna ??= faunaNueva(); for (const a of s.agentes) if (a.xp) for (const k of Object.keys(PASATIEMPOS)) a.xp[k] ??= 0; s.cardumen ??= 0; s.rec.pescado ??= 0; s.rec.arte ??= 0; s.hitos ??= s.diario.filter((l) => l.tipo === 'logro' || l.tipo === 'muerte').reverse();
     for (const a of s.agentes) if (esMascota(a)) { a.sexo ??= 'm'; a.pelaje ??= a.tipo === 'perro' ? 'manchado' : 'esmoquin'; a.crec ??= 1; } s.caminos ??= caminosNuevos(); for (const c of CAMINOS) s.caminos[c.id] ??= { progreso: 0, uso: 0 };
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }

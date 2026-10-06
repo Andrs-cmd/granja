@@ -100,7 +100,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const enTerreno = (x, z, m = 0) => Math.hypot(x - CENTER.x, z - CENTER.z) < RT - m;
   {
     const capa = (r0, r1, h, y, color) => {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 128), new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 128), new THREE.MeshStandardMaterial({ color, roughness: 1, polygonOffset: true, polygonOffsetFactor: 8, polygonOffsetUnits: 8 }));   // siempre detrás del pasto (si no, de lejos la tierra se cuela por encima)
       m.position.set(CENTER.x, y, CENTER.z); m.receiveShadow = true; root.add(m); return m;
     };
     {
@@ -674,6 +674,66 @@ uniform float uRafaga;
     if (!fueraGranja(x, z) || !enTerreno(x, z, 3) || Math.hypot((x - ESTANQUE.x) / (ESTANQUE.rx + 3), (z - ESTANQUE.z) / (ESTANQUE.rz + 3)) < 1) continue;
     makeTree(x, z, 0.8 + rand() * 0.6);
   }
+  // ------------------------------------------------------------ fauna silvestre: lo que se ve sigue a la población real del ecosistema
+  const nenufares = [];
+  const FA = { conejos: [], pajaros: [], peces: [], ranas: [], zorros: [] };
+  {
+    const MF = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true });
+    const fauna = new THREE.Group(); fauna.userData.sinLote = true; root.add(fauna); FA.grupo = fauna;
+    const sitioAnillo = () => { for (let i = 0; i < 60; i++) { const a = rand() * Math.PI * 2, r = 30 + rand() * 15; const x = CENTER.x + Math.cos(a) * r, z = CENTER.z + Math.sin(a) * r; if (libreAnillo(x, z)) return { x, z }; } return { x: CENTER.x + 38, z: CENTER.z }; };
+    const pieza = (g, geo, m, x, y, z, sx = 1, sy = 1, sz = 1) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); g.add(o); return o; };
+    const esfera = new THREE.IcosahedronGeometry(1, 1), caja = new THREE.BoxGeometry(1, 1, 1), cono = new THREE.ConeGeometry(1, 1, 5);
+    // conejos
+    const pelo = [MF(0x9a8670), MF(0x7d6a58), MF(0xc9b8a2)], blanco = MF(0xf2efe8), rosa = MF(0xe8a0a0);
+    for (let i = 0; i < 16; i++) {
+      const g = new THREE.Group(), m = pelo[i % 3]; g.visible = false; fauna.add(g);
+      const cuerpo = new THREE.Group(); g.add(cuerpo);
+      pieza(cuerpo, esfera, m, 0, 0.24, 0, 0.2, 0.19, 0.28);
+      const cab = new THREE.Group(); cab.position.set(0, 0.36, 0.24); cuerpo.add(cab);
+      pieza(cab, esfera, m, 0, 0, 0, 0.13, 0.12, 0.14);
+      for (const dx of [-0.05, 0.05]) { pieza(cab, caja, m, dx, 0.17, -0.02, 0.04, 0.2, 0.025).rotation.x = -0.2; pieza(cab, caja, rosa, dx, 0.17, -0.005, 0.02, 0.15, 0.01).rotation.x = -0.2; }
+      pieza(cuerpo, esfera, blanco, 0, 0.26, -0.27, 0.07, 0.07, 0.07);
+      g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      g.scale.setScalar(1.5);
+      const casa = sitioAnillo();
+      FA.conejos.push({ g, cuerpo, cab, casa, x: casa.x, z: casa.z, tx: casa.x, tz: casa.z, espera: rand() * 3, fase: 0, yaw: rand() * 6 });
+    }
+    // pájaros en bandada
+    const plumas = [MF(0x3a3d48), MF(0x6a4a32), MF(0xc8a040)];
+    for (let i = 0; i < 14; i++) {
+      const g = new THREE.Group(), m = plumas[i % 3]; g.visible = false; fauna.add(g);
+      pieza(g, cono, m, 0, 0, 0, 0.08, 0.32, 0.08).rotation.x = Math.PI / 2;
+      const alas = [-1, 1].map((sg) => { const a = new THREE.Group(); a.position.x = sg * 0.04; g.add(a); pieza(a, caja, m, sg * 0.22, 0, 0, 0.44, 0.015, 0.16); return a; });
+      FA.pajaros.push({ g, alas, ang: rand() * 6.28, radio: 18 + rand() * 16, alto: 9 + rand() * 5, vel: 0.12 + rand() * 0.08, fase: rand() * 6 });
+    }
+    // peces: sombras bajo el agua y alguno que salta
+    const sombra = new THREE.MeshBasicMaterial({ color: 0x0b2a3a, transparent: true, opacity: 0.35, depthWrite: false });
+    for (let i = 0; i < 10; i++) {
+      const g = new THREE.Mesh(new THREE.CircleGeometry(1, 10), sombra); g.rotation.x = -Math.PI / 2; g.scale.set(0.14, 0.36, 1); g.position.y = 0.035; g.visible = false; fauna.add(g);
+      FA.peces.push({ g, ang: rand() * 6.28, r: 0.25 + rand() * 0.6, vel: (rand() < 0.5 ? -1 : 1) * (0.15 + rand() * 0.2) });
+    }
+    { const g = new THREE.Group(); g.visible = false; fauna.add(g); pieza(g, esfera, MF(0xc0c8cc), 0, 0, 0, 0.1, 0.12, 0.3); pieza(g, cono, MF(0xe08a3a), 0, 0, -0.32, 0.1, 0.16, 0.04).rotation.x = Math.PI / 2;
+      const onda = new THREE.Mesh(new THREE.TorusGeometry(1, 0.03, 4, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })); onda.rotation.x = -Math.PI / 2; onda.visible = false; fauna.add(onda);
+      FA.salto = { g, onda, t: -1, espera: 3 }; }
+    // ranas en los nenúfares y la orilla
+    const verde = MF(0x5a9a3a), ojo = MF(0x1a1a1a);
+    for (let i = 0; i < 5; i++) {
+      const g = new THREE.Group(); g.visible = false; fauna.add(g);
+      pieza(g, esfera, verde, 0, 0.08, 0, 0.13, 0.08, 0.15); for (const dx of [-0.06, 0.06]) pieza(g, esfera, ojo, dx, 0.15, 0.09, 0.025, 0.025, 0.025);
+      g.scale.setScalar(1.6); FA.ranas.push({ g, salta: rand() * 8 });
+    }
+    // zorros: salen al atardecer
+    const naranja = MF(0xc8642a);
+    for (let i = 0; i < 3; i++) {
+      const g = new THREE.Group(); g.visible = false; fauna.add(g);
+      pieza(g, esfera, naranja, 0, 0.42, 0, 0.18, 0.18, 0.42); pieza(g, esfera, naranja, 0, 0.55, 0.42, 0.14, 0.13, 0.16); pieza(g, cono, naranja, 0, 0.53, 0.6, 0.06, 0.16, 0.06).rotation.x = Math.PI / 2;
+      for (const dx of [-0.07, 0.07]) pieza(g, cono, naranja, dx, 0.72, 0.4, 0.05, 0.12, 0.04);
+      pieza(g, esfera, naranja, 0, 0.46, -0.52, 0.09, 0.09, 0.3).rotation.x = 0.5; pieza(g, esfera, blanco, 0, 0.36, -0.75, 0.06, 0.06, 0.08);
+      const patas = [[-0.1, 0.25], [0.1, 0.25], [-0.1, -0.25], [0.1, -0.25]].map(([x, z]) => pieza(g, caja, MF(0x3a2a20), x, 0.14, z, 0.05, 0.3, 0.05));
+      g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); g.scale.setScalar(1.5);
+      const casa = sitioAnillo(); FA.zorros.push({ g, patas, casa, x: casa.x, z: casa.z, tx: casa.x, tz: casa.z, espera: 0, yaw: 0 });
+    }
+  }
   // estanque con juncos y piedras
   {
     const agua = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshStandardMaterial({ color: 0x3a8fb7, roughness: 0.15, metalness: 0.1 }));
@@ -683,7 +743,7 @@ uniform float uRafaga;
     const junco = LEAF(0x5c8a3a), geos = [];
     for (let k = 0; k < 60; k++) { const a = rand() * Math.PI * 2, g = new THREE.CylinderGeometry(0.03, 0.04, 0.8 + rand() * 0.6, 4); g.translate(ESTANQUE.x + Math.cos(a) * ESTANQUE.rx * (1.02 + rand() * 0.12), 0.45, ESTANQUE.z + Math.sin(a) * ESTANQUE.rz * (1.02 + rand() * 0.12)); geos.push(g); }
     root.add(new THREE.Mesh(mergeGeometries(geos), junco));
-    for (let k = 0; k < 4; k++) { const n = new THREE.Mesh(new THREE.CircleGeometry(0.4, 10), LEAF(0x4f8a34)); n.rotation.x = -Math.PI / 2; n.position.set(ESTANQUE.x + (rand() - 0.5) * 8, 0.04, ESTANQUE.z + (rand() - 0.5) * 3); root.add(n); }   // nenúfares
+    for (let k = 0; k < 4; k++) { const n = new THREE.Mesh(new THREE.CircleGeometry(0.4, 10), LEAF(0x4f8a34)); n.rotation.x = -Math.PI / 2; n.position.set(ESTANQUE.x + (rand() - 0.5) * 8, 0.04, ESTANQUE.z + (rand() - 0.5) * 3); root.add(n); nenufares.push(n.position); }   // nenúfares
   }
   // arbustos con flores, rocas con musgo, troncos caídos, hongos y colmenas
   {
@@ -2003,6 +2063,7 @@ uniform float uRafaga;
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     crisisVis(s, t, dt);
     efectos(s, dt);
+    animarFauna(s, dt, t);
     volar(dt);
     // el centro de la vista no se sale del terreno: se puede recorrer la granja pero no perderse fuera del orbe
     { const t0 = controls.target, dx = t0.x - CENTER.x, dz = t0.z - CENTER.z, d = Math.hypot(dx, dz), y = THREE.MathUtils.clamp(t0.y, 0.3, 14);
@@ -2023,6 +2084,67 @@ uniform float uRafaga;
     scene.matrixWorldAutoUpdate = false; labelRenderer.render(scene, camera); scene.matrixWorldAutoUpdate = true;
   }
 
+  // la fauna se mueve sola (solo es vista: cuántos se ven depende de la simulación)
+  function animarFauna(s, dt, t) {
+    const F = s.fauna; if (!F) return;
+    const h = (s.t % MIN_DIA) / 60, noche = h < 6 || h > 20, dtt = Math.min(dt, 0.1);
+    const andar = (b, vel, radio) => {
+      if (b.espera > 0) { b.espera -= dtt; return false; }
+      const dx = b.tx - b.x, dz = b.tz - b.z, d = Math.hypot(dx, dz);
+      if (d < 0.15) { b.espera = 1 + Math.random() * 4; for (let i = 0; i < 6; i++) { const a = Math.random() * 6.28, r = Math.random() * radio, x = b.casa.x + Math.cos(a) * r, z = b.casa.z + Math.sin(a) * r; if (libreAnillo(x, z)) { b.tx = x; b.tz = z; break; } } return false; }
+      const k = Math.min(1, vel * dtt / d); b.x += dx * k; b.z += dz * k; b.yaw = Math.atan2(dx, dz); return true;
+    };
+    // conejos: saltitos y paradas a comer
+    const nc = Math.min(FA.conejos.length, Math.round(F.conejos));
+    FA.conejos.forEach((b, i) => {
+      b.g.visible = i < nc; if (!b.g.visible) return;
+      const mueve = andar(b, 1.6, 4);
+      b.fase = mueve ? b.fase + dtt * 9 : 0;
+      b.g.position.set(b.x, mueve ? Math.abs(Math.sin(b.fase)) * 0.35 : 0, b.z); b.g.rotation.y = b.yaw;
+      b.cab.rotation.x = mueve ? 0 : 0.45 + Math.sin(t * 6 + i) * 0.08;   // come pasto
+    });
+    // pájaros: vuelan en círculos sobre el orbe; de noche duermen (no se ven)
+    const np = noche ? 0 : Math.min(FA.pajaros.length, Math.round(F.pajaros / 4));
+    FA.pajaros.forEach((b, i) => {
+      b.g.visible = i < np; if (!b.g.visible) return;
+      b.ang += dtt * b.vel; const x = CENTER.x + Math.cos(b.ang) * b.radio, z = CENTER.z + Math.sin(b.ang) * b.radio * 0.8;
+      b.g.position.set(x, b.alto + Math.sin(t * 0.7 + b.fase) * 0.8, z); b.g.rotation.y = Math.atan2(-Math.sin(b.ang), Math.cos(b.ang) * 0.8);
+      const aleteo = Math.sin(t * 14 + b.fase) * 0.7; b.alas[0].rotation.z = aleteo; b.alas[1].rotation.z = -aleteo;
+    });
+    // peces: sombras que nadan; de vez en cuando uno salta
+    const nf = Math.min(FA.peces.length, Math.round(F.peces / 15));
+    FA.peces.forEach((b, i) => {
+      b.g.visible = i < nf; if (!b.g.visible) return;
+      b.ang += dtt * b.vel; b.g.position.x = ESTANQUE.x + Math.cos(b.ang) * ESTANQUE.rx * b.r; b.g.position.z = ESTANQUE.z + Math.sin(b.ang) * ESTANQUE.rz * b.r;
+      b.g.rotation.z = -b.ang + (b.vel > 0 ? 0 : Math.PI);
+    });
+    const S = FA.salto;
+    if (S.t < 0) { S.espera -= dtt; if (S.espera <= 0 && nf > 0) { S.t = 0; const a = Math.random() * 6.28, r = Math.random() * 0.7; S.x = ESTANQUE.x + Math.cos(a) * ESTANQUE.rx * r; S.z = ESTANQUE.z + Math.sin(a) * ESTANQUE.rz * r; S.dir = Math.random() * 6.28; } }
+    else {
+      S.t += dtt; const p = S.t / 0.9;
+      S.g.visible = p < 1; S.g.position.set(S.x + Math.cos(S.dir) * (p - 0.5) * 1.2, Math.sin(Math.min(1, p) * Math.PI) * 0.9, S.z + Math.sin(S.dir) * (p - 0.5) * 1.2);
+      S.g.rotation.set(-(p - 0.5) * 2.4, -S.dir + Math.PI / 2, 0);
+      S.onda.visible = p > 0.95 && p < 2.2; if (S.onda.visible) { const r = 0.2 + (p - 0.95) * 0.9; S.onda.scale.set(r, r, 1); S.onda.position.set(S.x + Math.cos(S.dir) * 0.6, 0.05, S.z + Math.sin(S.dir) * 0.6); S.onda.material.opacity = 0.6 * (1 - (p - 0.95) / 1.25); }
+      if (p > 2.2) { S.t = -1; S.espera = 10 / Math.max(0.3, nf / 4) * (0.5 + Math.random()); }
+    }
+    // ranas: en los nenúfares y la orilla; de vez en cuando se zambullen
+    const nr = Math.min(FA.ranas.length, Math.round(F.ranas / 5));
+    FA.ranas.forEach((b, i) => {
+      b.salta -= dtt; if (b.salta < 0) { b.salta = 6 + Math.random() * 10; b.oculta = Math.random() < 0.3; }
+      b.g.visible = i < nr && !b.oculta; if (!b.g.visible) return;
+      const n = nenufares[i % Math.max(1, nenufares.length)];
+      if (n && i < nenufares.length) b.g.position.set(n.x, 0.05, n.z); else { const a = i * 2.1; b.g.position.set(ESTANQUE.x + Math.cos(a) * ESTANQUE.rx * 1.06, 0.03, ESTANQUE.z + Math.sin(a) * ESTANQUE.rz * 1.06); }
+      b.g.rotation.y = i * 1.3; b.g.scale.y = 1.6 * (1 + Math.max(0, Math.sin(t * 5 + i * 3)) * 0.12);   // respira (y canta de noche)
+    });
+    // zorros: aparecen al atardecer y de noche; con hambre se acercan más
+    const nz = h > 17.5 || h < 6.5 ? Math.min(FA.zorros.length, Math.ceil(F.zorros - 0.2)) : 0;
+    FA.zorros.forEach((b, i) => {
+      b.g.visible = i < nz; if (!b.g.visible) return;
+      const mueve = andar(b, 2.2, 7);
+      b.g.position.set(b.x, 0, b.z); b.g.rotation.y = b.yaw;
+      b.patas.forEach((p, j) => { p.rotation.x = mueve ? Math.sin(t * 10 + j * Math.PI) * 0.5 : 0; });
+    });
+  }
   // ------------------------------------------------------------ efectos flotantes: corazones, charla, discusión, kikirikí
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const efectosVis = new Map();
@@ -2327,7 +2449,7 @@ uniform float uRafaga;
     seleccionar(i) { seleccion = i; },
     _vis: vis,   // (depuración)
     _fuegos: fuegosVis,
-    _renderer: renderer, _scene: scene, _lotes: lotes, _camara: camera, _controles: controls,
+    _renderer: renderer, _scene: scene, _lotes: lotes, _fauna: FA, _camara: camera, _controles: controls,
     // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
     proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,
