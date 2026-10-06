@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14131a">
+<title>Bóveda genética</title>
+<link rel="stylesheet" href="motor/ui.css">
+<style>
+  body { background: radial-gradient(ellipse at 50% 30%, #2f3a36 0%, #1d2422 55%, #0f1312 100%); }
+  .arriba { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px; z-index: 5; display: flex; gap: 6px; align-items: center; pointer-events: none; } .arriba > * { pointer-events: auto; }
+  .pill { background: rgba(18,22,20,.82); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; color: inherit; text-decoration: none; }
+  #titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  #apunta { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(148px + env(safe-area-inset-bottom)); z-index: 7; width: min(440px, calc(100vw - 16px)); background: rgba(22,28,26,.97); border: 1px solid rgba(124,195,106,.6); border-radius: 14px; padding: 10px 12px; font-size: 13px; }
+  #apunta.off { display: none; } #apunta .fila2 { display: flex; gap: 8px; margin-top: 8px; } #apunta .fila2 button { flex: 1; min-height: 42px; }
+  #hoja { position: fixed; left: 0; right: 0; bottom: 0; height: var(--h, 148px); z-index: 6; display: flex; flex-direction: column; background: rgba(18,24,22,.97); border-top: 1px solid rgba(255,255,255,.14); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.4); transition: height .28s ease; padding-bottom: env(safe-area-inset-bottom); }
+  #hoja.arrastrando { transition: none; }
+  .asa { height: 22px; flex: none; display: grid; place-items: center; cursor: grab; touch-action: none; } .asa::before { content: ''; width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); }
+  .controles { display: flex; gap: 4px; align-items: center; padding: 0 10px 6px; flex: none; }
+  .controles button { min-height: 38px; min-width: 40px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; padding: 0 10px; }
+  .controles button.on { background: rgba(231,196,106,.95); color: #1b1a17; border-color: transparent; } .controles .sep { flex: 1; } .controles .fondos { font-size: 13px; font-weight: 700; color: #e7c46a; padding: 0 6px; white-space: nowrap; }
+  .pestanas { display: flex; flex: none; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .pestanas button { flex: 1; min-height: 46px; background: none; border: 0; border-bottom: 3px solid transparent; font-size: 12px; font-weight: 700; cursor: pointer; opacity: .7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+  .pestanas button span { font-size: 17px; line-height: 1; } .pestanas button.on { opacity: 1; border-bottom-color: #7cc36a; color: #c8f0b8; } .pestanas .badge { font-size: 10px; background: #e0574f; color: #fff; border-radius: 99px; padding: 0 5px; margin-left: 2px; }
+  #cuerpo { flex: 1; overflow-y: auto; padding: 12px 12px 18px; font-size: 13.5px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  @media (min-width: 900px) { #hoja { left: auto; right: 12px; top: 12px; bottom: 12px; width: 410px; height: auto !important; border-radius: 16px; border: 1px solid rgba(255,255,255,.14); } .asa { display: none; } .controles { padding-top: 10px; } .arriba { right: 434px; } #apunta { left: calc(50% - 211px); bottom: 24px; } }
+  h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #9fdc8e; margin: 14px 0 6px; font-weight: 700; } h3:first-child { margin-top: 2px; }
+  .nota { font-size: 12px; opacity: .72; line-height: 1.45; margin: 6px 0; }
+  .ind { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; } .ind div { background: rgba(255,255,255,.05); border-radius: 10px; padding: 8px; text-align: center; } .ind b { display: block; font-size: 18px; } .ind small { font-size: 11px; opacity: .7; }
+  .tarjeta { background: rgba(255,255,255,.045); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; border-left: 4px solid var(--c, #7cc36a); }
+  .tarjeta.alerta { --c: #e0574f; background: rgba(224,87,79,.08); } .tarjeta b.t { font-size: 14px; display: block; margin-bottom: 3px; }
+  .sp { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,.045); border-radius: 12px; padding: 9px 10px; margin-bottom: 6px; cursor: pointer; min-height: 52px; }
+  .sp.muerta { opacity: .55; } .sp .pt { width: 26px; height: 26px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 14px; }
+  .sp .q { flex: 1; min-width: 0; } .sp .q b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sp .q small { display: block; font-size: 11.5px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sp .tag, .tag { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.1); white-space: nowrap; } .tag.ok { background: rgba(124,195,106,.3); } .tag.mal { background: rgba(224,87,79,.3); } .tag.oro { background: rgba(231,196,106,.3); }
+  .gen { display: grid; grid-template-columns: 108px 1fr 34px; gap: 6px; align-items: center; font-size: 12.5px; margin: 4px 0; } .gen u { position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); text-decoration: none; overflow: hidden; } .gen u i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: #7cc36a; } .gen em { font-style: normal; text-align: right; opacity: .8; }
+  .boton { min-height: 40px; } .acc { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; } .acc .boton { flex: 1; }
+  .chips { gap: 6px; } .chips button { min-height: 36px; font-size: 12.5px; }
+  .volverF { background: none; border: 0; color: #9fdc8e; font-weight: 700; font-size: 13.5px; cursor: pointer; padding: 4px 0 8px; }
+  .cajon { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; background: rgba(255,255,255,.045); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
+  .cajon .n { font-weight: 800; opacity: .6; text-align: center; font-size: 12px; } .cajon .q b { display: block; font-size: 13px; } .cajon .v { height: 6px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 4px; } .cajon .v i { display: block; height: 100%; }
+  .cajon .bs { display: flex; gap: 4px; } .cajon .bs button { min-width: 38px; min-height: 38px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 9px; cursor: pointer; font-size: 15px; }
+  .mejora { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.045); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; font-size: 12.5px; } .mejora em { font-style: normal; font-size: 22px; } .mejora .q { flex: 1; } .mejora .q b { display: block; font-size: 13px; }
+  .eleg { display: grid; gap: 5px; max-height: 240px; overflow-y: auto; } .eleg button { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; cursor: pointer; min-height: 40px; } .eleg button.on { border-color: #7cc36a; background: rgba(124,195,106,.16); } .eleg button:disabled { opacity: .4; }
+  .rango { position: relative; height: 10px; border-radius: 5px; background: rgba(255,255,255,.08); } .rango i { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: rgba(124,195,106,.6); } .rango b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; }
+  svg.graf { height: 70px; } .leyenda { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; margin: 4px 0 6px; } .leyenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--c); }
+  input[type=text] { min-height: 40px; font-size: 14px; width: 100%; }
+  #menu { right: 8px; bottom: calc(160px + env(safe-area-inset-bottom)); width: min(300px, calc(100vw - 16px)); } @media (min-width: 900px) { #menu { right: 434px; bottom: 24px; } }
+  .modoSiembra #stage canvas { cursor: crosshair; }
+</style>
+</head>
+<body>
+<div id="loader">ABRIENDO LA BÓVEDA…</div>
+<div id="stage"></div>
+<div class="arriba"><a class="pill" href="index.html">←</a><div class="pill" id="titulo">Bóveda genética</div><div class="pill" id="clima">🌡️ —</div></div>
+<div id="apunta" class="off"></div>
+<div class="panel off" id="menu"></div>
+<section id="hoja"><div class="asa" id="asa"></div><div class="controles" id="controles"></div><nav class="pestanas" id="pestanas"></nav><div id="cuerpo"></div></section>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { crearOrbe, THREE } from './motor/orbe3d.js';
+import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlGrafica, guardarJSON, cargarJSON } from './motor/ui.js';
+import * as S from './boveda/sim.js';
+import { crearEscena } from './boveda/escena.js';
+
+const CLAVE = 'orbe-boveda', escritorio = () => innerWidth >= 900;
+const O = crearOrbe($('#stage'), { radio: 46, colorSuelo: 0x23402a, colorBase: 0x262a24, camara: { pos: new THREE.Vector3(0, 70, 84), target: new THREE.Vector3(0, 0, 2) } });
+const ESC = crearEscena(O);
+const pct = (x) => `${Math.round(x * 100)} %`;
+const nom = (sp) => sp ? (sp.comun || sp.nombre) : '?';
+const icoForma = { pasto: '🌿', flor: '🌸', arbusto: '🌳', arbol: '🌳', cactus: '🌵', cereal: '🌾', mata: '🌱', conifera: '🌲' };
+const colorSp = (sp) => `hsl(${Math.round((sp.forma === 'flor' && sp.flor >= 0 ? sp.flor : sp.hue) * 360)},${sp.forma === 'flor' ? 70 : 45}%,${sp.forma === 'flor' ? 60 : 42}%)`;
+
+let E = null, mult = 1, acum = 0, tUI = 0, tGuardar = 0, tab = 'orbe', vista = null, celdaSel = null, siembra = null, filtro = 'vivas', famF = null, labA = null, labB = null, pedidoAbierto = null;
+const menuP = panel($('#menu'));
+
+// ---------------------------------------------------------------- hoja deslizable (como en Civilizaciones)
+const hoja = $('#hoja'), ALTOS = () => [148, Math.round(innerHeight * 0.5), Math.round(innerHeight * 0.86)]; let nivelHoja = 1;
+function ponerHoja(n, anim = true) { nivelHoja = Math.max(0, Math.min(2, n)); hoja.classList.toggle('arrastrando', !anim); hoja.style.setProperty('--h', `${ALTOS()[nivelHoja]}px`); setTimeout(encuadre, anim ? 300 : 0); }
+{ let y0 = null, h0 = 0; const asa = $('#asa');
+  asa.addEventListener('pointerdown', (e) => { y0 = e.clientY; h0 = hoja.getBoundingClientRect().height; asa.setPointerCapture(e.pointerId); hoja.classList.add('arrastrando'); });
+  asa.addEventListener('pointermove', (e) => { if (y0 != null) hoja.style.setProperty('--h', `${Math.max(110, Math.min(innerHeight * 0.92, h0 + (y0 - e.clientY)))}px`); });
+  const soltar = (e) => { if (y0 == null) return; const dy = y0 - e.clientY, h = h0 + dy; y0 = null; hoja.classList.remove('arrastrando'); if (Math.abs(dy) < 6) return ponerHoja(nivelHoja === 0 ? 1 : nivelHoja === 1 ? 2 : 0); const A = ALTOS(); let m = 0; A.forEach((a, i) => { if (Math.abs(a - h) < Math.abs(A[m] - h)) m = i; }); ponerHoja(m); };
+  asa.addEventListener('pointerup', soltar); asa.addEventListener('pointercancel', soltar); }
+function encuadre() { const W = innerWidth, H = innerHeight; if (escritorio()) O.camera.setViewOffset(W, H, 205, 0, W, H); else { const h = hoja.getBoundingClientRect().height; O.camera.setViewOffset(W, H, 0, Math.min(h * 0.5, H * 0.33), W, H); } O.camera.updateProjectionMatrix(); }
+addEventListener('resize', () => { if (!escritorio()) ponerHoja(nivelHoja, false); encuadre(); });
+
+// ---------------------------------------------------------------- controles
+const ctr = $('#controles');
+const vel = barraVelocidades(ctr, [['⏸', 0], ['×1', 1], ['×5', 5], ['×20', 20]], 'boveda-vel', 1, (m) => { mult = m; });
+ctr.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+const fondosEl = Object.assign(document.createElement('div'), { className: 'fondos', title: 'Fondos de la bóveda' }); ctr.append(fondosEl);
+const bMas = Object.assign(document.createElement('button'), { textContent: '⋯' }); bMas.onclick = () => { pintarMenu(); menuP.alternar(); }; ctr.append(bMas);
+function pintarMenu() {
+  $('#menu').innerHTML = `<div class="cab"><b>Más</b><button data-cerrar>×</button></div><div class="ops">
+    <button id="mNuevo">🌍 Otro orbe<small>Un mundo nuevo con otra semilla (el actual se reemplaza)</small></button>
+    <button id="mGuardar">💾 Guardar ahora</button><button id="mAyuda">❔ Cómo se juega</button></div><div class="acc" id="mCal"></div>`;
+  $('#mNuevo').onclick = () => { if (!confirm('¿Empezar un orbe nuevo? Se pierde el actual.')) return; menuP.cerrar(); nuevo(Math.floor(Math.random() * 99999) + 1); };
+  $('#mGuardar').onclick = () => { guardar(); aviso('Guardado.'); };
+  $('#mAyuda').onclick = () => { menuP.cerrar(); aviso('Toca el orbe para ver qué crece en cada lugar y recolecta semillas. Guárdalas en la bóveda (pierden viabilidad: regenéralas). Cruza cultivos con parientes silvestres para darles resistencia y entrégalos a las aldeas cuando lo pidan. Si algo se extingue, siémbralo de nuevo desde la bóveda.', 12000); };
+  const cal = botonCalidad($('#mCal'), guardar); cal.className = 'boton';
+}
+
+// ---------------------------------------------------------------- pestañas
+const TABS = [['orbe', '🌍', 'Orbe'], ['especies', '🌱', 'Especies'], ['boveda', '🏛️', 'Bóveda'], ['lab', '🧪', 'Lab'], ['cronica', '📈', 'Crónica']];
+const cuerpo = $('#cuerpo');
+function pintarTodo(forzar) {
+  const pend = E.peticiones.filter((p) => !p.cerrada).length;
+  pintarSi($('#pestanas'), TABS.map(([k, e, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}"><span>${e}</span>${n}${k === 'orbe' && pend ? `<i class="badge">${pend}</i>` : ''}</button>`).join(''));
+  const I = S.indicadores(E);
+  $('#titulo').textContent = `🏛️ Año ${E.año} · 🌱 ${I.vivas} especies · 🗄️ ${I.guardadas}`;
+  $('#clima').textContent = `🌡️ ${E.clima.T.toFixed(1)}° · 💧 ${pct(E.clima.lluvia)}`;
+  fondosEl.textContent = `💰 ${Math.floor(E.fondos)}`;
+  const h = tab === 'orbe' ? htmlOrbe(I) : tab === 'especies' ? (vista ? htmlEspecie(vista) : htmlEspecies()) : tab === 'boveda' ? htmlBoveda() : tab === 'lab' ? htmlLab() : htmlCronica();
+  if (forzar) cuerpo._html = null; pintarSi(cuerpo, h);
+}
+$('#pestanas').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; if (tab === b.dataset.tab && !escritorio() && nivelHoja > 0) return ponerHoja(nivelHoja === 1 ? 2 : 1); tab = b.dataset.tab; vista = null; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintarTodo(true); cuerpo.scrollTop = 0; });
+
+// ---------------------------------------------------------------- 🌍 el orbe: indicadores, clima, pedidos, aldeas y lo que crece donde tocaste
+function htmlGenes(g, compacto = false) { return S.GENES.filter((x) => !compacto || x[0] !== 'dispersion').map(([k, n]) => `<div class="gen"><span>${n}</span><u><i style="left:0;width:${g[k] * 100}%"></i></u><em>${Math.round(g[k] * 100)}</em></div>`).join(''); }
+function htmlCelda() {
+  if (celdaSel == null || celdaSel < 0) return '';
+  const M = E.mapa, i = celdaSel; if (M.agua[i]) return `<h3>📍 Lugar elegido</h3><p class="nota">Agua: aquí no crecen plantas.</p>`;
+  const [t, h] = S.climaCelda(E, i), sps = E.especies.filter((s) => s.extinta == null && s.b[i] > 0.04).sort((a, b) => b.b[i] - a.b[i]).slice(0, 8);
+  return `<h3>📍 Lugar elegido</h3><div class="tarjeta"><b class="t">🌡️ ${t.toFixed(1)} °C · 💧 humedad ${pct(h)} · ⛰️ altura ${pct(M.elev[i])}</b>
+    ${sps.length ? sps.map((s) => { const g = E.boveda.find((m) => m.sp === s.id && !m.muerta); return `<div class="sp" data-sp="${s.id}"><div class="pt" style="background:${colorSp(s)}">${icoForma[s.forma]}</div><div class="q"><b>${esc(nom(s))}</b><small>${S.FAMILIAS[s.fam].e} ${S.FAMILIAS[s.fam].n} · aquí ${pct(Math.min(1, s.b[i]))}${g ? ` · 🗄️ cajón ${g.cajon}` : ''}</small></div><button class="boton" data-recolectar="${s.id}" style="min-height:38px;padding:4px 10px">🌰 ${S.COSTOS.recolectar}</button></div>`; }).join('') : '<p class="nota">Aquí no crece nada todavía.</p>'}
+    <div class="acc"><button class="boton" data-act="sembrarAqui">🌱 Sembrar aquí desde la bóveda</button></div></div>`;
+}
+function htmlOrbe(I) {
+  let h = htmlCelda();
+  h += `<div class="ind"><div><b>${I.vivas}</b><small>especies vivas</small></div><div><b>${I.guardadas}</b><small>en la bóveda</small></div><div><b style="color:${I.perdidas ? '#ff8a80' : 'inherit'}">${I.perdidas}</b><small>perdidas para siempre</small></div>
+    <div><b>${I.rescatadas}</b><small>rescatadas</small></div><div><b>${I.aldeas}/${E.aldeas.length}</b><small>aldeas vivas</small></div><div><b>${pct(I.seguridad)}</b><small>alimento</small></div></div>`;
+  const pend = E.peticiones.filter((p) => !p.cerrada);
+  if (pend.length) { h += `<h3>📜 Pedidos de las aldeas</h3>`; for (const p of pend) { h += `<div class="tarjeta alerta"><b class="t">${esc(p.aldea)} · vence en ${p.vence - E.año} años</b>${esc(p.texto)}<div class="nota">Necesita: misma familia (${S.FAMILIAS[p.fam].e} ${S.FAMILIAS[p.fam].n}), rendimiento ≥ ${Math.round(p.rinde * 100)}, que se dé con ${p.t} °C y humedad ${pct(p.h)}${p.plaga ? `, resistencia a plagas ≥ ${Math.round(p.plaga * 100)}` : ''}. Premio: 💰 ${p.premio}.</div>
+      <div class="acc"><button class="boton prim" data-pedido="${p.id}">${pedidoAbierto === p.id ? '▲ Cerrar' : '🌾 Elegir variedad de la bóveda'}</button></div>${pedidoAbierto === p.id ? htmlEntrega(p) : ''}</div>`; } }
+  const ev = E.eventos.filter((v) => v.hasta >= E.año && v.grande);
+  if (ev.length) h += `<h3>⚠️ El clima ahora</h3>${ev.map((v) => `<div class="tarjeta alerta">${esc(v.txt)} <span class="nota">(${v.hasta - E.año} años más)</span></div>`).join('')}`;
+  h += `<h3>🏘️ Aldeas</h3>${E.aldeas.map((a) => { const sp = S.especie(E, a.cultivo); return `<div class="tarjeta" style="--c:${a.viva ? (a.comida > 0.6 ? '#7cc36a' : '#e3b04b') : '#666'}"><b class="t">${a.viva ? '🏘️' : '🏚️'} ${esc(a.nombre)}</b>${a.viva ? `Cultivan ${esc(nom(sp))} · cosecha ${pct(Math.min(1, a.comida))} · ${Math.round(a.pob)} personas` : 'Abandonada por el hambre.'}</div>`; }).join('')}`;
+  h += `<p class="nota">Toca el orbe para ver qué crece en cada lugar. Recolecta antes de que el clima cambie: los parientes silvestres guardan genes (frío, sequía, plagas) que tus cultivos van a necesitar.</p>`;
+  return h;
+}
+function htmlEntrega(p) {
+  const ms = E.boveda.filter((m) => !m.muerta && S.especie(E, m.sp)?.fam === p.fam);
+  if (!ms.length) return `<p class="nota">No tienes muestras de ${S.FAMILIAS[p.fam].n.toLowerCase()} en la bóveda. Recolecta y cruza en 🧪 Lab.</p>`;
+  return `<div class="eleg" style="margin-top:8px">${ms.map((m) => { const r = S.evaluarEntrega(E, p.id, m.id), sp = S.especie(E, m.sp), mal = []; if (!r.rinde) mal.push('rinde poco'); if (r.apt < 0.55) mal.push(`clima ${pct(r.apt)}`); if (!r.plaga) mal.push('sin resistencia'); if (r.viab <= 0.2) mal.push('semilla muerta');
+    return `<button data-entregar="${m.id}" data-pet="${p.id}" class="${r.ok ? 'on' : ''}"><b>${r.ok ? '✅' : '❌'} ${esc(nom(sp))}</b> · cajón ${m.cajon}<br><small style="opacity:.75">${r.ok ? `rendiría ${pct(Math.min(1, r.y))} en sus campos` : mal.join(' · ')}</small></button>`; }).join('')}</div>`;
+}
+
+// ---------------------------------------------------------------- 🌱 especies
+function htmlEspecies() {
+  const guard = new Set(E.boveda.filter((m) => !m.muerta).map((m) => m.sp));
+  let L = E.especies.filter((s) => (filtro === 'vivas' ? s.extinta == null : filtro === 'boveda' ? guard.has(s.id) : filtro === 'extintas' ? s.extinta != null && !s.soloBoveda : true) && (!famF || s.fam === famF));
+  L.sort((a, b) => (b.extinta == null) - (a.extinta == null) || b.total - a.total);
+  return `<div class="chips">${[['vivas', 'Vivas'], ['boveda', 'En la bóveda'], ['extintas', 'Extintas'], ['todas', 'Todas']].map(([k, n]) => `<button data-filtro="${k}" class="${filtro === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="chips" style="margin-top:6px"><button data-fam="" class="${!famF ? 'on' : ''}">Todas las familias</button>${Object.entries(S.FAMILIAS).map(([k, f]) => `<button data-fam="${k}" class="${famF === k ? 'on' : ''}">${f.e} ${f.n}</button>`).join('')}</div><div style="margin-top:8px">
+    ${L.slice(0, 80).map((s) => `<div class="sp ${s.extinta != null ? 'muerta' : ''}" data-sp="${s.id}"><div class="pt" style="background:${colorSp(s)}">${icoForma[s.forma]}</div><div class="q"><b>${esc(nom(s))}</b><small><i>${esc(s.nombre)}</i> · ${S.FAMILIAS[s.fam].e} ${s.cultivo ? '· 🌾 cultivo' : ''} ${s.origen !== 'silvestre' ? `· ${s.origen}` : ''}</small></div>
+      ${s.extinta != null ? (s.soloBoveda ? '<span class="tag oro">🧪 sin sembrar</span>' : '<span class="tag mal">extinta</span>') : `<span class="tag">${Math.round(s.total)}</span>`}${guard.has(s.id) ? '<span class="tag ok">🗄️</span>' : ''}</div>`).join('') || '<p class="nota">Ninguna.</p>'}</div>`;
+}
+function htmlEspecie(id) {
+  const s = S.especie(E, id); if (!s) { vista = null; return htmlEspecies(); }
+  const [tMin, tMax] = S.rangoT(s.g), [hMin, hMax] = S.rangoH(s.g), guard = E.boveda.filter((m) => m.sp === s.id && !m.muerta);
+  const T0 = -25, T1 = 50, xT = (t) => ((t - T0) / (T1 - T0)) * 100;
+  const padres = (s.padres || []).map((p) => S.especie(E, p)).filter(Boolean);
+  const hijos = E.especies.filter((x) => x.padres?.includes(s.id));
+  return `<button class="volverF" data-back>← Especies</button>
+    <div class="sp" style="cursor:default"><div class="pt" style="background:${colorSp(s)}">${icoForma[s.forma]}</div><div class="q"><b>${esc(nom(s))}</b><small><i>${esc(s.nombre)}</i> · ${S.FAMILIAS[s.fam].e} ${S.FAMILIAS[s.fam].n} · ${s.forma}</small></div></div>
+    <p class="nota">${s.extinta != null ? (s.soloBoveda ? '🧪 Nació en el laboratorio: existe solo en la bóveda hasta que la siembres.' : `💀 Extinta en el año ${s.extinta}.${guard.length ? ' Pero hay semillas en la bóveda: puedes revivirla.' : ' No quedan semillas.'}`) : `🌍 Viva · ${Math.round(s.total)} de población (máximo ${Math.round(s.max)}).`} ${s.cultivo ? '🌾 Es un cultivo: rinde mucho, pero en lo silvestre compite mal.' : ''} Origen: ${s.origen}${s.nace ? `, año ${s.nace}` : ''}.</p>
+    <h3>Genes</h3>${htmlGenes(s.g)}
+    <h3>Dónde puede vivir</h3><div class="nota">🌡️ de ${tMin.toFixed(0)} °C a ${tMax.toFixed(0)} °C (el orbe ahora: ${E.clima.T.toFixed(1)} °C en promedio)</div>
+    <div class="rango"><i style="left:${xT(tMin)}%;width:${xT(tMax) - xT(tMin)}%"></i><b style="left:${xT(E.clima.T)}%"></b></div>
+    <div class="nota">💧 humedad de ${pct(Math.max(0, hMin))} a ${pct(Math.min(1, hMax))}</div><div class="rango"><i style="left:${Math.max(0, hMin) * 100}%;width:${(Math.min(1, hMax) - Math.max(0, hMin)) * 100}%"></i><b style="left:${Math.min(100, E.clima.lluvia * 50)}%"></b></div>
+    ${padres.length ? `<h3>Linaje</h3><div class="nota">Hija de ${padres.map((p) => `<a href="#" data-sp="${p.id}" style="color:#9fdc8e">${esc(nom(p))}</a>`).join(' × ')}</div>` : ''}${hijos.length ? `<div class="nota">Dio origen a: ${hijos.slice(0, 8).map((p) => `<a href="#" data-sp="${p.id}" style="color:#9fdc8e">${esc(nom(p))}</a>`).join(', ')}</div>` : ''}
+    <h3>En la bóveda</h3>${guard.length ? guard.map((m) => `<div class="nota">🗄️ Cajón ${m.cajon} · viabilidad ${pct(m.viab)} · ${m.cant || 1} sobres</div>`).join('') : '<p class="nota">Sin semillas guardadas.</p>'}
+    <div class="acc">${s.extinta == null ? `<button class="boton" data-ir="${s.id}">🎯 Ver dónde vive</button><button class="boton prim" data-recolectar="${s.id}">🌰 Recolectar · ${S.COSTOS.recolectar}</button>` : ''}${guard.length ? `<button class="boton" data-sembrar="${guard[0].id}">🌱 Sembrar</button>` : ''}</div>`;
+}
+
+// ---------------------------------------------------------------- 🏛️ la bóveda: cajones, invernadero y mejoras
+function htmlBoveda() {
+  const cap = S.capacidad(E), inv = S.nivelDe(E, 'invernadero');
+  let h = `<div class="ind"><div><b>${E.boveda.length}/${cap}</b><small>cajones</small></div><div><b>${E.invernadero.length}/${inv}</b><small>regenerando</small></div><div><b>${pct(S.nivelDe(E, 'frio') * 10)}</b><small>pérdida al año</small></div></div>`;
+  h += `<h3>🗄️ Cajones</h3>`;
+  const ms = [...E.boveda].sort((a, b) => a.cajon - b.cajon);
+  h += ms.length ? ms.map((m) => { const sp = S.especie(E, m.sp), reg = E.invernadero.find((r) => r.m === m.id), col = m.viab > 0.6 ? '#7cc36a' : m.viab > 0.3 ? '#e3b04b' : '#e0574f';
+    return `<div class="cajon"><div class="n">${m.cajon}</div><div class="q"><b>${sp ? `<span style="color:${colorSp(sp)}">${icoForma[sp.forma]}</span> ${esc(nom(sp))}` : '?'}${m.muerta ? ' 🥀' : ''}</b><small style="opacity:.7">${S.FAMILIAS[sp?.fam]?.e || ''} viabilidad ${pct(m.viab)} · ${m.cant || 1} sobres${reg ? ` · 🏡 lista en ${reg.listo - E.año} años` : ''}${sp?.extinta != null && !sp.soloBoveda ? ' · <b style="color:#ff8a80">extinta afuera</b>' : ''}</small><div class="v"><i style="width:${m.viab * 100}%;background:${col}"></i></div></div>
+      <div class="bs"><button data-sembrar="${m.id}" title="Sembrar" ${m.muerta ? 'disabled' : ''}>🌱</button><button data-regen="${m.id}" title="Regenerar en el invernadero" ${m.muerta || reg ? 'disabled' : ''}>🏡</button><button data-desc="${m.id}" title="Descartar">🗑</button></div></div>`; }).join('') : '<p class="nota">Vacía. Toca el orbe para recolectar semillas.</p>';
+  h += `<h3>🔧 Mejoras</h3>${Object.entries(S.MEJORAS).map(([k, M]) => { const nv = E.mejoras[k], sig = M.niveles[nv + 1]; return `<div class="mejora"><em>${M.e}</em><div class="q"><b>${M.n} · nivel ${nv + 1}/${M.niveles.length}</b>${esc(M.d)}</div>${sig ? `<button class="boton ${E.fondos >= sig[0] ? 'prim' : ''}" data-mejora="${k}">💰 ${sig[0]}</button>` : '<span class="tag ok">máx.</span>'}</div>`; }).join('')}`;
+  h += `<p class="nota">Las semillas pierden viabilidad con los años (más rápido si se va la luz). Regenerarlas en el invernadero tarda 4 años y las deja al 100 %.</p>`;
+  return h;
+}
+
+// ---------------------------------------------------------------- 🧪 laboratorio: cruces
+function htmlLab() {
+  const ms = E.boveda.filter((m) => !m.muerta), A = ms.find((m) => m.id === labA), fA = A ? S.especie(E, A.sp).fam : null;
+  let h = `<p class="nota">Cruza dos variedades de la <b>misma familia</b>. Truco de mejorador: cruza tu cultivo con un pariente silvestre resistente y luego vuelve a cruzar el híbrido con el cultivo (retrocruza) para recuperar el rendimiento sin perder la resistencia.</p>`;
+  h += `<h3>Madre</h3><div class="eleg">${ms.map((m) => { const sp = S.especie(E, m.sp); return `<button data-la="${m.id}" class="${labA === m.id ? 'on' : ''}">${icoForma[sp.forma]} ${esc(nom(sp))} <small style="opacity:.7">· ${S.FAMILIAS[sp.fam].e} · rinde ${Math.round(sp.g.rinde * 100)} · plagas ${Math.round(sp.g.plagas * 100)}</small></button>`; }).join('') || '<p class="nota">Guarda semillas primero.</p>'}</div>`;
+  if (A) h += `<h3>Padre (${S.FAMILIAS[fA].n})</h3><div class="eleg">${ms.filter((m) => m.id !== labA && S.especie(E, m.sp).fam === fA).map((m) => { const sp = S.especie(E, m.sp); return `<button data-lb="${m.id}" class="${labB === m.id ? 'on' : ''}">${icoForma[sp.forma]} ${esc(nom(sp))} <small style="opacity:.7">· frío ${Math.round(sp.g.frio * 100)} · calor ${Math.round(sp.g.calor * 100)} · sequía ${Math.round(sp.g.sequia * 100)} · plagas ${Math.round(sp.g.plagas * 100)}</small></button>`; }).join('') || '<p class="nota">No tienes otra muestra de esa familia.</p>'}</div>`;
+  if (A && labB != null) {
+    const P = S.predecirCruce(E, labA, labB);
+    if (P) h += `<h3>Lo que puede salir</h3><p class="nota">La barra clara es el rango posible; la línea, el promedio de los padres. El laboratorio mejor reduce el azar.</p>${S.GENES.map(([k, n]) => `<div class="gen"><span>${n}</span><u><i style="left:${P.g[k][0] * 100}%;width:${(P.g[k][1] - P.g[k][0]) * 100}%;background:rgba(124,195,106,.55)"></i><i style="left:${P.g[k][2] * 100}%;width:2px;background:#fff"></i></u><em>${Math.round(P.g[k][2] * 100)}</em></div>`).join('')}
+      <h3>Nombre de la variedad</h3><input type="text" id="labNom" maxlength="32" placeholder="Ej.: Trigo resistente de Valleverde"><div class="acc"><button class="boton prim" data-act="cruzar" ${E.fondos < S.COSTOS.cruzar ? 'disabled' : ''}>🧪 Cruzar · 💰 ${S.COSTOS.cruzar}</button></div>`;
+  }
+  return h;
+}
+
+// ---------------------------------------------------------------- 📈 crónica
+function htmlCronica() {
+  const H = E.hist;
+  return `<div class="leyenda"><span style="--c:#7cc36a"><i></i>vivas</span><span style="--c:#8ab4ff"><i></i>en la bóveda</span><span style="--c:#ff8a80"><i></i>perdidas</span></div>${htmlGrafica([{ datos: H.map((x) => x.v), color: '#7cc36a' }, { datos: H.map((x) => x.g), color: '#8ab4ff' }, { datos: H.map((x) => x.p), color: '#ff8a80' }], 70)}
+    <h3>Temperatura media</h3>${htmlGrafica([{ datos: H.map((x) => x.T), color: '#e3b04b' }], 60)}<h3>Alimento de las aldeas</h3>${htmlGrafica([{ datos: H.map((x) => x.s), color: '#d9b44a' }], 60)}
+    <div class="nota" style="display:flex;justify-content:space-between"><span>año ${H[0]?.a ?? 0}</span><span>año ${E.año}</span></div>
+    <h3>Tus números</h3><div class="nota">🌰 ${E.stats.recolectas} recolectas · 🧪 ${E.stats.cruces} cruces · 🌱 ${E.stats.siembras} siembras · 🌾 ${E.stats.entregas} entregas · 🔄 ${E.stats.rescates} especies rescatadas · 🧬 ${E.stats.variedades} mutaciones naturales · 💀 ${E.stats.extinciones} extinciones</div>
+    <h3>Hitos</h3>${htmlDiario(E.hitos, 30)}<h3>Diario</h3>${htmlDiario(E.diario, 40)}`;
+}
+
+// ---------------------------------------------------------------- acciones
+function res(err, ok) { if (err) aviso(err); else { if (ok) aviso(ok); guardar(); } pintarTodo(true); }
+cuerpo.addEventListener('click', (e) => {
+  const q = (s) => e.target.closest(s); let b;
+  if ((b = q('[data-back]'))) { vista = null; return pintarTodo(true); }
+  if ((b = q('[data-recolectar]'))) { const id = +b.dataset.recolectar, sp = S.especie(E, id); let c = celdaSel; if (c == null || !sp || sp.b[c] < 0.05) c = mejorCelda(sp); return res(S.recolectar(E, id, c)); }
+  if ((b = q('[data-sp]'))) { e.preventDefault(); tab = 'especies'; vista = +b.dataset.sp; cuerpo.scrollTop = 0; return pintarTodo(true); }
+  if ((b = q('[data-ir]'))) { const sp = S.especie(E, +b.dataset.ir), c = mejorCelda(sp); if (c >= 0) { celdaSel = c; ESC.marcar(c); O.volar(ESC.posCelda(c), 30); } return; }
+  if ((b = q('[data-filtro]'))) { filtro = b.dataset.filtro; return pintarTodo(true); }
+  if ((b = q('[data-fam]'))) { famF = b.dataset.fam || null; return pintarTodo(true); }
+  if ((b = q('[data-pedido]'))) { pedidoAbierto = pedidoAbierto === +b.dataset.pedido ? null : +b.dataset.pedido; return pintarTodo(true); }
+  if ((b = q('[data-entregar]'))) return res(S.entregar(E, +b.dataset.pet, +b.dataset.entregar), '🌾 ¡Entregada!');
+  if ((b = q('[data-sembrar]'))) { empezarSiembra(+b.dataset.sembrar); return; }
+  if ((b = q('[data-regen]'))) return res(S.regenerar(E, +b.dataset.regen), '🏡 Al invernadero: lista en 4 años.');
+  if ((b = q('[data-desc]'))) { if (confirm('¿Descartar esta muestra?')) res(S.descartar(E, +b.dataset.desc)); return; }
+  if ((b = q('[data-mejora]'))) return res(S.mejorar(E, b.dataset.mejora), '🏛️ Mejora hecha.');
+  if ((b = q('[data-la]'))) { labA = +b.dataset.la; labB = null; return pintarTodo(true); }
+  if ((b = q('[data-lb]'))) { labB = +b.dataset.lb; return pintarTodo(true); }
+  if ((b = q('[data-act]'))) {
+    if (b.dataset.act === 'cruzar') { const r = S.cruzar(E, labA, labB, $('#labNom')?.value.trim() || null); if (r.err) return res(r.err); labA = null; labB = null; aviso(`🧪 Nació ${r.sp.comun}: está en el cajón ${r.m.cajon}. Siémbrala o entrégala.`); tab = 'especies'; vista = r.sp.id; guardar(); return pintarTodo(true); }
+    if (b.dataset.act === 'sembrarAqui') { tab = 'boveda'; aviso('Elige el cajón con 🌱 para sembrar aquí.'); return pintarTodo(true); }
+  }
+});
+function mejorCelda(sp) { if (!sp) return -1; let m = -1, v = 0; for (let i = 0; i < E.mapa.n; i++) if (sp.b[i] > v) { v = sp.b[i]; m = i; } return m; }
+
+// ---------------------------------------------------------------- sembrar: tocar el orbe y confirmar
+function empezarSiembra(mid) {
+  siembra = { m: mid, celda: celdaSel ?? null }; document.body.classList.add('modoSiembra'); if (!escritorio()) ponerHoja(0); pintarApunta();
+}
+function pintarApunta() {
+  const el = $('#apunta'); if (!siembra) { el.classList.add('off'); return; }
+  const m = E.boveda.find((x) => x.id === siembra.m), sp = m && S.especie(E, m.sp); if (!sp) { siembra = null; el.classList.add('off'); return; }
+  let txt = 'Toca el orbe donde quieres sembrar.';
+  if (siembra.celda != null && siembra.celda >= 0) { const [t, h] = S.climaCelda(E, siembra.celda), a = S.aptitud(sp.g, t, h); txt = E.mapa.agua[siembra.celda] ? '⚠️ Eso es agua.' : `Aquí: ${t.toFixed(1)} °C, humedad ${pct(h)} → se daría ${a > 0.6 ? 'bien ✅' : a > 0.3 ? 'regular ⚠️' : 'mal ❌'} (${pct(a)}).`; }
+  el.innerHTML = `<b>🌱 Sembrar ${esc(nom(sp))}</b> · 💰 ${S.COSTOS.sembrar}<div class="nota" style="margin:4px 0 0">${txt}</div><div class="fila2"><button class="boton" data-sa="no">✕ Cancelar</button><button class="boton prim" data-sa="si" ${siembra.celda == null || siembra.celda < 0 ? 'disabled' : ''}>✓ Sembrar aquí</button></div>`;
+  el.classList.remove('off');
+}
+$('#apunta').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sa]'); if (!b || !siembra) return;
+  if (b.dataset.sa === 'si') { const err = S.sembrar(E, siembra.m, siembra.celda); if (err) { aviso(err); return; } guardar(); }
+  siembra = null; document.body.classList.remove('modoSiembra'); pintarApunta(); if (!escritorio()) ponerHoja(1); pintarTodo(true);
+});
+O.alTocar((ev) => {
+  const c = ESC.tocar(ev); if (c == null || c < 0) return;
+  celdaSel = c; ESC.marcar(c);
+  if (siembra) { siembra.celda = c; pintarApunta(); return; }
+  tab = 'orbe'; vista = null; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintarTodo(true); cuerpo.scrollTop = 0;
+});
+
+// ---------------------------------------------------------------- guardar, crear, bucle
+function guardar() { if (E) guardarJSON(CLAVE, S.exportar(E)); }
+addEventListener('pagehide', guardar); document.addEventListener('visibilitychange', () => { if (document.hidden) guardar(); });
+let ultHito = 0;
+function nuevo(semilla) { E = S.crearMundo(semilla); celdaSel = null; ESC.marcar(null); ESC.montar(E); ultHito = E.hitos.length; guardar(); pintarTodo(true); aviso('🏛️ Abre la bóveda. Toca el orbe para empezar a recolectar semillas.', 6000); }
+O.cada((dt, t) => {
+  if (!E) return;
+  if (mult > 0 && !siembra) { acum += dt * mult; let n = 0; const t0 = performance.now(); while (acum >= 1 && n < 30) { S.paso(E); acum -= 1; n++; if (performance.now() - t0 > 24) { acum = Math.min(acum, 1); break; } } }
+  // los hitos nuevos se avisan (pedidos, extinciones, rescates)
+  if (E.hitos.length && E.hitos[0] !== avisoHito) { const nuevos = []; for (const h of E.hitos) { if (h === avisoHito) break; nuevos.push(h); } avisoHito = E.hitos[0]; for (const h of nuevos.slice(0, 2).reverse()) aviso(h.texto, 5000); if (nuevos.some((h) => h.texto.startsWith('📜')) && vel.indice > 1) vel.elegir(1); }
+  const hora = 12 + 7 * Math.sin((t / 140) * Math.PI * 2); const L = O.setHora(hora); ESC.actualizar(E, dt, t, L.noche);
+  tUI += dt; if (tUI > 0.4) { tUI = 0; pintarTodo(); }
+  tGuardar += dt; if (tGuardar > 15) { tGuardar = 0; guardar(); }
+});
+let avisoHito = null; void ultHito;
+const cargado = S.importar(cargarJSON(CLAVE));
+if (cargado) { E = cargado; ESC.montar(E); avisoHito = E.hitos[0] || null; pintarTodo(true); } else nuevo(Math.floor(Math.random() * 99999) + 1);
+avisoHito = E.hitos[0] || null;
+ponerHoja(1, false); encuadre();
+setTimeout(() => { $('#loader').style.opacity = '0'; setTimeout(() => $('#loader').remove(), 600); }, 300);
+window.boveda = { get E() { return E; }, S, ESC, O };
+</script>
+</body>
+</html>
