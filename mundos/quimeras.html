@@ -21,6 +21,10 @@
   .barra .sep { width: 1px; background: rgba(255,255,255,.18); margin: 4px 3px; } .barra #vels { display: flex; gap: 2px; }
   .barra button .ic { margin-right: 4px; }
   .avisos { top: 74px; }
+  .locutor { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none; width: min(560px, calc(100vw - 24px)); text-align: center; font: 700 14px/1.35 Georgia, "Times New Roman", serif; color: #ffe9b8; text-shadow: 0 2px 6px rgba(0,0,0,.9); opacity: 0; transition: opacity .4s; }
+  .locutor.on { opacity: 1; } .locutor.coro { color: #fff; font: 800 17px/1.3 system-ui, sans-serif; letter-spacing: .06em; }
+  .epico { position: fixed; inset: 0; z-index: 4; pointer-events: none; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(40,0,0,.55) 100%); opacity: 0; transition: opacity .35s; }
+  .epico.on { opacity: 1; } .epico b { font: 900 clamp(42px, 11vw, 92px)/1 Georgia, serif; color: #ffd84a; letter-spacing: .08em; text-shadow: 0 4px 18px rgba(0,0,0,.85), 0 0 3px #000; transform: scale(.7); transition: transform 1.6s cubic-bezier(.2,.8,.2,1); } .epico.on b { transform: scale(1); }
   .panel h5 { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #e7c46a; margin: 10px 0 5px; font-weight: 600; }
   .fila { margin-bottom: 7px; } .fila > span { font-size: 11px; opacity: .7; display: block; margin-bottom: 3px; }
   .chips.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding-bottom: 3px; } .chips.scroll button { white-space: nowrap; }
@@ -43,7 +47,7 @@
   .col .card .grid { font-size: 11.5px; }
   @media (max-width: 640px) {
     .hud { top: 44px; width: calc(100vw - 16px); padding: 5px 9px; gap: 6px; } .hud .lado b { font-size: 12px; }
-    .avisos { top: 108px; }
+    .avisos { top: 108px; } .locutor { top: 104px; font-size: 13px; }
     .barra button { padding: 7px 9px; } .barra button .tx { display: none; } .barra button .ic { margin: 0; }
     .col.izq, .col.der { display: none; } body.verFicha .col.izq:not(.off) { display: flex; } body.verDiario .col.der:not(.off) { display: flex; }
     body.verFicha.verDiario .col.der { display: none; }
@@ -76,6 +80,8 @@
 <div class="panel centro off res" id="pRes"></div>
 <div class="panel off" id="pMas"></div>
 <div id="etqs"></div>
+<div class="locutor" id="locutor"></div>
+<div class="epico" id="epico"><b>¡K.O.!</b></div>
 <div id="loader">ARMANDO EL COLISEO…</div>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 <script type="module">
@@ -142,23 +148,81 @@ const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart
 
 // ---------------------------------------------------------------- combate en vivo
 let diario = [];
-function iniciarCombate(a, b, tipo, extra = {}) {
+// reanudar = { semilla, t }: la simulación es determinista, así que repetir los mismos pasos devuelve la pelea exacta donde quedó
+function iniciarCombate(a, b, tipo, extra = {}, reanudar = null) {
   [pCombate, pTorneo, pLab, pEstablo, pCronica, pRes, pMas].forEach((p) => p.abierto && p.cerrar());
   limpiarActores(); preview = null;
-  combate = S.crearCombate(a, b, semilla());
-  ctx = { tipo, finT: 0, cerrado: false, ...extra };
+  const sem = reanudar ? reanudar.semilla : semilla();
+  combate = S.crearCombate(a, b, sem);
+  if (reanudar) { while (combate.t < reanudar.t - 1e-6 && !combate.fin) S.pasoCombate(combate, S.TICK); combate.ev.length = 0; }
+  ctx = { tipo, finT: 0, cerrado: false, ...extra, coroT: 6, frasesT: 0, fav: favorito(a, b) };
+  est.enCurso = { a: a.id, b: b.id, tipo, semilla: sem, t: combate.t, apuesta: ctx.apuesta || null }; guardar();
   combate.L.forEach((L) => actor(L.cr, L.x, L.z, L.ang));
   hora = tipo === 'torneo' ? 16.5 + est.torneo.ronda * 0.8 : 12 + (est.jornada % 5) * 1.0; O.setHora(hora);   // de día se ve bien la pelea; los torneos cierran al atardecer
   diario = [{ texto: `${S.nombreDe(a)} (nv ${a.nivel}, ${TEMPERAMENTOS[a.temp].nom.toLowerCase()}) contra ${S.nombreDe(b)} (nv ${b.nivel}, ${TEMPERAMENTOS[b.temp].nom.toLowerCase()}).`, tipo: 'logro', d: '0:00' }];
   if (ctx.apuesta) diario.unshift({ texto: `Apostaste ${ctx.apuesta.monto} 🪙 por ${corto(ctx.apuesta.lado ? b : a)} a ×${ctx.apuesta.cuota.toFixed(2)}.`, tipo: '', d: '0:00' });
   $('#colIzq').classList.remove('off'); $('#colDer').classList.remove('off');
-  const cel = innerWidth < 640; cortar(new THREE.Vector3(0, 1.5, 0), cel ? [20, 17, 7] : [0, 12.5, 15.5]); // en vertical se mira de lado: los dos luchadores caben
-  if (est.opc.cine) O.seguir(() => centroPelea(), cel ? 27 : 20);
+  // vuelo suave a un plano frontal alto: los dos luchadores quedan lado a lado y la distancia se ajusta al ancho de la pantalla
+  volarA(centroPelea() || new THREE.Vector3(0, 1.6, 0), offFrente(distEncuadre(12)), 1.3);
+  if (reanudar) { diario.unshift({ texto: 'Se reanuda el combate que quedó a medias.', tipo: 'logro', d: fmtT(combate.t) }); locutor('¡Volvemos a la arena! La pelea sigue donde quedó.'); }
+  else locutor(frase('inicio', { A: corto(a), B: corto(b), F: corto(ctx.fav ? b : a) }), 4500);
   if (mult === 0) aviso('Está en pausa: dale ×1 para que empiece.');
 }
+// favorito del público: el más famoso; si empatan, el más potente
+function favorito(a, b) { return b.fama > a.fama || (b.fama === a.fama && S.potencia(b) > S.potencia(a)) ? 1 : 0; }
+
+// ---------------------------------------------------------------- cámara propia: vuelos suaves que nunca bajan tras el muro
+let vueloCam = null, lento = 0;
+const _s0 = new THREE.Spherical(), _s1 = new THREE.Spherical(), _o = new THREE.Vector3(), _t = new THREE.Vector3(), MAX_PHI = 1.08; // ≥ 28° de elevación
+function volarA(obj, off, dur = 1.1) { O.seguir(null); vueloCam = { t: 0, dur, t0: O.controls.target.clone(), t1: obj.clone(), s0: _s0.clone().setFromVector3(O.camera.position.clone().sub(O.controls.target)), s1: new THREE.Spherical().setFromVector3(off) }; }
+// distancia para que quepa un ancho «sep» (más márgenes) en el campo de visión horizontal
+function distEncuadre(sep) { const hf = 2 * Math.atan(Math.tan(O.camera.fov * Math.PI / 360) * O.camera.aspect), vf = O.camera.fov * Math.PI / 180; return Math.max(13, Math.min(42, (sep / 2 + 3.2) / Math.tan(Math.min(hf, vf) / 2))); }
+const offFrente = (dist) => new THREE.Vector3(0, Math.sin(0.62) * dist, Math.cos(0.62) * dist);
+function camara(dtReal) {
+  const C = O.camera, T = O.controls.target;
+  if (vueloCam) {
+    const v = vueloCam; v.t = Math.min(1, v.t + dtReal / v.dur); const k = v.t * v.t * (3 - 2 * v.t);
+    // se interpola en esféricas (radio, elevación, giro) y no en línea recta: así el camino no atraviesa gradas ni muro
+    const phi = Math.min(MAX_PHI, v.s0.phi + (Math.min(MAX_PHI, v.s1.phi) - v.s0.phi) * k);
+    _s1.set(v.s0.radius + (v.s1.radius - v.s0.radius) * k, phi, angLerp(v.s0.theta, v.s1.theta, k));
+    T.lerpVectors(v.t0, v.t1, k); C.position.copy(T).add(_o.setFromSpherical(_s1));
+    if (v.t >= 1) vueloCam = null; return;
+  }
+  if (!combate || !est.opc.cine || actores.length < 2) return;
+  // encuadre de cine: sigue el centro de la pelea y se aleja o acerca para que quepan ambos (y al final, el remate y el ganador)
+  const [a, b] = actores, f = combate.fin; let foco, dist;
+  if (f && lento > 0) { foco = actores[1 - f.ganador].M.g.position; dist = 9; }
+  else if (f) { foco = actores[f.ganador].M.g.position; dist = 13; }
+  else { foco = centroPelea(); dist = distEncuadre(Math.hypot(a.M.g.position.x - b.M.g.position.x, a.M.g.position.z - b.M.g.position.z)); }
+  const k = Math.min(1, dtReal * 2.2);
+  _t.set(foco.x, 1.6, foco.z); T.lerp(_t, k);
+  _s0.setFromVector3(_o.copy(C.position).sub(T)); _s0.radius += (dist - _s0.radius) * Math.min(1, dtReal * 1.6); _s0.phi = Math.min(MAX_PHI, _s0.phi);
+  C.position.copy(T).add(_o.setFromSpherical(_s0));
+}
+
+// ---------------------------------------------------------------- locutor y coro del público
+const FRASES = {
+  inicio: ['¡Damas y caballeros! En esta esquina, {A}… ¡y en la otra, {B}!', '¡Que ruede la arena! {A} contra {B}.', 'Las apuestas favorecen a {F}. ¿Habrá sorpresa esta tarde?', '¡Silencio en las gradas! {A} y {B} se miden las garras.', 'Dos bestias, una arena, un solo ganador: ¡{A} contra {B}!', 'El público ya grita el nombre de {F}. ¡Empieza la pelea!'],
+  critico: ['¡Uy, qué golpe!', '¡Eso dolió hasta en las gradas!', '¡Directo y sin piedad!', '¡La arena se estremece!', '¡Qué zarpazo, señores!'],
+  fin: ['¡Se acabó! {G} se impone a {P}.', '¡{G}! ¡{G}! ¡La arena entera ruge por {G}!', '{P} muerde el polvo. Victoria para {G}.', '¡Increíble! {G} lo consigue {M}.', 'Final de la pelea: {G} sale en hombros.'],
+  sorpresa: ['¡SORPRESA! Nadie daba un peso por {G}… ¡y ganó!', '¡Batacazo histórico! {G} tumba al favorito.'],
+  muerte: ['{P} no se levantará más… silencio en el coliseo.', 'Cae {P} para siempre. La arena no perdona.'],
+};
+function frase(tipo, v) { const L = FRASES[tipo]; return L[Math.floor(Math.random() * L.length)].replace(/\{(\w)\}/g, (_, k) => v[k] ?? ''); }
+let locT = null;
+function locutor(texto, ms = 3600, coro = false) { const el = $('#locutor'); el.textContent = (coro ? '🎶 ' : '🎙 ') + texto; el.className = 'locutor on' + (coro ? ' coro' : ''); clearTimeout(locT); locT = setTimeout(() => { el.className = 'locutor'; }, ms); }
+// sílabas aproximadas en español para corear el nombre: «Leo-gui-la», «Es-cor-pi-to-ro»
+function silabas(p) {
+  const V = /[aeiouáéíóúü]/, g = p.toLowerCase().match(/[aeiouáéíóúü]+|[^aeiouáéíóúü]+/g) || [p], out = []; let cur = '';
+  g.forEach((x, k) => {
+    if (V.test(x[0]) || !cur || k === g.length - 1) { cur += x; return; }
+    const c = x.length === 1 ? 0 : /^(pl|pr|bl|br|cl|cr|dr|fl|fr|gl|gr|tr|ch|ll|rr)$/.test(x.slice(-2)) ? x.length - 2 : x.length - 1;
+    out.push(cur + x.slice(0, c)); cur = x.slice(c);
+  });
+  if (cur) out.push(cur); const n = out.join('-'); return n[0].toUpperCase() + n.slice(1);
+}
+let coro = 0;
 const _c = new THREE.Vector3();
-// corte de cámara: en vez de volar desde un ángulo cualquiera (que podía quedar tras el muro), salta a un plano alto y limpio
-function cortar(obj, off) { O.seguir(null); O.controls.target.copy(obj); O.camera.position.set(obj.x + off[0], obj.y + off[1], obj.z + off[2]); O.controls.update(); }
 function centroPelea() { if (!actores.length) return null; const [a, b] = actores; _c.set((a.M.g.position.x + (b || a).M.g.position.x) / 2, 1.6, (a.M.g.position.z + (b || a).M.g.position.z) / 2); return _c; }
 function flotante(a, texto, clase = '') {
   if (!a) return; const p = O.proyectar(new THREE.Vector3(a.M.g.position.x, a.M.alto + a.M.alt * 0.9, a.M.g.position.z)); if (!p.visible) return;
@@ -169,18 +233,26 @@ function procesar(e) {
   if (e.texto) diario.unshift({ texto: e.texto, d: fmtT(e.t), tipo: e.tipo === 'fin' || e.crit ? 'logro' : e.tipo === 'golpe' && e.ef?.length ? 'malo' : '' });
   if (diario.length > 60) diario.length = 60;
   switch (e.tipo) {
-    case 'golpe': flotante(B, e.crit ? `¡−${e.dano}!` : `−${e.dano}`, e.crit ? 'crit' : ''); if (LB && e.dano > LB.max * 0.12) AR.mancha(LB.x, LB.z, 0.4); break;
+    case 'golpe': flotante(B, e.crit ? `¡−${e.dano}!` : `−${e.dano}`, e.crit ? 'crit' : ''); if (LB && e.dano > LB.max * 0.12) AR.mancha(LB.x, LB.z, 0.4);
+      if (e.crit && combate.t > ctx.frasesT && Math.random() < 0.4) { ctx.frasesT = combate.t + 6; locutor(frase('critico', {}), 2200); } break;
     case 'esquiva': flotante(B, 'esquiva', 'esq'); break;
     case 'dot': flotante(B, `−${e.dano}`, e.estado === 'veneno' ? 'ven' : 'san'); break;
     case 'grito': case 'vuelo': case 'escudo': case 'carga': flotante(A, HAB[e.h || (e.tipo === 'vuelo' ? 'vuelo' : 'caparazon')]?.nom.toUpperCase() || '', 'hab'); break;
     case 'estado': flotante(B, HAB[e.h].nom, 'hab'); break;
-    case 'aliento': flotante(B, '¡Segundo aliento!', 'logro'); break;
-    case 'sangre': aviso(e.texto); break;
-    case 'fin': { AR.ola(); const P = combate.L[e.a]; if (combate.fin.motivo === 'ko') AR.mancha(P.x, P.z, 1); aviso(e.texto); if (est.opc.cine) O.seguir(() => actores[e.de] ? actores[e.de].M.g.position.clone().setY(1.6) : null, 14); break; }
+    case 'aliento': flotante(B, '¡Segundo aliento!', 'logro'); locutor(`¡${LB.nom} se niega a caer! ¡El público enloquece!`); break;
+    case 'sangre': locutor(e.texto, 3200); break;
+    case 'fin': {
+      AR.ola(); const P = combate.L[e.a], G = combate.L[e.de], f = combate.fin;
+      // momento épico: cámara lenta y viñeta en el golpe que decide la pelea
+      if (f.motivo === 'ko') { AR.mancha(P.x, P.z, 1); lento = 2.4; $('#epico').classList.add('on'); setTimeout(() => $('#epico').classList.remove('on'), 2300); }
+      const v = { G: G.nom, P: P.nom, M: { ko: 'por nocaut', rendicion: 'por rendición', tiempo: 'a los puntos' }[f.motivo] };
+      setTimeout(() => locutor(frase(e.de !== ctx.fav && Math.abs(combate.L[0].cr.fama - combate.L[1].cr.fama) > 2 ? 'sorpresa' : 'fin', v), 4200), f.motivo === 'ko' ? 900 : 0);
+      break;
+    }
   }
 }
 function cerrarCombate() {
-  ctx.cerrado = true;
+  ctx.cerrado = true; delete est.enCurso;
   const r = S.azar(semilla() ^ 0x5bd1e995), f = combate.fin, G = combate.L[f.ganador].cr, P = combate.L[1 - f.ganador].cr;
   const oficial = ctx.tipo !== 'amistoso';
   const lineas = S.aplicarResultado(est, combate, r, { muerte: oficial && est.opc.muerte, bolsa: ctx.tipo === 'oficial' ? 15 + 5 * P.nivel : 0 });
@@ -189,7 +261,7 @@ function cerrarCombate() {
     else lineas.unshift({ texto: `Perdiste la apuesta (−${ctx.apuesta.monto} 🪙).`, tipo: 'malo' });
   }
   est.historial.unshift(S.resumen(est, combate, ctx.tipo));
-  registrarMuertes([G, P]);
+  registrarMuertes([G, P]); if (!P.viva) setTimeout(() => locutor(frase('muerte', { P: corto(P) }), 4000), 200);
   let titulo = `Gana ${S.nombreDe(G)}`;
   if (ctx.tipo === 'torneo') { (est.torneo.log ||= []).unshift({ texto: `${corto(G)} vence a ${corto(P)}${P.viva ? '' : ' ☠'} (${fmtT(f.t)})`, tipo: G.dueno === 'tú' ? 'bueno' : P.dueno === 'tú' ? 'malo' : '' }); lineas.push(...pasoTorneo(G.id, r)); }
   else lineas.push(...S.avanzarJornada(est, r));
@@ -199,14 +271,11 @@ function cerrarCombate() {
 }
 // las muertes salen del establo y quedan en la memoria del coliseo
 function registrarMuertes(lista) {
-  for (const cr of lista) if (!cr.viva && !est.caidos.some((x) => x.id === cr.id)) {
-    est.caidos.unshift({ id: cr.id, nombre: S.nombreDe(cr), dueno: cr.dueno, nivel: cr.nivel, v: cr.v, d: cr.d, j: est.jornada, por: cr.murio?.por || '¿?', partes: cr.partes });
-    est.cronica.unshift({ j: est.jornada, tipo: 'muerte', texto: `☠ Cayó ${S.nombreDe(cr)} (nv ${cr.nivel}, ${cr.v}-${cr.d}) de ${cr.dueno}, a manos de ${cr.murio?.por}.` });
-  }
+  for (const cr of lista) if (!cr.viva && !cr.retirado) S.registrarCaido(est, cr);
   est.establo = est.establo.filter((c) => c.viva); est.rivales = est.rivales.filter((c) => c.viva);
-  est.caidos.length = Math.min(est.caidos.length, 60); est.cronica.length = Math.min(est.cronica.length, 120);
+  est.cronica.length = Math.min(est.cronica.length, 120);
 }
-function noticias(lineas) { for (const l of lineas) if (l.rival || /Llega a la arena/.test(l.texto)) est.cronica.unshift({ j: est.jornada, tipo: 'noticia', texto: l.texto }); }
+function noticias(lineas) { for (const l of lineas) if ((l.rival || /Llega a la arena/.test(l.texto)) && !est.cronica.some((x) => x.j === est.jornada && x.texto === l.texto)) est.cronica.unshift({ j: est.jornada, tipo: 'noticia', texto: l.texto }); }
 function mostrarResultado(titulo, f, lineas) {
   const [A, B] = combate.L, mot = { ko: 'por nocaut', rendicion: 'por rendición', tiempo: 'por puntos' }[f.motivo];
   const html = `<div class="cab"><b>Resultado</b><button data-cerrar>×</button></div><h3>${esc(titulo)}</h3><div style="opacity:.75;font-size:12px">${mot} · ${fmtT(f.t)}</div>
@@ -324,8 +393,9 @@ function entrarLab() {
   O.seguir(null); hora = 11; O.setHora(hora); armarPreview(); pintarLab(); encuadrarLab();
 }
 // la vista previa queda a un lado del panel (a la izquierda en escritorio, arriba en el celular)
-function encuadrarLab() { const cel = innerWidth < 640; cortar(new THREE.Vector3(cel ? 0 : 2.4, cel ? -3.6 : 1.4, 0), cel ? [0, 7.5, 17] : [0, 3.6, 9.5]); }
-function salirLab() { preview = null; modoReposo(); cortar(new THREE.Vector3(0, 1.5, 0), innerWidth < 640 ? [0, 24, 30] : [0, 19, 27]); }
+// la vista previa queda junto al panel: a la izquierda en escritorio y arriba en el celular (el blanco va bajo el suelo para subirla en pantalla)
+function encuadrarLab() { const cel = innerWidth < 640; volarA(new THREE.Vector3(cel ? 0 : 2.4, cel ? -3.6 : 1.4, 0), new THREE.Vector3(0, cel ? 7.5 : 3.6, cel ? 17 : 9.5), 1.2); }
+function salirLab() { preview = null; modoReposo(); volarA(new THREE.Vector3(0, 1.5, 0), new THREE.Vector3(0, innerWidth < 640 ? 24 : 19, innerWidth < 640 ? 30 : 27), 1.2); }
 function armarPreview() { limpiarActores(); const cr = { id: -1, partes: lab.partes, temp: lab.temp, nivel: 1 }; preview = actor(cr, 0, 0, 0.6, false); }
 const REF = { vida: 450, fuerza: 40, defensa: 40, velocidad: 14, agilidad: 40, alcance: 3 }, NOM_ST = { vida: 'Vida', fuerza: 'Fuerza', defensa: 'Defensa', velocidad: 'Velocidad', agilidad: 'Agilidad', alcance: 'Alcance' };
 const htmlStats = (e) => S.ST.map((k) => htmlBarra(`${NOM_ST[k]} <b style="float:right;margin-left:6px">${k === 'alcance' ? e[k].toFixed(1) : Math.round(e[k])}</b>`, e[k], REF[k])).join('');
@@ -405,7 +475,7 @@ function pintarMas() {
 $('#pMas').addEventListener('click', (e) => {
   const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return;
   if (m === 'establo' || m === 'cronica') return abrirPanel(m);
-  if (m === 'cine') { est.opc.cine = !est.opc.cine; guardar(); if (combate && est.opc.cine) O.seguir(() => centroPelea(), 22); else O.seguir(null); }
+  if (m === 'cine') { est.opc.cine = !est.opc.cine; guardar(); }
   if (m === 'muerte') { est.opc.muerte = !est.opc.muerte; guardar(); }
   if (m === 'ficha') { document.body.classList.toggle('verFicha'); document.body.classList.remove('verDiario'); }
   if (m === 'diario') { document.body.classList.toggle('verDiario'); document.body.classList.remove('verFicha'); }
@@ -440,9 +510,16 @@ function moverEtiquetas() {
 }
 
 // ---------------------------------------------------------------- bucle
+let tGuardar = 0;
 O.cada((dt, t) => {
-  const d = dt * mult; tAnim += d;
+  if (lento > 0 && mult) lento -= dt;
+  const d = dt * mult * (lento > 0 ? 0.18 : 1); tAnim += d;
+  camara(dt);
   if (combate) {
+    // el público corea al favorito de vez en cuando (y salta al compás)
+    if (!combate.fin && mult) { ctx.coroT -= d; if (ctx.coroT <= 0) { ctx.coroT = 10 + Math.random() * 8; const n = combate.L[ctx.fav].nom.split(" ").map(silabas).join(" "); locutor(`¡${n}! ¡${n}!`, 2600, true); coro = 2.6; } }
+    // el combate en curso se guarda cada 2 s: si recargas, se reanuda en el mismo punto
+    if (!combate.fin && (tGuardar += dt) > 2) { tGuardar = 0; if (est.enCurso) { est.enCurso.t = combate.t; guardar(); } }
     if (!combate.fin) S.pasoCombate(combate, d);
     for (const e of combate.ev) procesar(e); combate.ev.length = 0;
     combate.L.forEach((L, i) => {
@@ -462,16 +539,24 @@ O.cada((dt, t) => {
       a.M.g.position.set(a.x, 0, a.z); a.M.g.rotation.y = a.ang; animarModelo(a.M, { anim: a.rap ? 'camina' : 'quieto', rap: a.rap, t: tAnim }, d);
     }
   }
-  AR.animar(d, tAnim, combate ? combate.emocion : 0.12, O.luz.noche);
+  if (coro > 0) coro -= dt;
+  AR.animar(d, tAnim, combate ? combate.emocion : 0.12, O.luz.noche, coro > 0 ? Math.min(1, coro) : 0);
   moverEtiquetas();
   tPint += dt; if (tPint > 0.2) { tPint = 0; pintarHud(); if (combate) pintarCols(); if (pTorneo.abierto) pintarTorneo(); }
 });
 O.alTocar((e) => { if (combate || preview) return; const id = O.tocar(e, actores.map((a) => a.M.g)); if (id != null) { verCria = id; abrirPanel('establo'); } });
 
 modoReposo();
+// un combate que quedó a medias: se reanuda; si ya no puede seguir, se devuelve la apuesta
+if (est.enCurso) {
+  const q = est.enCurso, a = S.buscar(est, q.a), b = S.buscar(est, q.b), T = est.torneo, p = T && S.peleaActual(T);
+  const valido = a && b && a.viva && b.viva && (q.tipo !== 'torneo' || (p && p.a === q.a && p.b === q.b));
+  if (valido) { setTimeout(() => aviso('Se reanuda el combate que dejaste a medias.'), 600); iniciarCombate(a, b, q.tipo, { apuesta: q.apuesta }, { semilla: q.semilla, t: q.t }); }
+  else { if (q.apuesta) { est.monedas += q.apuesta.monto; aviso(`El combate pendiente ya no puede seguir: te devolvemos ${q.apuesta.monto} 🪙.`); } delete est.enCurso; guardar(); }
+}
 if (est.jornada === 1 && !est.historial.length) setTimeout(() => aviso('Bienvenido a la Arena de quimeras: ⚔ pelea, 🏆 organiza torneos o 🧪 crea tus propias quimeras.', 6000), 900);
 setTimeout(() => { const l = $('#loader'); l.style.opacity = '0'; setTimeout(() => l.remove(), 700); }, 300);
-window.est = () => est; window.O = O;
+window.est = () => est; window.O = O; window.combateActual = () => combate; // para depurar desde la consola
 </script>
 </body>
 </html>

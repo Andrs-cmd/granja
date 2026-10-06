@@ -23,6 +23,8 @@
   #brujula .aguja::before { content: ''; position: absolute; left: -7px; top: -30px; border: 7px solid transparent; border-bottom: 24px solid #6aff7a; border-top: 0; }
   #brujula .aguja::after { content: ''; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: #e7c46a; }
   #brujula small { display: block; font-size: 11px; opacity: .85; } #brujula b { font-size: 13px; }
+  #bVista { margin-top: 6px; width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 99px; padding: 5px 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .difs { display: flex; gap: 6px; justify-content: center; margin: 8px 0 2px; } .difs button { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 6px 12px; font-size: 12px; cursor: pointer; } .difs button.on { background: #e7c46a; color: #1b1a17; border-color: transparent; }
   #acc { position: fixed; right: 12px; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
   #acc button { min-height: 38px; }
   #acc button.on { background: #e7c46a; color: #1b1a17; }
@@ -61,7 +63,7 @@
 <div class="volver"><a href="index.html">← Orbes</a></div>
 <div class="titulo">🧟 Ciudad zombi</div>
 <div class="card hud" id="hud"></div>
-<div id="brujula" class="card"><div class="dial"><div class="aguja" id="aguja"></div></div><b id="bDist">—</b><small id="bInfo"></small></div>
+<div id="brujula" class="card"><div class="dial"><div class="aguja" id="aguja"></div></div><b id="bDist">—</b><small id="bInfo"></small><button id="bVista" title="Vista cercana / orbe completo (V)">🔍 Cerca</button></div>
 <div id="acc"></div>
 <div id="joy"><i></i></div>
 <div id="pregunta" class="card off"></div>
@@ -81,6 +83,8 @@
     <li><b>Refugio:</b> junto a una puerta: «🪵 Barricar» (gasta tablas), «🫥 Esconderse» o «💤 Dormir» (<kbd>Z</kbd>). De noche los zombis son más rápidos y llegan hordas.</li>
     <li><b>Infección:</b> si te muerden, tienes horas para encontrar antiviral (farmacias y hospitales).</li>
     <li><b>Escapar:</b> la brújula apunta a la zona de evacuación (aproximada; una radio afina la pista). Al llegar, aguanta hasta que baje el helicóptero.</li>
+    <li><b>Ojo:</b> si pasas pegado a un auto puede saltar la alarma; los cuervos y los perros también hacen ruido. La lluvia tapa tus pasos y te da agua.</li>
+    <li><b>Vista:</b> «🔍 Cerca / 🌐 Orbe» bajo la brújula (<kbd>V</kbd>).</li>
     <li><b>🤖 Automático:</b> el personaje decide solo según sus rasgos. Tocar el suelo vuelve al manual.</li>
   </ul>
 </div>
@@ -101,7 +105,8 @@ window.O = O; // para depurar desde la consola (O, E, Z y zombi.S)
 
 // ---------------------------------------------------------------- partida: cargar o empezar
 let S = Z.cargar(cargarJSON('orbe-zombi'));
-let semPropuesta = (Date.now() % 1e9) >>> 0;
+let semPropuesta = (Date.now() % 1e9) >>> 0, dif = 'normal';
+try { dif = localStorage.getItem('zombi-dif') || 'normal'; } catch { /* sin almacenamiento */ }
 const P = { inv: panel($('#invP')), menu: panel($('#menuP')), fin: panel($('#finP')), inicio: panel($('#inicioP')), ayuda: panel($('#ayudaP')) };
 function mostrarInicio() {
   const p = Z.crearPersonaje(semPropuesta);
@@ -109,14 +114,17 @@ function mostrarInicio() {
     <p>La ciudad cayó hace tres días. Por la radio hablan de una zona de evacuación a unos 2–3 km. Hay que llegar.</p>
     <div>${p.rasgos.map((r) => `<span class="rasgo">${Z.RASGOS[r].ic} <b>${Z.RASGOS[r].n}</b><small>${Z.RASGOS[r].d}</small></span>`).join('')}</div>
     <p style="font-size:12px;opacity:.7">Empieza con un ${p.arma === 'bate' ? 'bate' : 'tubo'}, una lata, una botella de agua y un vendaje. Ciudad n.º ${semPropuesta}.</p>
+    <div class="difs">${Object.entries(Z.DIFICULTAD).map(([k, d]) => `<button data-d="${k}" class="${k === dif ? 'on' : ''}">${d.n}</button>`).join('')}</div>
+    <p style="font-size:11.5px;opacity:.65;margin:2px 0">${{ facil: 'Menos zombis, muerden menos y hay más botín.', normal: 'El primer día es tranquilo; cada día la ciudad se pone peor.', dificil: 'Más zombis, más corredores y menos tiempo con la infección.' }[dif]}</p>
     <div class="ops" style="grid-template-columns:1fr 1fr;margin-top:10px"><button data-a="man">🎮 Jugar yo<small>tocas, caminas, decides</small></button><button data-a="auto">🤖 Verlo sobrevivir<small>decide solo según sus rasgos</small></button></div>
     <div class="ops" style="margin-top:6px"><button data-a="otro">🎲 Otro personaje y otra ciudad</button></div></div>`);
   P.inicio.abrir();
 }
 $('#inicioP').addEventListener('click', (e) => {
+  const d = e.target.closest('[data-d]')?.dataset.d; if (d) { dif = d; try { localStorage.setItem('zombi-dif', d); } catch { /* sin almacenamiento */ } mostrarInicio(); return; }
   const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
   if (a === 'otro') { semPropuesta = (Math.imul(semPropuesta, 1103515245) + 12345 >>> 0) % 1000000000; mostrarInicio(); return; }
-  S = Z.nuevaPartida(semPropuesta); S.auto = a === 'auto'; P.inicio.cerrar(); P.fin.cerrar(); E.reiniciar(S); guardar(); seguirPj();
+  S = Z.nuevaPartida(semPropuesta, null, dif); S.auto = a === 'auto'; P.inicio.cerrar(); P.fin.cerrar(); E.reiniciar(S); guardar(); seguirPj();
   aviso(S.auto ? '🤖 Modo automático: mira qué decide.' : '🎮 Toca el suelo para caminar. Busca en los edificios con rombo.');
 });
 if (!S || S.fin) { S = S || Z.nuevaPartida(semPropuesta); mostrarInicio(); }
@@ -129,7 +137,11 @@ barraVelocidades($('#vels'), [['⏸', 0], ['×1', 1], ['×4', 4], ['×15', 15]],
 const bAuto = boton($('#barra'), '🤖 Auto', () => { Z.setAuto(S, !S.auto); aviso(S.auto ? '🤖 Decide solo' : '🎮 Mandas tú'); }, 'Automático / manual (M)');
 boton($('#barra'), '🎒', () => { P.menu.cerrar(); P.inv.alternar(); pintarInv(); }, 'Inventario (I)');
 boton($('#barra'), '⋯', () => { P.inv.cerrar(); P.menu.alternar(); pintarMenu(); }, 'Más');
-function seguirPj() { O.seguir(() => E.aEscena(S.pj.x, S.pj.z, 1).clone(), innerWidth < innerHeight ? 150 : 82); } // de lejos se ve el orbe entero
+// dos vistas: cerca (se lee el personaje y los zombis de alrededor) u orbe completo. En celular arranca cerca
+let vistaCerca = tactil; try { const v = localStorage.getItem('zombi-vista'); if (v) vistaCerca = v === 'cerca'; } catch { /* sin almacenamiento */ }
+const distVista = () => (vistaCerca ? (innerWidth < innerHeight ? 34 : 30) : innerWidth < innerHeight ? 150 : 82);
+function seguirPj() { const f = () => E.aEscena(S.pj.x, S.pj.z, 1).clone(); O.seguir(f, distVista()); O.volar(f(), distVista()); $('#bVista').textContent = vistaCerca ? '🌐 Orbe' : '🔍 Cerca'; }
+$('#bVista').onclick = () => { vistaCerca = !vistaCerca; try { localStorage.setItem('zombi-vista', vistaCerca ? 'cerca' : 'orbe'); } catch { /* sin almacenamiento */ } seguirPj(); };
 function pintarMenu() {
   pintarSi($('#menuP'), `<div class="cab"><b>Más</b><button data-cerrar>×</button></div>
     <div class="ops"><button data-m="seguir">📷 ${O.siguiendo ? 'Dejar de seguir' : 'Seguir y centrar'} la cámara<small>C</small></button>
@@ -192,7 +204,7 @@ addEventListener('keydown', (e) => {
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
   if (S.fin) return;
   if (k === 'e') accion('saquear'); else if (k === 'z') accion('dormir'); else if (k === 'f') accion('esconde'); else if (k === 'b') accion('barricar');
-  else if (k === 'm') bAuto.click(); else if (k === 'i') { P.inv.alternar(); pintarInv(); } else if (k === 'c') seguirPj(); else if (k === 'p') $('#vels').children[mult ? 0 : 1].click();
+  else if (k === 'm') bAuto.click(); else if (k === 'i') { P.inv.alternar(); pintarInv(); } else if (k === 'c') seguirPj(); else if (k === 'v') $('#bVista').click(); else if (k === 'p') $('#vels').children[mult ? 0 : 1].click();
   else if (k === ' ') { const b = $('#acc button'); b?.click(); } else if (['1', '2', '3'].includes(k)) Z.equipar(S, +k - 1);
 });
 addEventListener('keyup', (e) => teclas.delete(e.key.toLowerCase()));
@@ -244,14 +256,15 @@ function pintarAcc() {
 const NOMS = { saquear: 'Buscando', barricar: 'Barricando', duerme: 'Durmiendo', esconde: 'Escondido' };
 function pintarHud() {
   const pj = S.pj, h = Z.horaDe(S), noche = Z.esNoche(h), ar = Z.armaActiva(S);
-  const reloj = `Día ${Z.diaDe(S)} · ${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')} ${noche ? '🌙' : h < 7 || h > 18 ? '🌆' : '☀️'}`;
+  const reloj = `Día ${Z.diaDe(S)} · ${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')} ${noche ? '🌙' : h < 7 || h > 18 ? '🌆' : '☀️'}${S.clima?.lluvia > 0.3 ? ' 🌧️' : ''}`;
+  let pista = ''; if (pj.inf && !pj.inv.antiviral) { const m = Z.edificiosCerca(S.sem, pj.x, pj.z, 160).find(({ e }) => !S.saq[e.k] && (e.tipo === 'farmacia' || e.tipo === 'hospital')); pista = m ? ` · ${Z.TIPOS[m.e.tipo].ic} a ${Math.round(m.d)} m` : ' · busca farmacias'; }
   const arma = ar.def.mun ? `${ar.def.ic} ${ar.def.n} · ${pj.inv[ar.def.mun] || 0} ${ar.def.mun}` : `${ar.def.ic} ${ar.def.n}${ar.a ? ` · ${ar.a.dur}` : ''}`;
   const grupo = S.grupo.length ? `<div class="grp">${S.grupo.map((g) => `<div><span>🧍 ${esc(g.nombre)}${g.inf ? ' 🦠' : ''}</span><span>❤ ${Math.round(g.salud)}</span></div>`).join('')}</div>` : '';
   const est = S.fin ? '' : pj.accion ? `${NOMS[pj.accion.tipo]}…` : S.auto ? (pj.plan ? { viaje: 'Rumbo a la evacuación', saquea: 'Va a buscar provisiones', refugio: 'Busca dónde pasar la noche', huye: '¡Huye!', pelea: 'Pelea', esconde: 'Corre a esconderse', evac: 'Espera el helicóptero' }[pj.plan.motivo] || 'Camina' : 'Piensa…') : '';
-  pintarSi($('#hud'), `<div class="quien"><b>${esc(pj.nombre)}</b><span>${S.auto ? '🤖' : '🎮'}</span></div>
+  pintarSi($('#hud'), `<div class="quien"><b>${esc(pj.nombre)}</b><span style="font-size:11px;opacity:.75">${Z.DIFICULTAD[S.dif]?.n || ''} ${S.auto ? '🤖' : '🎮'}</span></div>
     <div class="ras">${pj.rasgos.map((r) => `${Z.RASGOS[r].ic} ${Z.RASGOS[r].n}`).join(' · ')}</div><div class="reloj">${reloj}</div>
     ${htmlBarra('❤️ Salud', pj.salud)}${htmlBarra('🥫 Comida', pj.hambre)}${htmlBarra('💧 Agua', pj.sed)}${htmlBarra('⚡ Energía', pj.energia)}${htmlBarra('🙂 Ánimo', pj.animo)}
-    ${pj.inf ? `<div class="inf">🦠 Infectado: ${Math.ceil(pj.inf)} h</div>` : ''}
+    ${pj.inf ? `<div class="inf">🦠 Infectado: ${Math.ceil(pj.inf)} h${pista}</div>` : ''}
     <div class="arma">${arma}${est ? `<br><small style="opacity:.7">${est}</small>` : ''}</div>${grupo}
     <div class="pts"><div><b>${Z.diaDe(S)}</b>días</div><div><b>${(S.stats.dist / 1000).toFixed(1).replace('.', ',')}</b>km</div><div><b>${S.stats.abatidos}</b>abatidos</div></div>
     <div class="mas"><h4>Diario</h4>${htmlDiario(S.diario, 5)}</div>`);
@@ -300,7 +313,7 @@ O.cada((dt) => {
     const prisa = S.pj.accion?.tipo === 'duerme' ? 30 : S.pj.accion?.tipo === 'esconde' ? 6 : 1;
     Z.paso(S, Math.min(3, dt * mult * prisa));
   }
-  O.setHora(Z.horaDe(S));
+  O.setHora(Z.horaDe(S), { nublado: Math.min(1, (S.clima?.lluvia || 0) * 0.9) });
   E.actualizar(dt, S);
   // golpe recibido: viñeta roja
   if (S.pj.salud < saludAntes - 0.5) rojo = Math.min(1, rojo + (saludAntes - S.pj.salud) / 15); saludAntes = S.pj.salud; rojo = Math.max(0, rojo - dt * 1.5);

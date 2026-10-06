@@ -248,7 +248,7 @@ function golpear(c, A, B, h) {
   let pAc = 0.94 + (pas.has('ecolocacion') ? 0.04 : 0);
   if (A.ef.ceguera && !pas.has('ecolocacion')) pAc -= 0.45;
   if (A.ef.lento) pAc -= 0.1;
-  let esq = (B.e.agilidad + B.e.velocidad * 1.5) / (B.e.agilidad + B.e.velocidad * 1.5 + 85) + (B.e.pas.has('sabiduria') ? 0.06 : 0) + (B.e.tec.has('finta') ? 0.06 : 0) + (B.temp === 'cauteloso' ? 0.04 : 0);
+  let esq = (B.e.agilidad + B.e.velocidad * 1.5) / (B.e.agilidad + B.e.velocidad * 1.5 + 85) + (B.e.pas.has('sabiduria') ? 0.06 : 0) + (B.e.tec.has('finta') ? 0.06 : 0) + (B.temp === 'cauteloso' ? 0.02 : 0);
   if (B.ef.lento) esq *= 0.5;
   if (B.ef.aturdido || B.ef.atrapado) esq = 0;
   if (B.ef.vuelo && h !== 'vuelo' && A.e.alcance < 2.2) esq = Math.max(esq, 0.75); // al que vuela casi no se le alcanza desde el suelo
@@ -287,9 +287,9 @@ function golpear(c, A, B, h) {
 }
 
 // ---------------------------------------------------------------- progreso y consecuencias
-const PREF = { agresivo: [1, 3, 1, 1, 1, 1], cauteloso: [3, 1, 3, 1, 2, 0], astuto: [1, 1, 1, 2, 3, 1] };
+const PREF = { agresivo: [1, 3, 1, 1, 1, 1], cauteloso: [2, 1, 2, 1, 2, 0], astuto: [1, 1, 1, 2, 3, 1] };
 const PASO = [7, 1.2, 1, 0.25, 1.2, 0.06];
-const TEC_PREF = { agresivo: ['furiaFinal', 'instinto', 'cazador'], cauteloso: ['pielCurtida', 'segundoAliento', 'aguante'], astuto: ['contraataque', 'finta', 'cazador'] };
+const TEC_PREF = { agresivo: ['furiaFinal', 'instinto', 'cazador'], cauteloso: ['pielCurtida', 'aguante', 'finta'], astuto: ['contraataque', 'finta', 'cazador'] };
 export function subirNivel(cr, r) {
   cr.nivel++;
   const w = PREF[cr.temp], tot = w.reduce((a, b) => a + b, 0);
@@ -356,6 +356,7 @@ export function avanzarJornada(est, r) {
     aplicarResultado(est, c, r, { muerte: true, extraMuerte: -0.05 });
     out.push({ texto: `En otra jaula: ${corto(g)} (de ${g.dueno}) venció a ${corto(p)}${p.viva ? '' : ', que murió'}.`, tipo: '', rival: true });
     est.historial.unshift(resumen(est, c, 'jaula'));
+    if (!p.viva) registrarCaido(est, p);
   }
   // reponer rivales caídos con novatos al nivel de tu establo
   est.rivales = est.rivales.filter((x) => x.viva || est.jornada - x.murio.j < 6);
@@ -365,6 +366,14 @@ export function avanzarJornada(est, r) {
   }
   est.historial.length = Math.min(est.historial.length, 80);
   return out;
+}
+// salón de los caídos: toda muerte (vista o en otra jaula) queda en la memoria del coliseo
+export function registrarCaido(est, cr) {
+  est.caidos ||= [];
+  if (est.caidos.some((x) => x.id === cr.id)) return;
+  est.caidos.unshift({ id: cr.id, nombre: nombreDe(cr), dueno: cr.dueno, nivel: cr.nivel, v: cr.v, d: cr.d, j: est.jornada, por: cr.murio?.por || '¿?', partes: cr.partes });
+  est.cronica.unshift({ j: est.jornada, tipo: 'muerte', texto: `☠ Cayó ${nombreDe(cr)} (nv ${cr.nivel}, ${cr.v}-${cr.d}) de ${cr.dueno}, a manos de ${cr.murio?.por || '¿?'}.` });
+  est.caidos.length = Math.min(est.caidos.length, 60);
 }
 export const nivelMedio = (est) => { const v = est.establo.filter((x) => x.viva); return v.length ? v.reduce((a, x) => a + x.nivel, 0) / v.length : 1; };
 // nivel de referencia de la arena: se acerca a tu mejor quimera para que siempre haya rivales a su altura
@@ -376,7 +385,7 @@ export function resumen(est, c, tipo = 'amistoso') {
 
 // ---------------------------------------------------------------- estado inicial y torneo
 export function estadoInicial(semilla = 1) {
-  const r = azar(semilla), est = { v: 1, semilla, sig: 1, jornada: 1, monedas: 150, peleas: 0, establo: [], rivales: [], historial: [], cronica: [], torneo: null, opc: { muerte: true, cine: true } };
+  const r = azar(semilla), est = { v: 1, semilla, sig: 1, jornada: 1, monedas: 150, peleas: 0, establo: [], rivales: [], historial: [], cronica: [], torneo: null, caidos: [], opc: { muerte: true, cine: true } };
   for (let i = 0; i < 2; i++) est.establo.push(aleatoria(est, r, 1, 'tú'));
   for (let i = 0; i < 10; i++) est.rivales.push(aleatoria(est, r, 1 + Math.floor(r() * 3), elegir(r, DUENOS)));
   est.cronica.push({ j: 1, tipo: 'inicio', texto: 'Abres tu establo en la Arena de quimeras con dos crías.' });

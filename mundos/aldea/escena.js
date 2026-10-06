@@ -71,6 +71,21 @@ function diseno(tipo) {
       for (let i = 0; i < 3; i++) { const a = (i / 3) * 6.28 + 0.5, x = Math.cos(a) * 2.8, z = Math.sin(a) * 2.8; P.push([GEO.caja, C.maderaO, x, 0.5, z, 1.4, 0.9, 0.7, 0, -a, 0], [GEO.caja, tela[i], x, 1.75, z, 1.7, 0.1, 1.1, 0.15, -a, 0], [GEO.caja, C.maderaO, x, 1.2, z, 0.08, 1.2, 0.08], [GEO.esfera, [0xd04a2a, 0x7ab03a, 0xe0b040][i], x, 1.05, z, 0.35, 0.18, 0.25]); }
       break;
     }
+    case 'corral': {
+      // cerca de troncos con establo pequeño; los animales van aparte (instanciados)
+      const n = 7;
+      for (let i = 0; i <= n; i++) for (const [x0, z0, dx, dz] of [[-3, -2.6, 6 / n, 0], [-3, 2.6, 6 / n, 0], [-3, -2.6, 0, 5.2 / n], [3, -2.6, 0, 5.2 / n]]) { if (dz === 0 && z0 > 0 && i >= 3 && i <= 4) continue; P.push([GEO.caja, C.maderaO, x0 + dx * i, 0.45, z0 + dz * i, 0.12, 0.9, 0.12]); }
+      P.push([GEO.caja, C.madera, 0, 0.62, -2.6, 6, 0.08, 0.06], [GEO.caja, C.madera, -1.9, 0.62, 2.6, 2.2, 0.08, 0.06], [GEO.caja, C.madera, 1.9, 0.62, 2.6, 2.2, 0.08, 0.06], [GEO.caja, C.madera, -3, 0.62, 0, 0.06, 0.08, 5.2], [GEO.caja, C.madera, 3, 0.62, 0, 0.06, 0.08, 5.2]);
+      P.push([GEO.caja, C.madera, -1.8, 0.8, -1.7, 2.2, 1.6, 1.6], [GEO.caja, C.maderaO, -1.8, 1.7, -1.7, 2.6, 0.12, 2, -0.2, 0, 0], [GEO.caja, 0xc9b06a, 1.8, 0.3, -1.8, 1, 0.6, 0.8], [GEO.cil, 0x6a6a6a, 1.6, 0.2, 1.6, 0.5, 0.3, 0.3]);
+      P.push([GEO.cil, 0x7a6a4a, 0, 0.02, 0, 3.4, 0.04, 2.9]);
+      break;
+    }
+    case 'muelle':
+      // tablones que entran al lago (+z) y botes amarrados
+      P.push([GEO.caja, 0x9a7a52, 0, 0.35, 2.2, 1.6, 0.12, 5.4]);
+      for (const z of [0.2, 2, 3.8]) for (const x of [-0.7, 0.7]) P.push([GEO.cil, C.maderaO, x, 0.1, z, 0.1, 0.9, 0.1]);
+      P.push([GEO.caja, 0x7a4a2a, 1.6, 0.18, 3.2, 0.9, 0.3, 2.4], [GEO.caja, 0x5a3a20, 1.6, 0.34, 3.2, 0.7, 0.06, 2.1], [GEO.caja, 0x7a4a2a, -1.5, 0.18, 2.2, 0.8, 0.28, 2.2], [GEO.cil, C.maderaO, -1.5, 0.5, 2.2, 0.03, 1, 0.03, 0.8, 0, 0], [GEO.caja, 0xb08a5a, -0.3, 0.55, -0.4, 0.8, 0.3, 0.5]);
+      break;
     case 'monumento':
       P.push([GEO.caja, C.piedraO, 0, 0.5, 0, 1.6, 1, 1.6], [GEO.caja, C.piedra, 0, 1.3, 0, 1.1, 0.6, 1.1], [GEO.capsula, 0xc8c2b4, 0, 2.5, 0, 0.6, 1.1, 0.45], [GEO.esfera, 0xc8c2b4, 0, 3.55, 0, 0.32, 0.36, 0.32], [GEO.capsula, 0xc8c2b4, 0.45, 3.3, 0, 0.18, 0.9, 0.18, 0, 0, -0.5]);
       break;
@@ -79,6 +94,16 @@ function diseno(tipo) {
 }
 const DIS = {};
 const dis = (t) => DIS[t] || (DIS[t] = diseno(t));
+// casas con muebles: el portal, las bancas y las jardineras se ven desde afuera
+function disCasa(n) {
+  const k = 'casa' + n; if (DIS[k]) return DIS[k];
+  const base = diseno('casa'), P = [];
+  if (n >= 1) P.push([GEO.caja, C.madera, -1.3, 0.35, 2.15, 1.2, 0.12, 0.4], [GEO.caja, C.maderaO, -1.3, 0.18, 2.15, 1.1, 0.35, 0.08], [GEO.caja, 0x7a5a3a, 1.6, 0.25, 2.6, 0.5, 0.5, 0.5]);
+  if (n >= 2) P.push([GEO.caja, C.teja, 0, 2.35, 2.3, 2.6, 0.12, 1.3, 0.25, 0, 0], [GEO.caja, C.maderaO, -1.15, 1.2, 2.85, 0.12, 2.3, 0.12], [GEO.caja, C.maderaO, 1.15, 1.2, 2.85, 0.12, 2.3, 0.12], [GEO.caja, 0xa08860, 0, 0.08, 2.4, 2.6, 0.12, 1.4]);
+  if (n >= 3) for (const x of [-1.3, 1.3]) P.push([GEO.caja, 0x6a4a2a, x, 1.05, 1.86, 0.75, 0.18, 0.25], [GEO.esfera, x > 0 ? 0xe0c040 : 0xd04a6a, x, 1.22, 1.86, 0.32, 0.14, 0.14]);
+  return (DIS[k] = { geo: P.length ? mergeGeometries([base.geo, fundirGeo(P)]) : base.geo, ven: base.ven });
+}
+const disDe = (b) => (b.tipo === 'casa' && b.nivel ? disCasa(b.nivel) : dis(b.tipo));
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color(), UP = V(0, 1, 0);
 const colocar = (geo, x, z, rot, sy = 1) => geo.clone().applyMatrix4(_m.compose(_p.set(x, 0, z), _q.setFromAxisAngle(UP, rot), _s.set(1, sy, 1)));
 
@@ -103,8 +128,8 @@ export function crearEscenaAldea(O, s0) {
     partes.push([GEO.cil, 0x6a7a4a, Cm.x, 0.02, Cm.z, 6, 0.04, 6]);
     M.add(fundir(partes));
   }
-  const tierra = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8c7a56, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
-  tierra.position.y = 0.012; tierra.receiveShadow = true; M.add(tierra);
+  const matTierra = new THREE.MeshStandardMaterial({ color: 0x8c7a56, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), geoTierra = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
+  const tierras = [...Array(6)].map(() => { const m = new THREE.Mesh(geoTierra, matTierra); m.receiveShadow = true; m.visible = false; M.add(m); return m; });
 
   // ------------------------------------------------------------ árboles, tocones, rocas, arbustos y tumbas (instanciados)
   const geoPino = fundirGeo([[GEO.cil, 0x6a4a2e, 0, 0.7, 0, 0.22, 1.4, 0.22], [GEO.cono, 0xffffff, 0, 2.2, 0, 1.4, 2.2, 1.4], [GEO.cono, 0xffffff, 0, 3.3, 0, 1, 1.8, 1]]);
@@ -127,11 +152,11 @@ export function crearEscenaAldea(O, s0) {
     [GEO.caja, 0xb08a5a, 0, 1.3, 1, 2.1, 0.08, 0.35], [GEO.caja, 0xb08a5a, 0, 1.3, -1, 2.1, 0.08, 0.35], [GEO.caja, C.maderaO, 0, 2.5, 1, 2.1, 0.08, 0.08, 0, 0, 0.3], [GEO.caja, 0xb08a5a, 1.6, 0.25, 1.6, 0.9, 0.5, 0.6], [GEO.caja, 0x9a968c, -1.6, 0.25, 1.6, 0.7, 0.5, 0.7]]);
   function rehacerEstaticas(s) {
     const lista = s.edificios.filter((b) => b.hecho && !['campo', 'muralla'].includes(b.tipo));
-    const f = lista.map((b) => b.id).join(',');
+    const f = lista.map((b) => b.id + (b.nivel ? 'n' + b.nivel : '')).join(',');
     if (f === firmaE) return; firmaE = f;
     for (const m of [estaticas, ventanas]) if (m) { M.remove(m); m.geometry.dispose(); }
     const gs = [], vs = [];
-    for (const b of lista) { const d = dis(b.tipo); if (d.geo) gs.push(colocar(d.geo, b.x, b.z, b.rot)); if (d.ven) vs.push(colocar(d.ven, b.x, b.z, b.rot)); }
+    for (const b of lista) { const d = disDe(b); if (d.geo) gs.push(colocar(d.geo, b.x, b.z, b.rot)); if (d.ven) vs.push(colocar(d.ven, b.x, b.z, b.rot)); }
     estaticas = gs.length ? new THREE.Mesh(mergeGeometries(gs), MAT_VERTICE) : null;
     ventanas = vs.length ? new THREE.Mesh(mergeGeometries(vs), matVent) : null;
     if (estaticas) { estaticas.castShadow = estaticas.receiveShadow = true; M.add(estaticas); }
@@ -157,17 +182,24 @@ export function crearEscenaAldea(O, s0) {
     campos = new THREE.Mesh(mergeGeometries(gs), MAT_VERTICE); campos.receiveShadow = campos.castShadow = true; M.add(campos);
   }
   function rehacerMuralla(s) {
-    const b = s.edificios.find((x) => x.tipo === 'muralla'), f = b ? `${b.radio}:${Math.round(b.p * 20)}` : '';
+    const ms = s.edificios.filter((x) => x.tipo === 'muralla'), f = ms.map((b) => `${b.id}:${b.radio}:${Math.round(b.p * 30)}`).join(',');
     if (f === firmaM) return; firmaM = f;
     if (muralla) { M.remove(muralla); muralla.geometry.dispose(); muralla = null; }
-    if (!b) return;
-    const P = [], R = b.radio, n = Math.round((Math.PI * 2 * R) / 0.6), L = s.lago;
-    for (let i = 0; i < n * b.p; i++) {
-      const a = (i / n) * Math.PI * 2, x = Math.cos(a) * R, z = Math.sin(a) * R;
-      if (Math.hypot(x - L.x, z - L.z) < L.r + 0.8 || i % Math.round(n / 4) < 4) continue;   // el lago y cuatro portones
-      const h = 2 + ((i * 7) % 5) * 0.08;
-      P.push([GEO.cil, 0x7a5434, x, h / 2, z, 0.28, h, 0.28], [GEO.cono, 0x6a4a2e, x, h + 0.25, z, 0.28, 0.5, 0.28]);
+    const P = [], L = s.lago;
+    for (const b of ms) {
+      // se levanta tronco a tronco; el lago, el río y los edificios cortan el anillo; cuatro portones con torres
+      const R = b.radio, n = Math.round((Math.PI * 2 * R) / 0.62), listos = Math.floor(n * b.p), paso = Math.round(n / 4);
+      for (let i = 0; i < listos; i++) {
+        const a = (i / n) * Math.PI * 2, x = b.x + Math.cos(a) * R, z = b.z + Math.sin(a) * R;
+        if (Math.hypot(x, z) > 44.5 || Math.hypot(x - L.x, z - L.z) < L.r + 0.8 || s.rio.some(([rx, rz]) => Math.hypot(x - rx, z - rz) < 1.6) || i % paso < 4) continue;
+        if (s.edificios.some((e) => e.tipo !== 'muralla' && e.tipo !== 'campo' && Math.hypot(x - e.x, z - e.z) < TIPOS[e.tipo].radio + 0.3)) continue;
+        const h = 2 + ((i * 7) % 5) * 0.08;
+        P.push([GEO.cil, 0x7a5434, x, h / 2, z, 0.26, h, 0.26], [GEO.cono, 0x6a4a2e, x, h + 0.25, z, 0.26, 0.5, 0.26]);
+        if (i % 6 === 0 && (i + 6) % paso >= 4) P.push([GEO.caja, 0x5e3b22, x, h * 0.62, z, 0.12, 0.14, 3.7, 0, -a, 0]);   // travesaño
+      }
+      if (b.p >= 1) for (let k = 0; k < 4; k++) for (const j of [-1, 4]) { const a = ((k * paso + j) / n) * Math.PI * 2, x = b.x + Math.cos(a) * R, z = b.z + Math.sin(a) * R; if (Math.hypot(x, z) > 44.5 || Math.hypot(x - L.x, z - L.z) < L.r + 1) continue; P.push([GEO.caja, C.maderaO, x, 1.7, z, 0.55, 3.4, 0.55], [CONO4, C.madera, x, 3.75, z, 0.65, 0.8, 0.65, 0, Math.PI / 4, 0]); }
     }
+    if (!P.length) return;
     if (!P.length) return;
     muralla = fundir(P); M.add(muralla);
   }
@@ -190,8 +222,9 @@ export function crearEscenaAldea(O, s0) {
 
   // ------------------------------------------------------------ fuego: fogata, incendios, luz y humo
   const matLlama = new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff6a10, emissiveIntensity: 2.2, transparent: true, opacity: 0.9 });
-  const llama = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.1, 7), matLlama); llama.position.y = 0.65; M.add(llama);
-  const luzF = new THREE.PointLight(0xffa04a, 0, 26, 1.6); luzF.position.y = 1.6; M.add(luzF);
+  // una llama y una luz por aldea (creadas de una vez: cambiar el número de luces recompila los materiales)
+  const geoLlama = new THREE.ConeGeometry(0.45, 1.1, 7);
+  const fogatas = [...Array(6)].map(() => { const l = new THREE.Mesh(geoLlama, matLlama); l.visible = false; M.add(l); const luz = new THREE.PointLight(0xffa04a, 0, 24, 1.6); M.add(luz); return { l, luz }; });
   const llamas = new THREE.InstancedMesh(new THREE.ConeGeometry(0.6, 1.8, 6), matLlama, 40); llamas.count = 0; M.add(llamas);
   const humoTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
   const NH = 180, humoPos = new Float32Array(NH * 3), humoVida = new Float32Array(NH).fill(-1), humoGeo = new THREE.BufferGeometry(); humoGeo.setAttribute('position', new THREE.BufferAttribute(humoPos, 3));
@@ -217,6 +250,28 @@ export function crearEscenaAldea(O, s0) {
     p.g.userData.id = a.id;
     p.g.traverse((o) => { if (o.isMesh) o.castShadow = o.parent === p.torso || o === p.torso || o.parent === p.cab; });
     return { p, k };
+  }
+
+  // ------------------------------------------------------------ animales de corral (una malla instanciada por especie)
+  const especies = [
+    fundirGeo([[GEO.capsula, 0xf0ece0, 0, 0.55, 0, 0.5, 0.5, 0.42, Math.PI / 2, 0, 0], [GEO.esfera, 0x3a3430, 0, 0.62, 0.48, 0.16, 0.18, 0.2], ...[[0.13, 0.22], [-0.13, 0.22], [0.13, -0.22], [-0.13, -0.22]].map(([x, z]) => [GEO.cil, 0x3a3430, x, 0.18, z, 0.05, 0.36, 0.05])]),   // oveja
+    fundirGeo([[GEO.capsula, 0x8a6a4a, 0, 0.55, 0, 0.36, 0.5, 0.3, Math.PI / 2, 0, 0], [GEO.esfera, 0x7a5a3a, 0, 0.75, 0.42, 0.14, 0.16, 0.2], [GEO.cono, 0xd8d0c0, 0.06, 0.95, 0.38, 0.03, 0.18, 0.03, -0.4, 0, 0], [GEO.cono, 0xd8d0c0, -0.06, 0.95, 0.38, 0.03, 0.18, 0.03, -0.4, 0, 0], ...[[0.1, 0.2], [-0.1, 0.2], [0.1, -0.2], [-0.1, -0.2]].map(([x, z]) => [GEO.cil, 0x5a4a3a, x, 0.2, z, 0.04, 0.4, 0.04])]),   // cabra
+    fundirGeo([[GEO.esfera, 0xe8e2d4, 0, 0.22, 0, 0.16, 0.15, 0.2], [GEO.esfera, 0xe8e2d4, 0, 0.36, 0.13, 0.08, 0.09, 0.08], [GEO.cono, 0xd0302a, 0, 0.46, 0.13, 0.03, 0.06, 0.05], [GEO.cono, 0xe0a030, 0, 0.35, 0.22, 0.025, 0.06, 0.025, Math.PI / 2, 0, 0]]),   // gallina
+  ].map((geo) => { const im = new THREE.InstancedMesh(geo, MAT_VERTICE, 70); im.count = 0; im.castShadow = true; im.frustumCulled = false; M.add(im); return im; });
+  function actualizarAnimales(s, tt) {
+    const n = [0, 0, 0];
+    for (const A of s.aldeas) {
+      const cs = s.edificios.filter((b) => b.tipo === 'corral' && b.hecho && b.al === A.id); if (!cs.length) continue;
+      const tot = Math.round(A.animales || 0);
+      for (let i = 0; i < tot; i++) {
+        const c = cs[i % cs.length], e = i % 3, k = n[e]; if (k >= 70) continue;
+        const ang = i * 2.399 + tt * (e === 2 ? 0.25 : 0.05) * ((i % 2) * 2 - 1), rr = 0.6 + ((i * 37) % 10) / 6;
+        const lx = Math.cos(ang) * rr * 1.1 + 0.6, lz = Math.sin(ang) * rr * 0.9 + 0.5, cr = Math.cos(c.rot), sr = Math.sin(c.rot);
+        _m.compose(_p.set(c.x + lx * cr + lz * sr, 0, c.z - lx * sr + lz * cr), _q.setFromAxisAngle(UP, ang + Math.PI / 2 + (e === 2 ? Math.sin(tt * 3 + i) : 0)), _s.setScalar(1));
+        especies[e].setMatrixAt(k, _m); n[e]++;
+      }
+    }
+    especies.forEach((im, e) => { im.count = n[e]; im.instanceMatrix.needsUpdate = true; });
   }
 
   // ------------------------------------------------------------ lobos y bandidos
@@ -256,9 +311,12 @@ export function crearEscenaAldea(O, s0) {
     tumbas.count = Math.min(48, s.tumbas.length);
     s.tumbas.slice(-48).forEach((t, i) => { _m.compose(_p.set(t.x, 0, t.z), _q.setFromAxisAngle(UP, s.cementerio.ang + Math.PI / 2), _s.setScalar(1)); tumbas.setMatrixAt(i, _m); });
     tumbas.instanceMatrix.needsUpdate = true;
-    // tierra pisada: crece con la aldea
-    const r = Math.max(6, ...s.edificios.filter((b) => b.tipo !== 'muralla' && b.tipo !== 'campo').map((b) => Math.hypot(b.x, b.z) + TIPOS[b.tipo].radio * 0.6));
-    tierra.scale.setScalar(Math.min(30, r * 0.9));
+    // tierra pisada: crece con cada aldea
+    tierras.forEach((m, i) => {
+      const A = s.aldeas[i]; m.visible = !!A; if (!A) return;
+      const r = Math.max(5, ...s.edificios.filter((b) => b.al === A.id && !['muralla', 'campo', 'muelle'].includes(b.tipo)).map((b) => Math.hypot(b.x - A.x, b.z - A.z) + TIPOS[b.tipo].radio * 0.6));
+      m.position.set(A.x, 0.012 + i * 0.001, A.z); m.scale.setScalar(Math.min(28, r * 0.9));
+    });
   }
 
   // ------------------------------------------------------------ cada cuadro
@@ -270,9 +328,13 @@ export function crearEscenaAldea(O, s0) {
     if (tAcum > 0.35 || ultEst < 0) { tAcum = 0; ultEst = 1; actualizarBosque(s); actualizarRecursos(s); rehacerEstaticas(s); rehacerCampos(s); rehacerMuralla(s); actualizarObras(s); }
     matVent.emissiveIntensity = 0.05 + L.noche * 1.8 + (hr > 17 && hr < 21 ? 0.4 : 0);
     // fogata
-    const F = s.edificios.find((b) => b.tipo === 'fogata'), tt = performance.now() / 1000;
-    llama.visible = !!F && s.gente.length > 0; if (F) { llama.position.set(F.x, 0.65, F.z); llama.scale.set(1 + Math.sin(tt * 13) * 0.1, 1 + Math.sin(tt * 9) * 0.18 + L.noche * 0.3, 1 + Math.cos(tt * 11) * 0.1); luzF.position.set(F.x, 1.6, F.z); }
-    luzF.intensity = llama.visible ? (8 + L.noche * 60) * (0.85 + Math.sin(tt * 17) * 0.08 + Math.sin(tt * 7) * 0.07) : 0;
+    const tt = performance.now() / 1000, Fs = s.edificios.filter((b) => b.tipo === 'fogata' && !s.aldeas[b.al]?.vacia);
+    fogatas.forEach(({ l, luz }, i) => {
+      const F = Fs[i]; l.visible = !!F && s.gente.length > 0;
+      if (!l.visible) { luz.intensity = 0; return; }
+      l.position.set(F.x, 0.65, F.z); l.scale.set(1 + Math.sin(tt * 13 + i) * 0.1, 1 + Math.sin(tt * 9 + i) * 0.18 + L.noche * 0.3, 1 + Math.cos(tt * 11 + i) * 0.1);
+      luz.position.set(F.x, 1.6, F.z); luz.intensity = (6 + L.noche * 55) * (0.85 + Math.sin(tt * 17 + i) * 0.08 + Math.sin(tt * 7) * 0.07);
+    });
     // incendios
     let nl = 0;
     for (const b of s.edificios) if (b.fuego > 0 && nl < 36) { const r = TIPOS[b.tipo].radio || 2; for (let i = 0; i < 6 && nl < 40; i++) { const a = i * 1.7 + tt * 0.3, k = 0.7 + Math.sin(tt * 10 + i * 3) * 0.3; _m.compose(_p.set(b.x + Math.cos(a) * r * 0.5, 1 + (i % 3) * 0.7, b.z + Math.sin(a) * r * 0.5), _q.identity(), _s.set(k, k * (1.2 + (i % 2) * 0.5), k)); llamas.setMatrixAt(nl++, _m); } }
@@ -280,7 +342,7 @@ export function crearEscenaAldea(O, s0) {
     // humo: fogata, chimeneas al amanecer y al anochecer (y todo el invierno), herrería trabajando, incendios
     tHumo += dt;
     const emis = [];
-    if (F && llama.visible) emis.push([F.x, 1.2, F.z, 1]);
+    if (s.gente.length) for (const F of Fs) emis.push([F.x, 1.2, F.z, 1]);
     const cocinan = (hr > 5.5 && hr < 8.5) || (hr > 17 && hr < 21) || fecha(s).est === 3;
     for (const b of s.edificios) {
       if (!b.hecho) continue;
@@ -308,20 +370,24 @@ export function crearEscenaAldea(O, s0) {
     nieve.visible = s.clima.nieve > 0 && est === 3;
     if (lluvia.visible) { for (let i = 0; i < NL; i++) { let y = lluPos[i * 6 + 1] - dt * 30; if (y < 0) y += 40; lluPos[i * 6 + 1] = y; lluPos[i * 6 + 4] = y + 1.1; } lluGeo.attributes.position.needsUpdate = true; }
     if (nieve.visible) { for (let i = 0; i < NN; i++) { let y = niePos[i * 3 + 1] - dt * 2.2; if (y < 0) y += 40; niePos[i * 3 + 1] = y; niePos[i * 3] += Math.sin(tt + i) * dt * 0.3; } nieGeo.attributes.position.needsUpdate = true; }
+    actualizarAnimales(s, tt);
     // lobos: salen del bosque, rondan y se van
     const Lb = s.lobos && s.t < s.lobos.hasta ? s.lobos : null;
     lobos.forEach((m, i) => {
       m.visible = !!Lb; if (!Lb) return;
-      const k = (s.t + s.resto - Lb.t) / (Lb.hasta - Lb.t), ida = Math.sin(Math.min(1, k) * Math.PI), a0 = Math.atan2(Lb.z, Lb.x) + (i - 1.5) * 0.12, r = 34 - ida * 12;
-      const x = Math.cos(a0 + Math.sin(tt * 0.4 + i) * 0.05) * r, z = Math.sin(a0 + Math.sin(tt * 0.4 + i) * 0.05) * r;
-      m.rotation.y = Math.atan2(-Math.cos(a0) * (k < 0.5 ? 1 : -1), -Math.sin(a0) * (k < 0.5 ? 1 : -1)); m.position.set(x, Math.abs(Math.sin(tt * 8 + i)) * 0.08, z);
+      const k = (s.t + s.resto - Lb.t) / (Lb.hasta - Lb.t), ida = Math.sin(Math.min(1, k) * Math.PI) * 0.6, tx = Lb.tx ?? 0, tz = Lb.tz ?? 0;
+      const dx = tx - Lb.x, dz = tz - Lb.z, l = Math.hypot(dx, dz) || 1, px = -dz / l, pz = dx / l, o = (i - 1.5) * 1.3 + Math.sin(tt * 0.6 + i) * 0.4;
+      m.position.set(Lb.x + dx * ida + px * o, Math.abs(Math.sin(tt * 8 + i)) * 0.08, Lb.z + dz * ida + pz * o);
+      m.rotation.y = Math.atan2(dx * (k < 0.5 ? 1 : -1), dz * (k < 0.5 ? 1 : -1));
     });
     // bandidos: avanzan hacia el punto de ataque y pelean
     const Am = s.amenaza?.tipo === 'bandidos' ? s.amenaza : null;
     bandidos.forEach((p, i) => {
       p.g.visible = !!Am && i < Math.min(6, Am.n); if (!p.g.visible) return;
-      const k = Math.min(1, (s.t + s.resto - (Am.hasta - 12 * 60)) / (2 * 60)), a0 = Math.atan2(Am.z, Am.x) + (i - 2.5) * 0.05, r = 44 - (44 - Math.hypot(Am.x, Am.z) - 1.5) * k;
-      p.g.position.set(Math.cos(a0) * r, 0, Math.sin(a0) * r); p.g.rotation.y = Math.atan2(-Math.cos(a0), -Math.sin(a0));
+      const k = Math.min(1, (s.t + s.resto - (Am.hasta - 12 * 60)) / (2 * 60)), A = s.aldeas[Am.al] || { x: 0, z: 0 };
+      let dx = Am.x - A.x, dz = Am.z - A.z; if (Math.hypot(dx, dz) < 0.5) { dx = Am.x || 1; dz = Am.z; } const l = Math.hypot(dx, dz), ux = dx / l, uz = dz / l, o = (i - 2.5) * 0.9;
+      let sx = Am.x + ux * 18, sz = Am.z + uz * 18; const rr = Math.hypot(sx, sz); if (rr > 43) { sx *= 43 / rr; sz *= 43 / rr; }
+      p.g.position.set(sx + (Am.x + ux * 1.5 - sx) * k - uz * o, 0, sz + (Am.z + uz * 1.5 - sz) * k + ux * o); p.g.rotation.y = Math.atan2(-ux, -uz);
       animarPersona(p, k < 1 ? 'corre' : 'golpe', dt);
     });
     // personas: las cercanas a la cámara con cuerpo, el resto como figuras

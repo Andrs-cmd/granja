@@ -41,7 +41,7 @@ export const PRESETS = {
   hielo: { nombre: 'Clanes de Vinterhal', emblema: '❄️', color: '#7fb3d5', t: 'Clanes del hielo', r: { agresividad: 62, ciencia: 45, fe: 50, comercio: 30, expansion: 45, fertilidad: 55, cohesion: 76, diplomacia: 35, calor: 10, frio: 95, agua: 50 } },
   horda: { nombre: 'Horda de Tumur', emblema: '🐎', color: '#8e44ad', t: 'Horda nómada', r: { agresividad: 82, ciencia: 20, fe: 30, comercio: 25, expansion: 95, fertilidad: 82, cohesion: 40, diplomacia: 18, calor: 60, frio: 60, agua: 15 } },
   republica: { nombre: 'República de Aurea', emblema: '🕊️', color: '#f1c40f', t: 'República pacífica', r: { agresividad: 10, ciencia: 70, fe: 35, comercio: 72, expansion: 40, fertilidad: 50, cohesion: 62, diplomacia: 95, calor: 50, frio: 45, agua: 55 } },
-  tecno: { nombre: 'Tecnarquía de Ix', emblema: '⚙️', color: '#95a5a6', t: 'Tecnócratas', r: { agresividad: 45, ciencia: 98, fe: 10, comercio: 60, expansion: 45, fertilidad: 30, cohesion: 56, diplomacia: 45, calor: 45, frio: 50, agua: 50 } },
+  tecno: { nombre: 'Tecnarquía de Ix', emblema: '⚙️', color: '#95a5a6', t: 'Tecnócratas', r: { agresividad: 45, ciencia: 98, fe: 10, comercio: 62, expansion: 48, fertilidad: 35, cohesion: 62, diplomacia: 45, calor: 45, frio: 50, agua: 62 } },
 };
 export const EMBLEMAS = ['⚔️', '🌳', '⛵', '🔥', '❄️', '🐎', '🕊️', '⚙️', '🦁', '🐉', '🌙', '☀️', '🦅', '🐺', '👁️', '🌊', '🏔️', '💀'];
 const COLORES_EXTRA = ['#d35d9b', '#16a085', '#b9770e', '#5d6d7e', '#a04000', '#1abc9c', '#6c3483', '#cacfd2'];
@@ -125,13 +125,19 @@ export function rv(c, k) { let v = c.r[k]; if (c.lider?.bono === k) v += 14; if 
 // tabla de comida por bioma para una civ (se recalcula una vez por año: la celda solo suma río y costa)
 function tablaComida(c) {
   const ag = rv(c, 'agua'), ca = rv(c, 'calor'), fr = rv(c, 'frio'), t = COMIDA.slice();
-  t[B.COSTA] *= 0.3 + ag / 70; t[B.DESIERTO] *= 0.35 + ca / 45; t[B.SELVA] *= 0.6 + ca / 150; t[B.TUNDRA] *= 0.35 + fr / 45; t[B.NIEVE] *= 0.35 + fr / 45; t[B.MONTANA] *= 0.6 + fr / 200;
+  t[B.COSTA] *= 0.3 + ag / 70; t[B.DESIERTO] *= 0.35 + ca / 45; t[B.SELVA] *= 0.6 + ca / 150; t[B.TUNDRA] *= 0.35 + fr / 55; t[B.NIEVE] *= 0.35 + fr / 55; t[B.MONTANA] *= 0.6 + fr / 200;
   c._com = t; c._costa = ag / 120; c._nav = navega(c); return t;
 }
 function comidaCelda(M, i, c) { const t = c._com || tablaComida(c); return t[M.bioma[i]] + (M.rio[i] ? 1.4 : 0) + (M.costaAdj[i] ? c._costa : 0); }
-const navega = (c) => c.tec >= 300 || rv(c, 'agua') >= 60; // la navegación abre el mar a ejércitos y colonos
+// la navegación abre el mar a ejércitos y colonos: llega antes a los pueblos científicos (cartas, astrolabios) y a los marinos
+const navega = (c) => c.tec >= 300 - rv(c, 'ciencia') * 1.5 || rv(c, 'agua') >= 60;
 // ventaja militar de la tecnología: continua dentro de cada era (no solo al saltar de era)
-export const tecMil = (c) => { const e = c.era, sig = ERAS[e + 1]?.tec ?? ERAS[e].tec * 1.6; return Math.pow(1.5, e + cl((c.tec - ERAS[e].tec) / (sig - ERAS[e].tec), 0, 1)); };
+export const tecMil = (c) => {
+  const e = c.era, sig = ERAS[e + 1]?.tec;
+  // en la última era el saber sigue contando (sin techo duro): así la ventaja científica no se borra al final
+  const f = sig ? cl((c.tec - ERAS[e].tec) / (sig - ERAS[e].tec), 0, 1) : Math.log2(1 + Math.max(0, c.tec - ERAS[e].tec) / 3000);
+  return Math.pow(1.5, e + f);
+};
 export const poderCiv = (c) => (c.pob || 0) * tecMil(c) * (0.6 + rv(c, 'agresividad') / 200);
 export const eraDe = (tec) => { let e = 0; for (let i = 0; i < ERAS.length; i++) if (tec >= ERAS[i].tec) e = i; return e; };
 const clave = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
@@ -142,6 +148,9 @@ function log(E, texto, tipo = '', hito = false, civ = null) {
   const l = { d: E.año, texto, tipo, civ }; E.diario.unshift(l); if (E.diario.length > 220) E.diario.length = 220;
   if (hito) { E.hitos.unshift(l); if (E.hitos.length > 160) E.hitos.length = 160; }
 }
+// línea de tiempo corta de cada civ (lo que se muestra en su ficha)
+function crono(E, c, texto) { (c.cronica ||= []).push({ d: E.año, t: texto }); if (c.cronica.length > 60) c.cronica.splice(4, 1); }
+const num = (n) => Math.round(n).toLocaleString('es-CO');
 function efecto(E, t, celda, extra = {}) { E.efectos.push({ id: E.sig.ef++, t, celda, año: E.año, ...extra }); if (E.efectos.length > 80) E.efectos.splice(0, E.efectos.length - 80); }
 
 // ---------------------------------------------------------------- creación
@@ -154,8 +163,15 @@ export function crearMundo(cfg) {
   const K = cfg.civs.length;
   // sitios iniciales repartidos (muestreo del punto más lejano) sobre tierra habitable
   const cand = []; for (let i = 0; i < M.n; i++) { const b = M.bioma[i]; if (!esAgua(b) && b !== B.MONTANA && b !== B.NIEVE && Math.hypot(M.x[i], M.z[i]) < RMAPA - 7) cand.push(i); }
-  const sitios = [cand[Math.floor(R() * cand.length)]];
-  while (sitios.length < K) { let mejor = -1, md = -1; for (const i of cand) { let d = 1e9; for (const s of sitios) d = Math.min(d, dist(M, i, s)); d += R() * 5; if (d > md) { md = d; mejor = i; } } sitios.push(mejor); }
+  // varios intentos de reparto: se queda con el que da zonas más parejas en tierra útil (así ningún pueblo nace en un islote)
+  const util = M.bioma.map((b) => [0, 0.4, 1, 3, 2, 2, 1.2, 1.2, 0.6, 0.4][b]);
+  let sitios = null, mejorJ = -1;
+  for (let intento = 0; intento < 40; intento++) {
+    const ss = [cand[Math.floor(R() * cand.length)]];
+    while (ss.length < K) { let mejor = -1, md = -1; for (const i of cand) { let d = 1e9; for (const s of ss) d = Math.min(d, dist(M, i, s)); d += R() * 5; if (d > md) { md = d; mejor = i; } } ss.push(mejor); }
+    const tot = ss.map(() => 0); for (let i = 0; i < M.n; i++) { let mz = 0, md = 1e9; ss.forEach((s, k) => { const d = dist(M, i, s); if (d < md) { md = d; mz = k; } }); tot[mz] += util[i] * (md < 9 ? 1.5 : 1); } // pesa más la tierra cercana a la cuna
+    const j = Math.min(...tot) / Math.max(...tot); if (j > mejorJ) { mejorJ = j; sitios = ss; }
+  }
   // clima alrededor de cada sitio, para ubicar a cada pueblo donde "encaja" (los del desierto en el desierto…)
   const clima = sitios.map((s) => { let cal = 0, fri = 0, agu = 0, t = 0; for (let i = 0; i < M.n; i++) if (dist(M, i, s) < 6) { t++; const b = M.bioma[i]; if (b === B.DESIERTO || b === B.SELVA) cal++; if (b === B.TUNDRA || b === B.NIEVE) fri++; if (esAgua(b)) agu++; } return [cal / t, fri / t, agu / t]; });
   const perms = (l) => (l.length <= 1 ? [l] : l.flatMap((v, i) => perms([...l.slice(0, i), ...l.slice(i + 1)]).map((p) => [v, ...p])));
@@ -167,7 +183,7 @@ export function crearMundo(cfg) {
     const c = nuevaCiv(E, R, { nombre: cc.nombre || `Pueblo ${ci + 1}`, color: cc.color || COLORES_EXTRA[ci], emblema: cc.emblema || EMBLEMAS[ci], r, lengua: ci * 2 + Math.floor(R() * 2) });
     c.zona = mejorP[ci];
     const ciu = fundar(E, R, c, sitios[mejorP[ci]], 320, true); ciu.capital = true; c.capital = ciu.id;
-    log(E, `${c.emblema} Nace ${c.nombre} junto a ${ciu.nombre}. Su fe: ${c.religion}.`, 'logro', true, c.id);
+    log(E, `${c.emblema} Nace ${c.nombre} junto a ${ciu.nombre}. Su fe: ${c.religion}.`, 'logro', true, c.id); crono(E, c, `🌱 Nace junto a ${ciu.nombre}`);
   });
   if (E.velo > 0) log(E, `🌫️ Un velo de niebla separa a los pueblos. Caerá en el año ${E.velo}.`, '', true);
   muestrear(E);
@@ -202,8 +218,10 @@ export function paso(E) {
   if (!E.mapa) throw new Error('mapa sin generar');
   const R = azar(hash(E.semilla, E.año)), M = E.mapa; E.año++;
   const C = new Map(E.ciudades.map((c) => [c.id, c])), vivas = E.civs.filter((c) => c.vivo);
+  // orden al azar cada año: que la civ #0 no tenga siempre la primera palabra al expandirse o declarar guerras
+  for (let i = vivas.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [vivas[i], vivas[j]] = [vivas[j], vivas[i]]; }
   for (const c of vivas) tablaComida(c);
-  if (E.año === E.velo) log(E, '🌫️ ¡El velo cae! Los pueblos del orbe pueden encontrarse.', 'logro', true);
+  if (E.año === E.velo) { log(E, '🌫️ ¡El velo cae! Los pueblos del orbe pueden encontrarse.', 'logro', true); efecto(E, 'velo', celdaCercana(M, 0, 0)); }
   const antesVelo = E.año < E.velo;
 
   // 1) comida, clima y frontera en una pasada por las celdas
@@ -227,8 +245,8 @@ export function paso(E) {
   for (const ci of E.ciudades) {
     const c = E.civs[ci.civ]; if (!c.vivo) continue;
     const socios = nSocios[c.id] || 0;
-    ci.cap = Math.max(60, ci.comida * 70 * (1 + c.tec / 2200) * (1 + socios * 0.05 * rv(c, 'comercio') / 100) * (1 + rv(c, 'fertilidad') / 500) * (ci.capital ? 1.15 : 1));
-    const rr = (0.006 + rv(c, 'fertilidad') / 100 * 0.03) * (c.oro > 0 ? 1.3 : 1);
+    ci.cap = Math.max(60, ci.comida * 55 * (1 + 2.4 * (1 - Math.exp(-c.tec / 3500))) * (1 + socios * 0.05 * rv(c, 'comercio') / 100) * (1 + rv(c, 'fertilidad') / 500) * (ci.capital ? 1.15 : 1) * (M.costaAdj[ci.celda] && c._nav ? 1 + rv(c, 'comercio') / 300 : 1)); // puertos: el comercio por mar alimenta
+    const rr = (0.006 + rv(c, 'fertilidad') / 100 * 0.03 + Math.max(0, c.r.ciencia - 80) / 100 * 0.014) * (c.oro > 0 ? 1.3 : 1); // medicina: solo los muy científicos
     if (ci.pob < ci.cap) ci.pob += ci.pob * rr * (1 - ci.pob / ci.cap); else ci.pob -= (ci.pob - ci.cap) * 0.08;
     ci.pob = Math.max(20, ci.pob); if (ci.fuego > 0) ci.fuego--; if (ci.sitiada > 0) ci.sitiada--;
     const nv = nivelDe(ci.pob);
@@ -245,22 +263,24 @@ export function paso(E) {
     const L = c.lider; L.edad++;
     const enGuerra = guerrasDe(E, c.id).length > 0;
     if (R() < (L.edad > 42 ? (L.edad - 42) * 0.005 : 0.002) + (enGuerra ? 0.006 : 0)) {
-      const años = E.año - L.desde; log(E, `⚰️ Muere ${L.titulo === 'reina' ? 'la reina' : 'el rey'} ${L.nombre} ${L.epiteto} de ${c.nombre} tras ${años} años de reinado.`, '', false, c.id); nuevoLider(E, R, c);
+      const años = E.año - L.desde; if (años >= 30 || L.hazañas > 0) crono(E, c, `👑 Muere ${L.nombre} ${L.epiteto} tras ${años} años de reinado${L.hazañas ? ` y ${L.hazañas} conquistas` : ''}`); log(E, `⚰️ Muere ${L.titulo === 'reina' ? 'la reina' : 'el rey'} ${L.nombre} ${L.epiteto} de ${c.nombre} tras ${años} años de reinado.`, '', false, c.id); nuevoLider(E, R, c);
     }
     if (c.oro > 0 && --c.oro === 0) log(E, `${c.emblema} Termina la edad de oro de ${c.nombre}.`, '', false, c.id);
     if (c.heroe && --c.heroe.años <= 0) { log(E, `🗡️ El general ${c.heroe.nombre} de ${c.nombre} se retira a morir en paz.`, '', false, c.id); c.heroe = null; }
     const socios = Object.values(E.rel).filter((r) => r.comercio && (r.a === c.id || r.b === c.id));
-    let ritmo = 0.5 * Math.pow(c.pob / 1000, 0.35) * Math.pow(0.1 + rv(c, 'ciencia') / 40, 1.3) * (1 + socios.length * 0.15 * (0.4 + rv(c, 'comercio') / 100)) * (c.oro > 0 ? 1.6 : 1);
+    let ritmo = 0.55 * Math.pow(c.pob / 1000, 0.35) * Math.pow(0.1 + rv(c, 'ciencia') / 40, 1.15) * (1 + socios.length * 0.15 * (0.4 + rv(c, 'comercio') / 100)) * (c.oro > 0 ? 1.6 : 1);
     // difusión: aprender de vecinos más avanzados (más rápido si comercian)
-    for (const r of Object.values(E.rel)) { if (r.a !== c.id && r.b !== c.id) continue; const o = E.civs[r.a === c.id ? r.b : r.a]; if (o.vivo && o.tec > c.tec) ritmo += (o.tec - c.tec) * (r.comercio ? 0.0025 : 0.0006); }
+    for (const r of Object.values(E.rel)) { if (r.a !== c.id && r.b !== c.id) continue; const o = E.civs[r.a === c.id ? r.b : r.a]; if (o.vivo && o.tec > c.tec) ritmo += (o.tec - c.tec) * (r.comercio ? 0.0025 : 0.0012); }
     const trib = Object.values(E.rel).find((r) => r.estado === 'tributo' && (r.a === c.id || r.b === c.id));
     if (trib) ritmo *= trib.senor === c.id ? 1.15 : 0.85;
+    // rutas marítimas: un pueblo que navega y tiene costa aprende de los puertos lejanos
+    if (c._nav) ritmo *= 1 + (S[c.id].agu / Math.max(1, S[c.id].celdas)) * (rv(c, 'comercio') + rv(c, 'ciencia')) / 240; // cartas náuticas + mercaderes
     c.tec += ritmo;
     while (c.desc < DESC.length && c.tec >= DESC[c.desc][1]) {
       const d = DESC[c.desc][0], primero = !E.civs.some((o) => o !== c && o.desc > c.desc);
-      log(E, `💡 ${c.nombre} descubre ${d}${primero ? ' — ¡primera en el mundo!' : ''}.`, 'logro', primero, c.id); c.desc++;
+      log(E, `💡 ${c.nombre} descubre ${d}${primero ? ' — ¡primera en el mundo!' : ''}.`, 'logro', primero, c.id); if (primero) crono(E, c, `💡 Primera en descubrir ${d}`); c.desc++;
     }
-    const era = eraDe(c.tec); if (era > c.era) { c.era = era; log(E, `${ERAS[era].e} ${c.nombre} entra en la ${ERAS[era].n}.`, 'logro', true, c.id); }
+    const era = eraDe(c.tec); if (era > c.era) { c.era = era; crono(E, c, `${ERAS[era].e} Entra en la ${ERAS[era].n}`); log(E, `${ERAS[era].e} ${c.nombre} entra en la ${ERAS[era].n}.`, 'logro', true, c.id); }
     derivarRasgos(E, c, S[c.id], enGuerra);
   }
 
@@ -280,11 +300,11 @@ export function paso(E) {
       E.dueno[mejor] = c.id; E.ciudadDe[mejor] = E.ciudadDe[mo]; c.expPts -= M.bioma[mejor] === B.MONTANA || esAgua(M.bioma[mejor]) ? 1.6 : 1;
     }
     // colonos: nueva aldea a unos hexágonos de una ciudad que ya tiene gente de sobra
-    const mias = E.ciudades.filter((x) => x.civ === c.id), fuente = mias.filter((x) => x.pob > 700 && x.pob > x.cap * 0.55);
+    const mias = E.ciudades.filter((x) => x.civ === c.id), fuente = mias.filter((x) => x.pob > 650 && x.pob > x.cap * 0.45);
     if (fuente.length && mias.length < 2 + c.pob / 1800 && R() < 0.04 + rv(c, 'expansion') / 100 * 0.14) {
       const f = fuente[Math.floor(R() * fuente.length)]; let mejor = -1, ms = -1e9;
-      for (let k = 0; k < 50; k++) {
-        const ang = R() * Math.PI * 2, d = (4 + R() * (navega(c) ? 7 : 4.5)) * PASO, j = celdaCercana(M, M.x[f.celda] + Math.cos(ang) * d, M.z[f.celda] + Math.sin(ang) * d);
+      for (let k = 0; k < 60; k++) {
+        const ang = R() * Math.PI * 2, d = (4 + R() * (navega(c) ? 9 : 4.5)) * PASO, j = celdaCercana(M, M.x[f.celda] + Math.cos(ang) * d, M.z[f.celda] + Math.sin(ang) * d);
         const b = M.bioma[j]; if (j < 0 || esAgua(b) || b === B.MONTANA || (b === B.NIEVE && rv(c, 'frio') < 65)) continue;
         if (E.dueno[j] >= 0 && E.dueno[j] !== c.id) continue; if (antesVelo && E.zona[j] !== c.zona) continue;
         if (E.ciudades.some((x) => dist(M, x.celda, j) < 3.8)) continue;
@@ -322,7 +342,7 @@ function derivarRasgos(E, c, s, enGuerra) {
     comercio: r0.comercio + ex.comercio * 18 + fa * 15 - ex.guerra * 5,
     expansion: r0.expansion + (c.encerrada ? -12 : 6) + ex.victorias * 6,
     fertilidad: r0.fertilidad + ex.desastre * 14 - c.era * 3,
-    cohesion: r0.cohesion - Math.min(22, Math.max(0, n - 4) * 1.5) + ex.victorias * 8 - ex.desastre * 8 - ex.derrotas * 10 + (rv(c, 'fe') - 50) * 0.12,
+    cohesion: r0.cohesion - Math.min(22, Math.max(0, n - 4) * 1.5) + ex.victorias * 8 - ex.desastre * 8 - ex.derrotas * 10 + (rv(c, 'fe') - 50) * 0.12 + (rv(c, 'ciencia') - 50) * 0.08, // fe e instituciones sostienen la unidad
     diplomacia: r0.diplomacia + ex.alianzas * 15 + ex.comercio * 8 - ex.guerra * 12,
     calor: Math.max(r0.calor, r0.calor * 0.5 + fh * 140), frio: Math.max(r0.frio, r0.frio * 0.5 + ff * 140), agua: r0.agua + fa * 35,
   };
@@ -344,6 +364,10 @@ function diplomacia(E, R, vivas, S, C) {
       const v0 = ((rv(A, 'diplomacia') + rv(Bc, 'diplomacia')) / 2 - (rv(A, 'agresividad') + rv(Bc, 'agresividad')) / 2) * 0.5 + (R() - 0.5) * 20 + (A.padre === Bc.id || Bc.padre === A.id ? -20 : 0);
       r = E.rel[k] = { contacto: E.año, a: Math.min(A.id, Bc.id), b: Math.max(A.id, Bc.id), v: cl(v0, -100, 100), estado: 'paz', desde: E.año, tregua: 0, comercio: false, senor: -1, cans: {}, bajas: {}, frontera: fr, ultimaGuerra: E.año };
       log(E, `🤝 Primer contacto: ${A.emblema} ${A.nombre} y ${Bc.emblema} ${Bc.nombre} se descubren.`, 'logro', true);
+      crono(E, A, `🤝 Descubre a ${Bc.nombre}`); crono(E, Bc, `🤝 Descubre a ${A.nombre}`);
+      // el lugar del encuentro: a medio camino entre sus ciudades más cercanas
+      let mp = null, mdd = 1e9; for (const p of E.ciudades) if (p.civ === A.id) for (const q of E.ciudades) if (q.civ === Bc.id) { const d = dist(M, p.celda, q.celda); if (d < mdd) { mdd = d; mp = [p.celda, q.celda]; } }
+      if (mp) efecto(E, 'contacto', celdaCercana(M, (M.x[mp[0]] + M.x[mp[1]]) / 2, (M.z[mp[0]] + M.z[mp[1]]) / 2), { a: A.id, b: Bc.id });
       continue;
     }
     r.frontera = fr;
@@ -406,6 +430,7 @@ function declarar(E, P, Q, r, silencio = false) {
   P.stats.guerras++; Q.stats.guerras++;
   const nombres = ['la Guerra de los Cien Años', 'la Guerra del Río', 'la Gran Guerra', 'la Guerra de las Coronas', 'la Guerra Santa', 'la Guerra de la Frontera', 'la Guerra del Hierro'];
   r.nombre = P.padre === Q.id || Q.padre === P.id ? 'la Guerra Civil' : rv(P, 'fe') > 70 ? 'la Guerra Santa' : nombres[(E.año + P.id * 3 + Q.id) % nombres.length];
+  crono(E, P, `⚔️ Declara ${r.nombre} a ${Q.nombre}`); crono(E, Q, `⚔️ ${P.nombre} le declara ${r.nombre}`);
   if (!silencio) log(E, `⚔️ ${P.emblema} ${P.nombre} declara la guerra a ${Q.emblema} ${Q.nombre}: comienza ${r.nombre}.`, 'malo', true);
 }
 function pazEntre(E, R, P, Q, r) {
@@ -416,13 +441,14 @@ function pazEntre(E, R, P, Q, r) {
   disolver(E, P.id, Q.id);
   if (ratio > 4 && tomadas > 0 && P.nCiudades <= Math.max(3, Q.nCiudades * 0.6)) {
     // capitulación: el vencido entrega todo y su pueblo pasa a ser parte del vencedor
+    crono(E, Q, `🏆 ${P.nombre} capitula: absorbe todas sus ciudades`);
     log(E, `🏳️ ${P.emblema} ${P.nombre} capitula ante ${Q.emblema} ${Q.nombre} al cabo de ${r.nombre} (${dur} años).`, 'malo', true);
     for (const ci of E.ciudades) if (ci.civ === P.id) { ci.civ = Q.id; ci.capital = false; ci.pob *= 0.85; ci.conq = E.año; }
     for (let i = 0; i < E.dueno.length; i++) if (E.dueno[i] === P.id) E.dueno[i] = Q.id;
     Q.ex.victorias += 1.5; extinguir(E, P, 'conquistada', Q); return;
   }
   if (ratio > 2 && tomadas > 0 && rv(Q, 'diplomacia') < 70) {
-    r.estado = 'tributo'; r.senor = Q.id; r.desde = E.año; r.v = -10;
+    r.estado = 'tributo'; r.senor = Q.id; r.desde = E.año; r.v = -10; crono(E, P, `📜 Derrotada: paga tributo a ${Q.nombre}`); crono(E, Q, `📜 ${P.nombre} le paga tributo`);
     log(E, `📜 ${P.nombre} se rinde y paga tributo a ${Q.nombre}. Termina ${r.nombre} (${dur} años).`, 'malo', true);
     Q.ex.victorias += 1; P.ex.derrotas += 1;
   } else {
@@ -438,6 +464,7 @@ function pazEntre(E, R, P, Q, r) {
         if (cede) { cede.civ = gana.id; cede.conq = E.año; for (let i = 0; i < E.mapa.n; i++) if (E.ciudadDe[i] === cede.id) E.dueno[i] = gana.id; }
       }
     }
+    for (const X of [P, Q]) crono(E, X, `🕊️ Paz con ${(X === P ? Q : P).nombre} tras ${dur} años${!gana ? '' : gana === X ? ' (gana' + (cede ? ` ${cede.nombre})` : ')') : ' (pierde' + (cede ? ` ${cede.nombre})` : ')')}`);
     log(E, `🕊️ Paz entre ${P.nombre} y ${Q.nombre}${gana ? `; ${gana.nombre} sale ganando${cede ? ` y se queda con ${cede.nombre}` : ''}` : ', sin vencedor claro'}.`, 'bueno', true);
   }
   r.ultimaGuerra = E.año; r.cans = {};
@@ -457,6 +484,7 @@ function asimilar(E, S_, T) {
   log(E, `🫂 ${T.nombre} es asimilada pacíficamente por ${S_.nombre}; su gente adopta ${S_.religion}.`, 'logro', true);
 }
 function extinguir(E, c, causa, por = null) {
+  crono(E, c, `💀 ${cap(causa)}${por ? ` por ${por.nombre}` : ''}`); if (por) crono(E, por, `💀 Acaba con ${c.nombre}`);
   c.vivo = false; c.murio = E.año; c.causa = causa; c.por = por?.id ?? null; c.pob = 0;
   E.ejercitos = E.ejercitos.filter((e) => e.civ !== c.id);
   for (const k of Object.keys(E.rel)) { const r = E.rel[k]; if (r.a === c.id || r.b === c.id) delete E.rel[k]; }
@@ -481,7 +509,7 @@ function ruta(E, c, de, a) {
 const fuerzaEf = (E, c, ej, R) => {
   const M = E.mapa, b = M.bioma[ej.celda];
   let t = 1; if (E.dueno[ej.celda] === c.id) t *= 1.15; if (b === B.MONTANA) t *= 1.25; else if (b === B.BOSQUE || b === B.SELVA) t *= 1.1;
-  if (b === B.DESIERTO || b === B.SELVA) t *= 0.7 + rv(c, 'calor') / 333; if (b === B.TUNDRA || b === B.NIEVE) t *= 0.7 + rv(c, 'frio') / 333; if (esAgua(b)) t *= 0.6 + rv(c, 'agua') / 250;
+  if (b === B.DESIERTO || b === B.SELVA) t *= 0.7 + rv(c, 'calor') / 333; if (b === B.TUNDRA || b === B.NIEVE) t *= 0.7 + rv(c, 'frio') / 333; if (esAgua(b)) t *= 0.6 + rv(c, 'agua') / 250 + rv(c, 'ciencia') / 350; // mejores barcos
   return ej.fuerza * tecMil(c) * (0.5 + ej.moral) * (0.7 + rv(c, 'agresividad') / 250 + rv(c, 'cohesion') / 330 + rv(c, 'fe') / 1000) * t * (ej.general ? 1.25 : 1) * (0.8 + R() * 0.4);
 };
 function guerra(E, R, C) {
@@ -523,7 +551,7 @@ function guerra(E, R, C) {
       else { if ((!ej.ruta || !ej.ruta.length) && ej._ra !== E.año) { ej._ra = E.año; ej.ruta = ruta(E, P, ej.celda, o.celda) || []; } sig = ej.ruta?.shift() ?? -1; }
       if (sig < 0) break;
       if (sig === o.celda || dist(M, sig, o.celda) < 0.6) { ej.sitio = o.id; ej.sitioAños = 0; o.sitiada = 2; log(E, `🏹 ${P.nombre} pone sitio a ${o.nombre}.`, 'malo', false); break; }
-      ej.celda = sig; ej.tray.push(sig);
+      ej.celda = sig; ej.tray.push(sig); if (esAgua(M.bioma[sig])) ej.porMar = true;
       if (esAgua(M.bioma[sig])) s += 0.5;
     }
   }
@@ -541,7 +569,9 @@ function guerra(E, R, C) {
     const o = C.get(ej.sitio), P = E.civs[ej.civ]; if (!o || o.civ !== ej.enemigo) { ej.sitio = -1; continue; }
     const D = E.civs[o.civ]; ej.sitioAños++; o.sitiada = 2;
     const def = (o.pob * 0.1 + 60) * tecMil(D) * (1 + 0.3 * o.nivel + (D.tec >= 1250 ? 0.5 : 0)) * (1 + rv(D, 'ciencia') / 200) * (0.7 + rv(D, 'cohesion') / 200 + rv(D, 'fe') / 600) * (o.capital ? 1.25 : 1) * (E.mapa.bioma[o.celda] === B.MONTANA ? 1.3 : 1) * (o.conq && E.año - o.conq < 12 ? 1.8 : 1);
-    const atq = fuerzaEf(E, P, ej, R);
+    let atq = fuerzaEf(E, P, ej, R);
+    // desembarcos: atacar desde el mar contra fortalezas costeras de un pueblo científico es carísimo
+    if (ej.porMar) atq *= cl(1 - rv(D, 'ciencia') / 220 + rv(P, 'agua') / 400, 0.5, 1.1);
     ej.fuerza *= 0.93; o.pob *= 0.97; ej.combate = 1;
     const rr = relDe(E, P.id, D.id); if (rr) { rr.bajas[P.id] = (rr.bajas[P.id] || 0) + ej.fuerza * 0.07; rr.bajas[D.id] = (rr.bajas[D.id] || 0) + o.pob * 0.03; }
     if (atq > def * (0.85 + R() * 0.6)) caer(E, R, o, ej, P, D);
@@ -560,7 +590,7 @@ function batalla(E, R, a, b, muertos) {
   const nom = `la batalla de ${lugar(E, g.celda)}`;
   efecto(E, 'batalla', g.celda, { otra: p.celda, ca: G.color, cb: P.color });
   const grande = bajasG + bajasP > 1500;
-  log(E, `⚔️ ${cap(nom)}: ${G.nombre} derrota a ${P.nombre} (${Math.round(bajasP + bajasG)} caídos).`, 'malo', grande && R() < 0.4);
+  log(E, `⚔️ ${cap(nom)}: ${G.nombre} derrota a ${P.nombre} (${num(bajasP + bajasG)} caídos).`, 'malo', grande && R() < 0.4);
   if (!g.general && !G.heroe && R() < 0.05) { g.general = palabra(R, G.lengua, 2, 3); G.heroe = { nombre: g.general, años: 25 + Math.floor(R() * 20) }; log(E, `🗡️ Tras ${nom} se alza el general ${g.general} de ${G.nombre}, héroe de su pueblo.`, 'logro', true, G.id); }
   if (p.general && R() < 0.35) { log(E, `☠️ Cae el general ${p.general} de ${P.nombre}.`, 'malo', false); if (P.heroe?.nombre === p.general) P.heroe = null; p.general = null; }
   if (p.fuerza < 40) muertos.add(p.id); else { p.retirada = 2; p.sitio = -1; p.ruta = null; }
@@ -574,13 +604,14 @@ function caer(E, R, o, ej, P, D) {
   o.civ = P.id; o.capital = false; o.sitiada = 0;
   for (let i = 0; i < M.n; i++) if (E.ciudadDe[i] === o.id) E.dueno[i] = P.id;
   o.pob += ej.fuerza * 0.4; ej.fuerza *= 0.55; ej.sitio = -1; ej.ruta = null; ej.moral = Math.min(1.2, ej.moral + 0.15);
-  P.stats.conquistas++; D.stats.perdidas++; P.ex.victorias += 0.3; D.ex.derrotas += 0.3; D.ex.desastre += 0.15;
+  P.stats.conquistas++; D.stats.perdidas++; P.lider.hazañas = (P.lider.hazañas || 0) + 1; P.ex.victorias += 0.3; D.ex.derrotas += 0.3; D.ex.desastre += 0.15;
   const rr = relDe(E, P.id, D.id); if (rr) { rr.ciudadesTomadas = rr.ciudadesTomadas || {}; rr.ciudadesTomadas[P.id] = (rr.ciudadesTomadas[P.id] || 0) + 1; rr.cans[D.id] = (rr.cans[D.id] || 0) + 0.18; }
   if (extermina && o.pob < 80) destruir(E, o);
   const quedan = E.ciudades.filter((c) => c.civ === D.id);
   if (!quedan.length) { extinguir(E, D, extermina ? 'exterminada' : 'conquistada', P); return; }
   if (eraCapital) {
     const n = quedan.reduce((m, c) => (c.pob > m.pob ? c : m)); n.capital = true; D.capital = n.id; D.r.cohesion = Math.max(0, D.r.cohesion - 12);
+    crono(E, D, `🔥 Cae la capital ${o.nombre} ante ${P.nombre}`);
     log(E, `👑 Cae la capital de ${D.nombre}. La corte huye a ${n.nombre}.`, 'malo', true, D.id);
   }
 }
@@ -616,7 +647,7 @@ function eventos(E, R) {
     }
     // edad de oro: paz, cohesión y prosperidad
     if (!c.oro && guerrasDe(E, c.id).length === 0 && R() < 0.003 * (rv(c, 'cohesion') / 60) * (1 + c.ex.prosperidad)) {
-      c.oro = 30 + Math.floor(R() * 30); log(E, `✨ Comienza la edad de oro de ${c.nombre} bajo ${c.lider.nombre} ${c.lider.epiteto}.`, 'logro', true, c.id);
+      c.oro = 30 + Math.floor(R() * 30); crono(E, c, `✨ Edad de oro bajo ${c.lider.nombre} ${c.lider.epiteto}`); log(E, `✨ Comienza la edad de oro de ${c.nombre} bajo ${c.lider.nombre} ${c.lider.epiteto}.`, 'logro', true, c.id);
     }
     // cisma / guerra civil: imperios grandes y poco cohesionados se parten
     const coh = rv(c, 'cohesion');
@@ -645,6 +676,7 @@ function cisma(E, R, c, mias) {
   for (const r2 of Object.values(E.rel)) { if (r2.a !== c.id && r2.b !== c.id) continue; const o = r2.a === c.id ? r2.b : r2.a; const k = clave(n.id, o); E.rel[k] = { a: Math.min(n.id, o), b: Math.max(n.id, o), v: r2.v * 0.5, estado: 'paz', desde: E.año, tregua: 0, comercio: false, senor: -1, cans: {}, bajas: {}, frontera: 0, ultimaGuerra: E.año }; }
   const rel = { a: c.id, b: n.id, v: -40, estado: 'paz', desde: E.año, tregua: 0, comercio: false, senor: -1, cans: {}, bajas: {}, frontera: 0, ultimaGuerra: E.año };
   E.rel[clave(c.id, n.id)] = rel;
+  crono(E, c, `⚡ Se separan ${rebeldes.length} ciudades: nace ${n.nombre}`); crono(E, n, `⚡ Nace al separarse de ${c.nombre}`);
   if (rv(c, 'diplomacia') > 62) { rel.v = 0; rel.tregua = E.año + 30; log(E, `📜 ${rebeldes.length} ciudades de ${c.nombre} se independizan en paz: nace ${n.emblema} ${n.nombre}.`, 'logro', true, n.id); }
   else { log(E, `⚡ ¡Guerra civil en ${c.nombre}! ${rebeldes.length} ciudades se alzan y nace ${n.emblema} ${n.nombre}.`, 'malo', true, n.id); declarar(E, c, n, rel, true); }
 }

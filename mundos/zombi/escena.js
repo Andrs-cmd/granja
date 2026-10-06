@@ -14,7 +14,8 @@ const CONCRETO = [0x9a948a, 0x868b92, 0xa28a74, 0x7a8276, 0xb0a898], AUTOS = [0x
 export const ROPAS = [0xc8742a, 0x3a6a9a, 0x8a3a3a, 0x4a7a4a, 0x6a4a8a, 0xb0a040, 0x5a6a7a, 0x9a5a7a];
 
 export function crearEscena(O) {
-  const R = O.R, mundo = O.mundo;
+  const R = O.R, mundo = O.mundo, tactil = matchMedia('(pointer: coarse)').matches;
+  const MAX_Z = tactil ? 18 : 28, SOMBRA_R = tactil ? 30 : 99; // en celular: menos zombis dibujados y solo las manzanas cercanas proyectan sombra
   // ---------------------------------------------------------------- materiales con recorte circular (y bajo la cúpula)
   const uR = { value: R - 0.25 }, uD = { value: R + 5.0 };
   function recortar(mat) {
@@ -212,6 +213,45 @@ export function crearEscena(O) {
   const linterna = new THREE.PointLight(0xffe2b0, 0, 16, 1.3); mundo.add(linterna);
   const fogata = new THREE.PointLight(0xff8a3a, 0, 14, 1.4); mundo.add(fogata);
 
+  // ---------------------------------------------------------------- vida ambiental: perros, cuervos, alarmas y lluvia
+  const perros = new Map();
+  function perro(a) {
+    let p = perros.get(a.id); if (p) return p;
+    const c = [0x7a5a3a, 0x3a3230, 0xb09a7a, 0x5a4a3a][a.id % 4];
+    p = new THREE.Group(); const cuerpo = new THREE.Mesh(fundirGeo([[GEO.capsula, c, 0, 0.5, 0, 0.32, 0.5, 0.32, Math.PI / 2, 0, 0], [GEO.esfera, c, 0, 0.68, 0.42, 0.17, 0.16, 0.2], [GEO.caja, 0x2a2420, 0, 0.66, 0.6, 0.08, 0.06, 0.1], [GEO.cono, c, -0.08, 0.84, 0.4, 0.05, 0.12, 0.05], [GEO.cono, c, 0.08, 0.84, 0.4, 0.05, 0.12, 0.05], [GEO.cil, c, 0, 0.62, -0.42, 0.03, 0.3, 0.03, -0.8, 0, 0]]), MAT);
+    const patas = new THREE.Mesh(fundirGeo([[GEO.cil, c, -0.1, -0.2, 0.25, 0.04, 0.4, 0.04], [GEO.cil, c, 0.1, -0.2, 0.25, 0.04, 0.4, 0.04], [GEO.cil, c, -0.1, -0.2, -0.25, 0.04, 0.4, 0.04], [GEO.cil, c, 0.1, -0.2, -0.25, 0.04, 0.4, 0.04]]), MAT);
+    patas.position.y = 0.42; cuerpo.castShadow = true; p.add(cuerpo, patas); p.userData.patas = patas; mundo.add(p); perros.set(a.id, p); return p;
+  }
+  const cuervos = new THREE.InstancedMesh(fundirGeo([[GEO.esfera, 0x141414, 0, 0, 0, 0.1, 0.08, 0.16], [GEO.caja, 0x141414, 0, 0.02, 0, 0.42, 0.02, 0.12]]), MAT, 80); cuervos.count = 0; cuervos.frustumCulled = false; mundo.add(cuervos);
+  const alarmas = new THREE.InstancedMesh(new THREE.BoxGeometry(0.25, 0.12, 0.25), recortar(new THREE.MeshBasicMaterial({ color: 0xffa020, toneMapped: false })), 12); alarmas.count = 0; alarmas.frustumCulled = false; mundo.add(alarmas);
+  const N_LL = tactil ? 260 : 520, gotas = [];
+  const lluvia = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, 1.1, 0.03), recortar(new THREE.MeshBasicMaterial({ color: 0xa8c0d8, transparent: true, opacity: 0.45, depthWrite: false })), N_LL); lluvia.count = 0; lluvia.frustumCulled = false; mundo.add(lluvia);
+  for (let i = 0; i < N_LL; i++) { const a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * R; gotas.push([Math.cos(a) * r, Math.random() * 30, Math.sin(a) * r]); }
+  function vidaAmbiental(dt, S) {
+    const vivos = new Set(); let nc = 0;
+    for (const a of S.anim) {
+      if (!dentroVentana(a.x, a.z, 0.8)) continue;
+      if (a.t === 'perro') {
+        const p = perro(a); vivos.add(a.id); p.visible = true; p.position.set(a.x, altura(a.x, a.z), a.z); p.rotation.y = a.dir;
+        const f = tAcum * (4 + a.vel * 3); p.userData.patas.rotation.x = a.vel > 0.1 ? Math.sin(f) * 0.5 : 0; p.children[0].position.y = a.vel > 0.1 ? Math.abs(Math.sin(f)) * 0.05 : 0;
+      } else for (let k = 0; k < a.n && nc < 80; k++) { // cada cuervo picotea o aletea según la bandada
+        const vuela = a.est === 'vuela', ang = k * 2.4 + a.id;
+        _v.set(a.x + Math.cos(ang) * (0.6 + k * 0.25) + (vuela ? Math.cos(ang) * a.tE : 0), 0.12 + (vuela ? a.y + Math.sin(tAcum * 3 + k) * 0.5 : Math.abs(Math.sin(tAcum * 6 + k)) * 0.06), a.z + Math.sin(ang) * (0.6 + k * 0.25) + (vuela ? Math.sin(ang) * a.tE : 0));
+        _q.setFromEuler(_e.set(0, ang + (vuela ? 0 : Math.sin(tAcum + k)), 0)); _s.set(vuela ? 1 : 0.35, 1, 1).multiplyScalar(1 + (vuela ? Math.sin(tAcum * 18 + k) * 0.3 : 0));
+        cuervos.setMatrixAt(nc++, _m.compose(_v, _q, _s));
+      }
+    }
+    _s.set(1, 1, 1); cuervos.count = nc; cuervos.instanceMatrix.needsUpdate = true;
+    for (const [id, p] of perros) if (!vivos.has(id)) { p.visible = false; if (!S.anim.some((a) => a.id === id)) { mundo.remove(p); perros.delete(id); } }
+    // alarmas que chillan: luces naranja intermitentes
+    let na = 0; const on = Math.sin(tAcum * 12) > 0;
+    for (const a of Object.values(S.alarmas)) if (S.t - a.t < 30 && on && na < 12 && dentroVentana(a.x, a.z)) { for (const s2 of [-1, 1]) if (na < 12) { _v.set(a.x + s2 * 0.7, 0.75, a.z); alarmas.setMatrixAt(na++, _m.compose(_v, _q.identity(), _s)); } }
+    alarmas.count = na; alarmas.instanceMatrix.needsUpdate = true;
+    // lluvia: gotas que caen alrededor del protagonista (se recortan con el círculo)
+    const ll = S.clima?.lluvia || 0, n = Math.round(N_LL * Math.min(1, ll * 1.2)); lluvia.count = n;
+    if (n) { for (let i = 0; i < n; i++) { const g = gotas[i]; g[1] -= dt * 22; if (g[1] < 0) g[1] += 30; _v.set(ancla.x + g[0], g[1], ancla.z + g[2]); lluvia.setMatrixAt(i, _m.compose(_v, _q.set(0.08, 0, 0, 1).normalize(), _s)); } lluvia.instanceMatrix.needsUpdate = true; }
+  }
+
   // ---------------------------------------------------------------- estado de la ventana
   const ancla = { x: 0, z: 0 }; let ultRuido = -1, tAcum = 0, primera = true;
   function reiniciar(S) {
@@ -220,6 +260,7 @@ export function crearEscena(O) {
     for (const [, g] of geos) { g.b.dispose(); g.f?.dispose(); g.l?.dispose(); } geos.clear();
     for (const [, p] of humanos) mundo.remove(p.g); humanos.clear();
     for (const [, p] of zUsa) { p.g.visible = false; zPool[p.tipo].push(p); } zUsa.clear();
+    for (const [, p] of perros) mundo.remove(p); perros.clear();
     crearPj(S); heli.visible = false;
   }
   const dentroVentana = (x, z, m = 0.6) => Math.hypot(x - ancla.x, z - ancla.z) < R - m;
@@ -235,6 +276,7 @@ export function crearEscena(O) {
     if (Math.hypot(P0.x - ancla.x, P0.z - ancla.z) > 25) { ancla.x = P0.x; ancla.z = P0.z; } else { ancla.x += (P0.x - ancla.x) * k; ancla.z += (P0.z - ancla.z) * k; }
     mundo.position.set(-ancla.x, 0, -ancla.z);
     celdasVisibles(ancla.x, ancla.z, primera); primera = false;
+    if (SOMBRA_R < 99) for (const [, m] of activas) m.b.castShadow = Math.hypot(m.b.position.x + P / 2 - ancla.x, m.b.position.z + P / 2 - ancla.z) < SOMBRA_R + P * 0.7;
     // noche: ventanas encendidas, linterna y fuego
     const h = horaDe(S), nn = esNoche(h) ? 1 : h > 18.5 ? (h - 18.5) / 2 : h < 7 ? (7 - h) / 1.5 : 0; noche += (Math.min(1, nn) - noche) * Math.min(1, dt * 2);
     MAT_L.visible = noche > 0.35; const fl = 0.82 + 0.18 * Math.sin(tAcum * 17) * Math.sin(tAcum * 7.3); MAT_F.color.setScalar(fl);
@@ -251,7 +293,7 @@ export function crearEscena(O) {
     if (S.fin?.tipo === 'escape') pj.g.visible = false;
     // zombis: los más cercanos dentro de la ventana, cada uno con una persona de su tipo (piscina)
     const vis = []; for (const z of S.zs) if (dentroVentana(z.x, z.z)) vis.push(z);
-    if (vis.length > 28) { vis.sort((a, b) => Math.hypot(a.x - ancla.x, a.z - ancla.z) - Math.hypot(b.x - ancla.x, b.z - ancla.z)); vis.length = 28; }
+    if (vis.length > MAX_Z) { vis.sort((a, b) => Math.hypot(a.x - ancla.x, a.z - ancla.z) - Math.hypot(b.x - ancla.x, b.z - ancla.z)); vis.length = MAX_Z; }
     const ids = new Set(vis.map((z) => z.id));
     for (const [id, p] of zUsa) if (!ids.has(id)) { p.g.visible = false; zPool[p.tipo].push(p); zUsa.delete(id); }
     for (const z of vis) {
@@ -294,6 +336,7 @@ export function crearEscena(O) {
       heli.userData.sube = S.fin?.tipo === 'escape' ? (heli.userData.sube || 0) + dt : 0;
       heli.position.set(ox, 3 + baja * 34 + heli.userData.sube * heli.userData.sube * 1.5, oz - 1); heli.rotation.y = tAcum * 0.05; heli.userData.rotor.rotation.y += dt * 25;
     } else heli.visible = false;
+    vidaAmbiental(dt, S);
   }
   // lo que se puede tocar (zombis y humanos) para O.tocar
   function tocables() { const l = []; for (const [, p] of zUsa) if (p.g.visible) l.push(p.g); for (const [, p] of humanos) if (p.g.visible) l.push(p.g); return l; }

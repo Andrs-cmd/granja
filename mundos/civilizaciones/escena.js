@@ -281,6 +281,7 @@ export function crearEscena(O, { etiquetas = null } = {}) {
       else if (f.t === 'bendicion') for (let k = 0; k < 40; k++) fuego.emitir({ x: x + (Math.random() - 0.5) * 3, y: y + Math.random() * 3, z: z + (Math.random() - 0.5) * 3, vx: 0, vy: 0.6, vz: 0, vida: 2.5, tam: 0.18, r: 1, g: 0.85, b: 0.35, a: 1 });
       else if (f.t === 'meteorito') { const m = new THREE.Mesh(geoMeteoro, matMeteoro); m.scale.setScalar(0.9); m.position.set(x + 30, 60, z - 20); raiz.add(m); meteoros.push({ m, x, y, z, t: 0 }); }
       else if (f.t === 'terremoto') { temblor = 1.6; for (let k = 0; k < 30; k++) humo.emitir({ x: x + (Math.random() - 0.5) * 10, y: y + 0.2, z: z + (Math.random() - 0.5) * 10, vx: 0, vy: 0.4, vz: 0, vida: 3, tam: 0.8, crece: 2, r: 0.6, g: 0.52, b: 0.4, a: 0.4 }); }
+      else if (f.t === 'contacto' || f.t === 'velo') { const ca = f.a != null ? new THREE.Color(E.civs[f.a]?.color || '#fff') : _c.set(0xd8d0ff), cb = f.b != null ? new THREE.Color(E.civs[f.b]?.color || '#fff') : ca; for (let k = 0; k < 70; k++) { const q = k % 2 ? ca : cb, a = Math.random() * 6.28, r = Math.random() * (f.t === 'velo' ? 30 : 3); fuego.emitir({ x: x + Math.cos(a) * r, y: y + 0.3 + Math.random() * 2, z: z + Math.sin(a) * r, vx: 0, vy: 0.8 + Math.random(), vz: 0, vida: 2.5 + Math.random() * 1.5, tam: 0.25, r: q.r, g: q.g, b: q.b, a: 1 }); } }
       else if (f.t === 'fundacion') for (let k = 0; k < 6; k++) humo.emitir({ x, y: y + 0.1, z, vx: (Math.random() - 0.5), vy: 0.4, vz: (Math.random() - 0.5), vida: 1.4, tam: 0.4, crece: 1.5, r: 0.8, g: 0.75, b: 0.6, a: 0.35 });
     }
   }
@@ -343,7 +344,8 @@ export function crearEscena(O, { etiquetas = null } = {}) {
       if (temblor > 0) { temblor -= dt; const a = Math.min(1, temblor) * 0.35; raiz.position.set((Math.random() - 0.5) * a, 0, (Math.random() - 0.5) * a); } else raiz.position.set(0, 0, 0);
       const h = O.renderer.domElement.height; humo.mat.uniforms.uEsc.value = fuego.mat.uniforms.uEsc.value = h / (2 * Math.tan((O.camera.fov * Math.PI) / 360));
       humo.actualizar(dt); fuego.actualizar(dt);
-      pintarEtiquetas();
+      // las etiquetas se pintan después del render de este mismo cuadro (microtarea): así siguen a la cámara sin retraso
+      queueMicrotask(pintarEtiquetas);
     },
     // qué tocó el usuario: { ciudad } o { celda }
     tocar(ev) {

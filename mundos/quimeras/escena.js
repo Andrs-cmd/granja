@@ -239,7 +239,8 @@ export function crearArena(O) {
   cuerpos.castShadow = cabezas.castShadow = false; grupo.add(cuerpos, cabezas);
   const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _qq = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(1, 1, 1);
   let ola = 0;
-  function animar(dt, t, emocion, noche) {
+  // coro (0-1): todo el público salta al mismo compás mientras corea un nombre
+  function animar(dt, t, emocion, noche, coro = 0) {
     // de noche se encienden las llamas; siempre parpadean
     const fl = 0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 7.3) * 0.07; llamas.scale.set(1, fl, 1);
     luces.forEach((L, i) => { L.intensity = (0.3 + noche * 2.6) * (0.9 + Math.sin(t * 11 + i) * 0.1); });
@@ -247,7 +248,7 @@ export function crearArena(O) {
     const amp = 0.04 + Math.min(1.6, emocion) * 0.35;
     for (let i = 0; i < nP; i++) {
       const s = asientos[i], aOla = ola > 0 ? Math.max(0, Math.cos(Math.atan2(s.z, s.x) - (3 - ola) * 3)) ** 8 : 0;
-      const salto = Math.max(0, Math.sin(t * (5 + s.ner * 3) + s.fase)) * amp * s.ner + aOla * 0.9;
+      const salto = Math.max(0, Math.sin(t * (5 + s.ner * 3) + s.fase)) * amp * s.ner * (1 - coro) + coro * Math.max(0, Math.sin(performance.now() / 1000 * 9.4)) * 0.6 + aOla * 0.9;
       _p.set(s.x, s.y + salto, s.z); _qq.setFromEuler(_e.set(0, s.ry, Math.sin(t * 2 + s.fase) * 0.06)); _m.compose(_p, _qq, _s);
       cuerpos.setMatrixAt(i, _m); cabezas.setMatrixAt(i, _m);
     }

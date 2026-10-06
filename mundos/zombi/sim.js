@@ -88,10 +88,10 @@ export function celda(sem, i, j) {
   return c;
 }
 export function generarCelda(sem, i, j) {
-  const r = azar(hash(sem, i, j)), ox = i * P, oz = j * P, ev = objetivoDe(sem);
+  const r = azar(hash(sem, i, j)), ra = azar(hash(sem, i, j, 31)), ox = i * P, oz = j * P, ev = objetivoDe(sem);
   const n = ruidoDe(sem)(i * 0.16 + 0.5, j * 0.16 + 0.5);
   const distrito = n > 0.64 ? 'centro' : n > 0.47 ? 'comercial' : n > 0.25 ? 'residencial' : 'afueras';
-  const C = { i, j, ox, oz, distrito, tipo: 'lotes', edif: [], props: [], sol: [], zs: [], npc: null, evac: false };
+  const C = { i, j, ox, oz, distrito, tipo: 'lotes', edif: [], props: [], sol: [], zs: [], npc: null, evac: false, fauna: [] };
   const bx0 = ox + B0, bx1 = ox + B1, bz0 = oz + B0, bz1 = oz + B1, cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
   const cerca = (x, z, m) => hyp(x - P / 2, z) < m; // el punto de partida (P/2, 0) queda despejado
   const solido = (x0, z0, x1, z1) => C.sol.push([Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1)]);
@@ -102,7 +102,10 @@ export function generarCelda(sem, i, j) {
     [e.px, e.pz] = [[mx, e.z0 - 0.9], [mx, e.z1 + 0.9], [e.x0 - 0.9, mz], [e.x1 + 0.9, mz]][e.lado];
     C.edif.push(e); solido(e.x0, e.z0, e.x1, e.z1); return e;
   };
-  const arbol = (x, z) => { C.props.push({ t: 'arbol', x, z, s: 0.8 + r() * 0.6 }); solido(x - 0.45, z - 0.45, x + 0.45, z + 0.45); };
+  // ningún obstáculo frente a una puerta: si tapa una, simplemente no se pone
+  const tapa = (x0, z0, x1, z1) => C.edif.some((e) => e.px > Math.min(x0, x1) - 1.1 && e.px < Math.max(x0, x1) + 1.1 && e.pz > Math.min(z0, z1) - 1.1 && e.pz < Math.max(z0, z1) + 1.1);
+  const pon = (p, x0, z0, x1, z1) => { if (tapa(x0, z0, x1, z1)) return false; C.props.push(p); solido(x0, z0, x1, z1); return true; };
+  const arbol = (x, z) => { const s = 0.8 + r() * 0.6; pon({ t: 'arbol', x, z, s }, x - 0.45, z - 0.45, x + 0.45, z + 0.45); };
   const banca = (x, z, rot) => C.props.push({ t: 'banca', x, z, rot });
   const q = r(), mx = cx + (r() - 0.5) * 3, mz = cz + (r() - 0.5) * 3;
   const cuatro = (tipos, ins, alt) => { // manzana partida en 4 lotes (casas, tiendas)
@@ -145,11 +148,11 @@ export function generarCelda(sem, i, j) {
   } else if (distrito === 'comercial') {
     if (q < 0.15) { // supermercado con parqueadero al frente
       edif('supermercado', bx0, bz0 + 5, bx1, bz1, [0], 0.8, 5 + r());
-      for (let a = 0; a < 2; a++) if (r() < 0.7) { const x = bx0 + 3 + a * 7 + r() * 3, z = bz0 + 2.4; C.props.push({ t: 'auto', x, z, rot: Math.PI / 2, c: Math.floor(r() * 6) }); solido(x - 1, z - 2.1, x + 1, z + 2.1); }
+      for (let a = 0; a < 2; a++) if (r() < 0.7) { const x = bx0 + 3 + a * 7 + r() * 3, z = bz0 + 2.4; pon({ t: 'auto', x, z, rot: Math.PI / 2, c: Math.floor(r() * 6) }, x - 1, z - 2.1, x + 1, z + 2.1); }
     } else if (q < 0.26) { // gasolinera: tienda atrás, marquesina y surtidores adelante
       const e = edif('gasolinera', bx0 + 1.5, bz1 - 6.5, bx0 + 9.5, bz1 - 0.8, [0], 0, 3.6); e.lado = 0; e.pz = e.z0 - 0.9; e.px = (e.x0 + e.x1) / 2;
       C.props.push({ t: 'marquesina', x: cx + 1.5, z: cz - 2, w: 11, d: 7 });
-      for (const dx of [-2.5, 2.5]) { const x = cx + 1.5 + dx, z = cz - 2; C.props.push({ t: 'surtidor', x, z }); solido(x - 0.35, z - 0.6, x + 0.35, z + 0.6); }
+      for (const dx of [-2.5, 2.5]) { const x = cx + 1.5 + dx, z = cz - 2; pon({ t: 'surtidor', x, z }, x - 0.35, z - 0.6, x + 0.35, z + 0.6); }
     } else if (q < 0.36) dos(['ferreteria', r() < 0.5 ? 'tienda' : 'farmacia'], [4, 6.5]);
     else cuatro(['tienda', 'tienda', 'farmacia', 'casa', 'ferreteria', 'tienda'], 1.2, [3.6, 7]);
   } else { // centro
@@ -168,20 +171,20 @@ export function generarCelda(sem, i, j) {
       const t = 6 + (a / Math.max(1, nA)) * 16 + r() * 4, choque = r() < 0.25, u = choque ? (r() - 0.5) * 2 : (r() < 0.5 ? -2 : 2);
       const [x, z] = P2(t, u); if (cerca(x, z, 9)) continue;
       const rot = (eje === 0 ? Math.PI / 2 : 0) + (choque ? (r() - 0.5) * 1.4 : (r() - 0.5) * 0.12), fuego = r() < 0.12;
-      C.props.push({ t: 'auto', x, z, rot, c: Math.floor(r() * 6), quemado: fuego || r() < 0.15, fuego });
-      const ex = choque ? 1.9 : eje === 0 ? 2.15 : 1.0, ez = choque ? 1.9 : eje === 0 ? 1.0 : 2.15; solido(x - ex, z - ez, x + ex, z + ez);
+      const quemado = fuego || r() < 0.15, ex = choque ? 1.9 : eje === 0 ? 2.15 : 1.0, ez = choque ? 1.9 : eje === 0 ? 1.0 : 2.15;
+      pon({ t: 'auto', x, z, rot, c: Math.floor(r() * 6), quemado, fuego, alarma: !quemado && ra() < 0.3 }, x - ex, z - ez, x + ex, z + ez);
     }
     if (r() < 0.07 && lejosEvac) { // barricada atravesada con un paso de 2,6 m a un lado
       const t = 8 + r() * 12, lado = r() < 0.5 ? -1 : 1, u0 = lado < 0 ? -4 : -1.4, u1 = lado < 0 ? 1.4 : 4;
       const [x0, z0] = P2(t - 0.5, u0), [x1, z1] = P2(t + 0.5, u1);
-      if (!cerca((x0 + x1) / 2, (z0 + z1) / 2, 10)) { C.props.push({ t: 'barricada', x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1), eje }); solido(x0, z0, x1, z1); }
+      if (!cerca((x0 + x1) / 2, (z0 + z1) / 2, 10)) { pon({ t: 'barricada', x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1), eje }, x0, z0, x1, z1); }
     }
-    if (r() < 0.12) { const [x, z] = P2(4 + r() * 20, 4.8); if (!cerca(x, z, 6)) { C.props.push({ t: 'barril', x, z }); solido(x - 0.35, z - 0.35, x + 0.35, z + 0.35); } }
+    if (r() < 0.12) { const [x, z] = P2(4 + r() * 20, 4.8); if (!cerca(x, z, 6)) { pon({ t: 'barril', x, z }, x - 0.35, z - 0.35, x + 0.35, z + 0.35); } }
     const nB = Math.floor(r() * 3.2); for (let a = 0; a < nB; a++) { const [x, z] = P2(4 + r() * 20, 4.6 + r() * 0.6); C.props.push({ t: 'basura', x, z, s: 0.25 + r() * 0.2 }); }
     if (r() < 0.35) { const [x, z] = P2(5 + r() * 18, (r() - 0.5) * 6); C.props.push({ t: 'sangre', x, z, s: 0.6 + r() * 1.2 }); }
     if (r() < 0.5) { const [x, z] = P2(5, 4.9); C.props.push({ t: 'poste', x, z }); }
   }
-  if (r() < 0.07 && lejosEvac && !cerca(ox, oz, 10)) { const rot = r() * 3; C.props.push({ t: 'auto', x: ox, z: oz, rot, c: Math.floor(r() * 6), quemado: true, fuego: r() < 0.5 }); solido(ox - 1.9, oz - 1.9, ox + 1.9, oz + 1.9); }
+  if (r() < 0.07 && lejosEvac && !cerca(ox, oz, 10)) { const rot = r() * 3; pon({ t: 'auto', x: ox, z: oz, rot, c: Math.floor(r() * 6), quemado: true, fuego: r() < 0.5 }, ox - 1.9, oz - 1.9, ox + 1.9, oz + 1.9); }
   // ---- quién rondaba aquí al empezar (zombis y, a veces, un sobreviviente)
   const base = { centro: 2.2, comercial: 1.7, residencial: 1.1, afueras: 0.7 }[distrito] + C.edif.reduce((s, e) => s + ({ hospital: 3, supermercado: 1.5, comisaria: 1.5 }[e.tipo] || 0), 0) + (C.evac ? 2 : 0);
   const nZ = Math.round(base * (0.3 + r() * 0.75) * (1 + Math.min(1, hyp(ox, oz) / 2500) * 0.6));
@@ -192,6 +195,9 @@ export function generarCelda(sem, i, j) {
     const p = lugar(), q3 = r();
     if (p) C.npc = { x: p[0], z: p[1], nombre: NOMBRES[Math.floor(r() * NOMBRES.length)], rasgo: Object.keys(RASGOS)[Math.floor(r() * 7)], actitud: q3 < 0.5 ? 'amable' : q3 < 0.75 ? 'desconfiado' : 'hostil', ropa: Math.floor(r() * 8) };
   }
+  // fauna: perros callejeros y bandadas de cuervos (azar aparte: no cambia el trazado de la ciudad)
+  if (ra() < 0.1 && Math.abs(i) + Math.abs(j) > 1) C.fauna.push({ t: 'perro', x: ox + 2 + ra() * 4, z: oz + 8 + ra() * 14 });
+  if (ra() < 0.22) { const s = C.props.find((p) => p.t === 'sangre' || p.t === 'basura'); if (s) C.fauna.push({ t: 'cuervos', x: s.x, z: s.z, n: 3 + Math.floor(ra() * 4) }); }
   return C;
 }
 
@@ -257,6 +263,12 @@ export function crearPersonaje(sem) {
   let b = a; while (b === a || (a === 'cobarde' && b === 'valiente') || (a === 'valiente' && b === 'cobarde')) b = L[Math.floor(r() * L.length)];
   return { nombre: NOMBRES[Math.floor(r() * NOMBRES.length)], rasgos: [a, b], ropa: Math.floor(r() * 6), arma: r() < 0.5 ? 'bate' : 'tubo' };
 }
+// dificultad: z = cuántos zombis, d = cuánto muerden, inf = horas de infección, botin = objetos extra
+export const DIFICULTAD = { facil: { n: 'Fácil', z: 0.72, d: 0.7, inf: 1.4, botin: 1, mord: 0.6 }, normal: { n: 'Normal', z: 1, d: 1, inf: 1, botin: 0, mord: 1 }, dificil: { n: 'Difícil', z: 1.2, d: 1.2, inf: 0.85, botin: 0, mord: 1.15 } };
+const DIF = (S) => DIFICULTAD[S.dif] || DIFICULTAD.normal;
+// el primer día es más amable y la ciudad se va poniendo peor: menos zombis y casi sin corredores al principio
+export const rigor = (S) => DIF(S).z * Math.min(1.45, 0.55 + 0.2 * (diaDe(S) - 1));
+const pCorredor = (S) => Math.min(1, 0.25 + 0.25 * (diaDe(S) - 1)) * (S.dif === 'dificil' ? 1.3 : 1);
 export const horaDe = (S) => (8 + S.t / 60) % 24;
 export const diaDe = (S) => Math.floor((8 * 60 + S.t) / MIN_DIA) + 1;
 export const esNoche = (h) => h >= 20.5 || h < 5.5;
@@ -264,16 +276,17 @@ const sello = (S) => { const h = horaDe(S); return `D${diaDe(S)} ${String(Math.f
 function log(S, texto, tipo = '', aviso = false) { S.diario.unshift({ texto, tipo, d: sello(S) }); if (S.diario.length > 90) S.diario.length = 90; if (aviso) S.avisos.push(texto); }
 const tiene = (S, r) => S.pj.rasgos.includes(r);
 
-export function nuevaPartida(semilla, pers = null) {
+export function nuevaPartida(semilla, pers = null, dif = 'normal') {
   const sem = semilla >>> 0, p = pers || crearPersonaje(sem), obj = objetivoDe(sem);
   const S = {
-    v: 1, sem, rs: hash(sem, 99) | 0, t: 0, auto: true, sigId: 1,
+    v: 1, sem, rs: hash(sem, 99) | 0, t: 0, auto: true, sigId: 1, dif: DIFICULTAD[dif] ? dif : 'normal',
     pj: { nombre: p.nombre, rasgos: p.rasgos, ropa: p.ropa, x: P / 2, z: 0, dir: 0, salud: 100, hambre: 80, sed: 80, energia: 90, animo: 65, inf: 0,
       inv: { comida: 1, agua: 1, vendaje: 1 }, armas: [{ id: p.arma, dur: ARMAS[p.arma].dur }], eq: 0, cap: 12,
       plan: null, accion: null, cola: [], dentro: null, mando: null, cd: 0, golpeT: 0, causa: '', corriendo: false, vel: 0, quieto: 0, uPos: [P / 2, 0] },
     zs: [], npcs: [], grupo: [], saq: {}, ref: {}, vistas: {}, npcVis: {}, diario: [], avisos: [], ruidos: [],
     obj: { x: obj.x, z: obj.z }, est: null, revelada: false, evac: null, fin: null, pregunta: null,
-    stats: { abatidos: 0, dist: 0, saqueos: 0, mordidas: 0 }, tIA: 0, tCel: 0, tHorda: 60, tRadio: -999, tFrase: 0,
+    stats: { abatidos: 0, dist: 0, saqueos: 0, mordidas: 0 }, tIA: 0, tCel: 0, tHorda: 60, tRadio: -999, tFrase: 40,
+    anim: [], faunaVis: {}, alarmas: {}, clima: { lluvia: 0, meta: 0, t: 300, agua: false }, tAmb: 0,
   };
   const a = rnd(S) * Math.PI * 2, e = 380 + rnd(S) * 160; // la radio oficial da una ubicación aproximada
   S.est = { x: S.obj.x + Math.cos(a) * e, z: S.obj.z + Math.sin(a) * e, err: e };
@@ -282,7 +295,12 @@ export function nuevaPartida(semilla, pers = null) {
   return S;
 }
 // carga un estado guardado (o null si no sirve)
-export function cargar(obj) { if (!obj || obj.v !== 1 || !obj.pj || !Number.isFinite(obj.t)) return null; obj.avisos = []; obj.ruidos = []; return obj; }
+export function cargar(obj) {
+  if (!obj || obj.v !== 1 || !obj.pj || !Number.isFinite(obj.t)) return null; obj.avisos = []; obj.ruidos = [];
+  // partidas guardadas antes de la vida ambiental
+  obj.dif ??= 'normal'; obj.anim ??= []; obj.faunaVis ??= {}; obj.alarmas ??= {}; obj.clima ??= { lluvia: 0, meta: 0, t: 300, agua: false }; obj.tAmb ??= 0;
+  return obj;
+}
 
 // ---------------------------------------------------------------- órdenes desde la interfaz (o la IA)
 export function setAuto(S, v) { S.auto = !!v; if (!v) { S.pj.plan = null; } log(S, v ? 'Modo automático: decide solo.' : 'Modo manual: tú mandas.'); }
@@ -390,6 +408,7 @@ function paso1(S, dt) {
   moverGrupo(S, dt, noche);
   moverNpcs(S, dt);
   evacuacion(S, dt);
+  ambiente(S, dt, hora, noche);
   if (S.ruidos.length && S.t - S.ruidos[0].t > 2) S.ruidos.shift();
 }
 function ruido(S, x, z, r) { S.ruidos.push({ x, z, r, t: S.t }); if (S.ruidos.length > 24) S.ruidos.shift(); }
@@ -401,7 +420,7 @@ function fin(S, tipo, motivo) {
 
 function necesidades(S, dt, noche) {
   const pj = S.pj, h = dt / 60, duerme = pj.accion?.tipo === 'duerme', ref = duerme && S.ref[pj.accion.k];
-  pj.hambre = clamp(pj.hambre - 2.3 * h); pj.sed = clamp(pj.sed - (3.6 + (pj.corriendo ? 5 : 0)) * h);
+  pj.hambre = clamp(pj.hambre - 2.3 * h); pj.sed = clamp(pj.sed - (3.6 * (1 - 0.3 * S.clima.lluvia) + (pj.corriendo ? 5 : 0)) * h);
   if (duerme) pj.energia = clamp(pj.energia + (ref ? 16 : 11) * h);
   else if (pj.corriendo) pj.energia = clamp(pj.energia - (tiene(S, 'rapido') ? 0.55 : 0.8) * dt);
   else pj.energia = clamp(pj.energia + (pj.vel > 0.1 ? -2.6 : pj.accion || pj.dentro ? 4 : 2) * h); // quieto, recupera un poco el aliento
@@ -441,9 +460,13 @@ function activarCeldas(S, inicio) {
       c.zs.forEach((q, n) => { // al volver tras 10 h reaparece la mitad: la ciudad se vuelve a llenar
         if (v != null && n % 2) return; if (vivos(S) > 55) return;
         const dz = hyp(q.x - pj.x, q.z - pj.z); if (dz < (inicio ? 16 : 47) || bloqueado(S.sem, q.x, q.z, 0.3)) return;
-        nuevoZombi(S, q.x, q.z, q.tipo);
+        // la dificultad decide cuántos de los que vivían ahí siguen en pie (y si los corredores ya despertaron)
+        const rg = rigor(S); if (rnd(S) > rg) return;
+        const tipo = q.tipo === 'corredor' && rnd(S) > pCorredor(S) ? 'lento' : q.tipo;
+        nuevoZombi(S, q.x, q.z, tipo); if (rg > 1 && rnd(S) < rg - 1) nuevoZombi(S, q.x + 0.8, q.z + 0.6, 'lento');
       });
     }
+    if (!S.faunaVis[k]) { S.faunaVis[k] = 1; for (const f of c.fauna) if (hyp(f.x - pj.x, f.z - pj.z) > (inicio ? 12 : 40)) S.anim.push({ id: S.sigId++, t: f.t, x: f.x, z: f.z, n: f.n || 1, dir: rnd(S) * 6.28, vel: 0, est: f.t === 'perro' ? 'vaga' : 'suelo', tE: 0, y: 0, ladro: false }); }
     if (c.npc && !S.npcVis[k] && hyp(c.npc.x - pj.x, c.npc.z - pj.z) > 28) {
       S.npcVis[k] = 1; const n = c.npc;
       S.npcs.push({ id: S.sigId++, nombre: n.nombre, rasgo: n.rasgo, actitud: n.actitud, ropa: n.ropa, x: n.x, z: n.z, x0: n.x, z0: n.z, est: 'espera', salud: 70, dir: 0, cd: 0, vel: 0, golpeT: 0, tm: 0 });
@@ -464,8 +487,8 @@ function hordas(S, dt, noche) {
   S.tHorda -= dt; if (S.tHorda > 0) return;
   const d = diaDe(S); S.tHorda = S.evac ? 14 : noche ? 90 + rnd(S) * 60 : 200 + rnd(S) * 120;
   if (vivos(S) > (S.evac ? 50 : 35) || rnd(S) > (S.evac ? 1 : noche ? 0.6 : 0.35)) return;
-  const n = (noche ? 3 + Math.floor(rnd(S) * 5) : 2 + Math.floor(rnd(S) * 3)) + Math.min(4, Math.floor(d / 2)), p = lugarLibreAnillo(S, 50, 60); if (!p) return;
-  for (let a = 0; a < n; a++) { const q = rnd(S), z = nuevoZombi(S, p[0] + (rnd(S) - 0.5) * 4, p[1] + (rnd(S) - 0.5) * 4, q < (noche ? 0.25 : 0.12) ? 'corredor' : q < 0.35 ? 'gordo' : 'lento'); if (bloqueado(S.sem, z.x, z.z, 0.3)) { z.x = p[0]; z.z = p[1]; } z.est = 'investiga'; z.tx = S.pj.x + (rnd(S) - 0.5) * 30; z.tz = S.pj.z + (rnd(S) - 0.5) * 30; }
+  const n = Math.max(1, Math.round(((noche ? 3 + Math.floor(rnd(S) * 5) : 2 + Math.floor(rnd(S) * 3)) + Math.min(4, Math.floor(d / 2))) * Math.max(0.6, rigor(S)))), p = lugarLibreAnillo(S, 50, 60); if (!p) return;
+  for (let a = 0; a < n; a++) { const q = rnd(S), z = nuevoZombi(S, p[0] + (rnd(S) - 0.5) * 4, p[1] + (rnd(S) - 0.5) * 4, q < (noche ? 0.25 : 0.12) * pCorredor(S) ? 'corredor' : q < 0.35 ? 'gordo' : 'lento'); if (bloqueado(S.sem, z.x, z.z, 0.3)) { z.x = p[0]; z.z = p[1]; } z.est = 'investiga'; z.tx = S.pj.x + (rnd(S) - 0.5) * 30; z.tz = S.pj.z + (rnd(S) - 0.5) * 30; }
   if (noche || S.evac) log(S, S.evac ? 'Más zombis llegan atraídos por la bengala.' : 'Se oyen gemidos: una horda ronda cerca.', 'malo');
 }
 
@@ -553,7 +576,7 @@ function agregar(S, id, n = 1) {
 function botin(S, e) {
   const T = TIPOS[e.tipo], r = azar(hash(S.sem, ...e.k.split(',').map(Number), 5)); // el contenido de cada edificio es fijo por semilla
   const tabla = Object.entries(BOTIN[e.tipo]), tot = tabla.reduce((s, x) => s + x[1], 0);
-  const n = T.botin[0] + Math.floor(r() * (T.botin[1] - T.botin[0] + 1)), got = [], perdido = [];
+  const n = T.botin[0] + Math.floor(r() * (T.botin[1] - T.botin[0] + 1)) + DIF(S).botin + (diaDe(S) === 1 ? 1 : 0), got = [], perdido = []; // el primer día hay más a mano
   for (let a = 0; a < n; a++) {
     let q = r() * tot, id = tabla[0][0]; for (const [k, w] of tabla) { q -= w; if (q <= 0) { id = k; break; } }
     const cant = id === 'balas' ? 4 + Math.floor(r() * 9) : id === 'cartuchos' ? 2 + Math.floor(r() * 5) : 1;
@@ -607,7 +630,7 @@ function combatePJ(S, dt) {
 // ---------------------------------------------------------------- los zombis: ven, oyen, persiguen y muerden
 function blancoDe(S, id) { if (id === 'pj') return S.fin ? null : S.pj; return S.grupo.find((g) => g.id === id) || S.npcs.find((n) => n.id === id && n.est !== 'muerto' && n.est !== 'fuera') || null; }
 function zombis(S, dt, noche) {
-  const pj = S.pj, sig = tiene(S, 'sigiloso') ? 0.65 : 1, vistaBase = noche ? 8.5 : 13, oido = noche ? 1.35 : 1;
+  const pj = S.pj, sig = tiene(S, 'sigiloso') ? 0.65 : 1, ll = S.clima.lluvia, vistaBase = (noche ? 8.5 : 13) * (1 - 0.25 * ll), oido = (noche ? 1.35 : 1) * (1 - 0.35 * ll); // la lluvia tapa el ruido y la vista
   const cand = [{ id: 'pj', e: pj, oculto: !!pj.dentro, mod: sig }];
   for (const g of S.grupo) cand.push({ id: g.id, e: g, oculto: pj.dentro && pj.accion?.tipo === 'duerme', mod: 1 });
   for (const n of S.npcs) if (n.est !== 'muerto') cand.push({ id: n.id, e: n, oculto: false, mod: 1 });
@@ -653,7 +676,7 @@ function zombis(S, dt, noche) {
   for (let a = 0; a < S.zs.length; a++) { const z = S.zs[a]; if (z.est === 'muerto') continue; for (let b = a + 1; b < S.zs.length; b++) { const w = S.zs[b]; if (w.est === 'muerto') continue; const dx = w.x - z.x, dz = w.z - z.z; if (dx > 0.65 || dx < -0.65 || dz > 0.65 || dz < -0.65) continue; const d = hyp(dx, dz); if (d < 0.65 && d > 1e-4) { const k = (0.65 - d) / d * 0.5; moverCon(S.sem, z, -dx * k, -dz * k, 0.3); moverCon(S.sem, w, dx * k, dz * k, 0.3); } } }
 }
 function morder(S, z, b, T, noche) {
-  if (!b) return; const dmg = T[3] * (noche ? 1.15 : 1) * (0.8 + rnd(S) * 0.4);
+  if (!b) return; const dmg = T[3] * (noche ? 1.15 : 1) * DIF(S).d * (0.8 + rnd(S) * 0.4);
   if (b === S.pj && S.pj.dentro && S.ref[S.pj.dentro]) { // la barricada aguanta los golpes… un tiempo
     const r = S.ref[S.pj.dentro]; r.hp -= dmg;
     if (rnd(S) < 0.12) { z.est = 'deambula'; z.ignora = S.t + 45; z.tT = 0; } // se aburre de la puerta y se va if (S.pj.accion?.tipo === 'duerme') despertar(S, '¡Golpes en la puerta! Te despiertas.');
@@ -662,7 +685,7 @@ function morder(S, z, b, T, noche) {
   if (b === S.pj) {
     const pj = S.pj; if (pj.accion) { if (pj.accion.tipo === 'duerme') despertar(S, '¡Un zombi te ataca mientras duermes!'); else { pj.accion = null; pj.cola = []; } pj.dentro = null; pj.tEsc = S.t; }
     pj.salud -= dmg; pj.causa = 'zombis'; pj.animo = clamp(pj.animo - (tiene(S, 'cobarde') ? 3 : 1.5));
-    if (!pj.inf && rnd(S) < T[5]) { pj.inf = tiene(S, 'medico') ? 46 : 36; S.stats.mordidas++; log(S, `¡Te mordieron! La infección avanza: tienes ~${pj.inf} h para encontrar antiviral.`, 'malo', true); }
+    if (!pj.inf && rnd(S) < T[5] * DIF(S).mord) { pj.inf = Math.round((tiene(S, 'medico') ? 46 : 36) * DIF(S).inf); S.stats.mordidas++; log(S, `¡Te mordieron! La infección avanza: tienes ~${pj.inf} h para encontrar antiviral.`, 'malo', true); }
     if (pj.salud <= 0) fin(S, 'muerte', `${pj.nombre} cayó bajo los zombis${S.grupo.length ? ', frente a su grupo' : ''}.`);
   } else {
     b.salud -= dmg;
@@ -859,4 +882,50 @@ function pelearOHuir(S, amen, ar) {
   }
   const r = buscarRuta(S.sem, pj.x, pj.z, pj.x + Math.cos(a0) * 18, pj.z + Math.sin(a0) * 18);
   pj.plan = r ? { ruta: r, idx: 0, correr: pj.energia > 4 && urge, al: null, motivo: 'huye', t0: S.t } : null;
+}
+
+// ---------------------------------------------------------------- la ciudad viva: clima, radio, perros, cuervos y alarmas
+const RADIO = ['📻 «…a todos los sobrevivientes: no se acerquen al hospital central, repito, no se acerquen…»', '📻 «…el último convoy sale cuando el humo verde esté encendido…»', '📻 Una voz cansada lee nombres de gente que llegó a la zona segura.', '📻 «…si los oyen de noche, no corran: escóndanse y barriquen…»', '📻 Música vieja, y luego estática.', '📻 «…helicópteros de evacuación cada pocas horas. Lleguen a la zona.»'];
+const LEJOS = ['A lo lejos suena un disparo, y después nada.', 'Una sirena se enciende y se apaga en otra calle.', 'Se oye un vidrio romperse en algún piso alto.', 'Un helicóptero pasa muy alto, sin detenerse.', 'Alguien grita lejos. Luego, gemidos.', 'El viento arrastra papeles por la avenida vacía.', 'Una luz parpadea en una ventana y se apaga.'];
+function ambiente(S, dt) {
+  const pj = S.pj, c = S.clima;
+  // clima: chubascos de vez en cuando; con lluvia los zombis oyen y ven menos
+  c.t -= dt; if (c.t <= 0) { c.t = 120 + rnd(S) * 300; const antes = c.meta; c.meta = rnd(S) < 0.22 ? 0.6 + rnd(S) * 0.4 : 0; if (c.meta && !antes) { log(S, '🌧️ Empieza a llover. La lluvia tapa tus pasos.'); c.agua = false; } else if (!c.meta && antes) log(S, 'Deja de llover.'); }
+  c.lluvia += (c.meta - c.lluvia) * Math.min(1, dt / 20);
+  if (c.lluvia > 0.5 && !c.agua && (pj.accion || pj.vel < 0.1) && cargaDe(S) < pj.cap) { c.agua = true; pj.inv.agua = (pj.inv.agua || 0) + 1; log(S, '💧 Recoges agua de lluvia en una botella.', 'bueno'); }
+  // radio y sonidos lejanos: la ciudad sigue pasando aunque no la veas
+  S.tFrase -= dt; if (S.tFrase <= 0) { S.tFrase = 150 + rnd(S) * 200; if (pj.inv.radio && rnd(S) < 0.6) log(S, pick(S, RADIO), '', true); else log(S, pick(S, LEJOS)); }
+  S.tAmb -= dt; if (S.tAmb > 0) return; S.tAmb = 0.5;
+  // alarmas de autos: si pasas pegado a uno con alarma, chilla media hora y llama a todo lo que oiga
+  const ci = Math.floor(pj.x / P), cj = Math.floor(pj.z / P), roce = tiene(S, 'sigiloso') ? 1.4 : 2.1;
+  if (!pj.dentro) for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) celda(S.sem, i, j).props.forEach((p, n) => {
+    if (p.t !== 'auto' || !p.alarma) return; const k = `${i},${j},${n}`; if (S.alarmas[k]) return;
+    if (hyp(p.x - pj.x, p.z - pj.z) < roce + 1.2) { S.alarmas[k] = { x: p.x, z: p.z, t: S.t }; log(S, '🚨 ¡Rozaste un auto y saltó la alarma! Todo lo que oiga viene para acá.', 'malo', true); }
+  });
+  for (const a of Object.values(S.alarmas)) if (S.t - a.t < 30 && hyp(a.x - pj.x, a.z - pj.z) < 140) ruido(S, a.x, a.z, 38);
+  // animales
+  S.anim = S.anim.filter((a) => a.est !== 'fuera' && hyp(a.x - pj.x, a.z - pj.z) < 95);
+  for (const a of S.anim) {
+    const dp = hyp(a.x - pj.x, a.z - pj.z);
+    if (a.t === 'cuervos') {
+      if (a.est === 'suelo') {
+        let susto = dp < (tiene(S, 'sigiloso') ? 4 : 7); for (const z of S.zs) if (!susto && z.est !== 'muerto' && hyp(z.x - a.x, z.z - a.z) < 3) susto = true;
+        if (susto) { a.est = 'vuela'; a.tE = 0; ruido(S, a.x, a.z, 11); if (dp < 12) log(S, 'Una bandada de cuervos alza el vuelo graznando… y delata dónde estás.'); }
+      } else { a.tE += 0.5; a.y = a.tE * 3; a.x += Math.cos(a.dir) * 2; a.z += Math.sin(a.dir) * 2; if (a.tE > 8) a.est = 'fuera'; }
+      continue;
+    }
+    // perro callejero: vaga, huye de los zombis, te ladra al verte (ruido) y a veces te sigue y gruñe cuando algo se acerca
+    let zc = null, zd = 9; for (const z of S.zs) { if (z.est === 'muerto') continue; const d = hyp(z.x - a.x, z.z - a.z); if (d < zd) { zd = d; zc = z; } }
+    if (!a.ladro && dp < 9 && !pj.dentro) {
+      a.ladro = true; ruido(S, a.x, a.z, 16); const amigo = rnd(S) < 0.45 || (pj.inv.comida || 0) > 2; a.est = amigo ? 'sigue' : 'vaga';
+      log(S, amigo ? '🐕 Un perro callejero te ladra, mueve la cola y empieza a seguirte.' : '🐕 Un perro flaco te ladra desde lejos y se va.', amigo ? 'bueno' : '', amigo); if (amigo) pj.animo = clamp(pj.animo + 6);
+    }
+    let tx = a.x, tz = a.z, v = 1.2;
+    if (zc && zd < 6) { tx = a.x + (a.x - zc.x) * 3; tz = a.z + (a.z - zc.z) * 3; v = 4.5; if (a.est === 'sigue' && rnd(S) < 0.15) { ruido(S, a.x, a.z, 8); if (rnd(S) < 0.3) log(S, '🐕 El perro gruñe hacia la calle: algo se acerca.'); } }
+    else if (a.est === 'sigue') { if (dp > 3) { tx = pj.x - Math.sin(pj.dir) * 2; tz = pj.z - Math.cos(pj.dir) * 2; v = Math.max(1.8, pj.vel * 1.15); } if (dp > 50) a.est = 'vaga'; }
+    else { a.tE -= 0.5; if (a.tE <= 0) { a.tE = 3 + rnd(S) * 6; a.rumbo = rnd(S) * 6.28; } tx = a.x + Math.cos(a.rumbo || 0) * 3; tz = a.z + Math.sin(a.rumbo || 0) * 3; }
+    const dx = tx - a.x, dz = tz - a.z, d = hyp(dx, dz);
+    if (d > 0.3) { const m = moverCon(S.sem, a, dx / d * Math.min(v * 0.5, d), dz / d * Math.min(v * 0.5, d), 0.25); a.vel = m / 0.5; if (m > 0.01) a.dir = Math.atan2(dx, dz); } else a.vel = 0;
+    if (zc && zd < 1 && rnd(S) < 0.08) { a.est = 'fuera'; log(S, '🐕 Los zombis alcanzaron al perro. Se oye un aullido corto.', 'malo'); pj.animo = clamp(pj.animo - 5); }
+  }
 }
