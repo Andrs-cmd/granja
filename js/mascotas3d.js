@@ -20,7 +20,7 @@ export function armarPerro(gltf, alto = 0.75) {
       const clip = ESTADOS_PERRO[nombre] || 'iddle', a = acc[clip]; if (!a) return;
       a.timeScale = nombre === 'dormido' ? 0.25 : ts;
       // echado: más bajo y de lado
-      m.position.y = nombre === 'dormido' ? -alto * 0.42 : nombre === 'sentado' ? -alto * 0.12 : 0;
+      m.position.y = nombre === 'dormido' ? alto * 0.02 : nombre === 'sentado' ? -alto * 0.12 : 0;
       m.rotation.z = nombre === 'dormido' ? 1.2 : 0;
       if (actual === clip) return;
       a.reset().fadeIn(0.25).play(); if (actual && acc[actual]) acc[actual].fadeOut(0.25); actual = clip;

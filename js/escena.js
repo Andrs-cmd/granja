@@ -1215,11 +1215,22 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     lucia: { top: 0xc8553d, bottom: 0x3f4a32, skin: 0xe9b994, hair: 0x15120f, h: 1.41 },
   };
   const vis = {};
+  // altura real de la copa o del techito donde se sube el gato: se mide una vez con un rayo hacia abajo
+  const rayoT = new THREE.Raycaster(), altoSitio = {};
+  const esAgente = (o) => { for (; o; o = o.parent) { if (o.userData.agente) return true; if (!o.visible) return true; } return false; };
+  function alturaTrepadero(a) {
+    const k = a.trepado.sitio + '|' + Math.floor(tReal / 60);
+    if (altoSitio[k] != null) return altoSitio[k];
+    rayoT.set(new THREE.Vector3(a.pos.x, 12, a.pos.z), new THREE.Vector3(0, -1, 0)); rayoT.far = 13;
+    const mallas = []; scene.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && !esAgente(o)) mallas.push(o); });
+    const h = rayoT.intersectObjects(mallas, false).find((i) => i.point.y < 10);
+    return (altoSitio[k] = h ? Math.max(a.trepado.alto * 0.7, h.point.y - 0.06) : a.trepado.alto);
+  }
   for (const p of PERSONAJES) {
     if (p.tipo === 'humano') vis[p.id] = makePerson({ ...(LOOK[p.id] || { top: 0x6a8f4e, bottom: 0x3a3a40, skin: 0xe0b08a, hair: 0x2b2018, h: 1.45 }), detalles: p.fisico?.detalles || [] });
     else if (p.tipo === 'perro') vis[p.id] = makeDog();
     else vis[p.id] = makeCat();
-    vis[p.id].ficha = p;
+    vis[p.id].ficha = p; vis[p.id].g.userData.agente = true;
   }
   for (const id in vis) {
     const v = vis[id];
@@ -1455,7 +1466,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       const juega = a.tarea?.tipo === 'jugar' ? 1 : 0;
       v.g.position.y = Math.abs(Math.sin(ph)) * 0.05 * w - sleep * 0.25 + juega * Math.max(0, Math.sin(t * 5)) * 0.45;
       // trepado: sube de a poco hasta el árbol, el techo, la caseta o el gallinero
-      const alto = a.trepado ? (a.trepado.alto === 'techo' ? alturaTecho : a.trepado.alto) : 0;
+      const alto = a.trepado ? (a.trepado.alto === 'techo' ? alturaTecho : alturaTrepadero(a)) : 0;
       v.altura = (v.altura || 0) + (alto - (v.altura || 0)) * Math.min(1, dt * 2.2);
       v.g.position.y += v.altura;
       if (a.tarea?.tipo === 'pelea') { v.g.position.y += Math.abs(Math.sin(t * 14 + v.yaw)) * 0.25; v.g.rotation.z = Math.sin(t * 11) * 0.5; }
@@ -1874,6 +1885,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       const fase = w ? (w.time / w.getClip().duration) * Math.PI * 2 : 0;
       v.femenino.aplicar(fase, anda, ['Walk_Loop', 'Idle_Loop', 'Idle_Talking_Loop'].includes(v.clip));
     }
+    v.uti.actualizar();
   }
 
   function efectos(s, dt) {

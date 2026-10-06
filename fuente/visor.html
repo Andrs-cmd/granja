@@ -34,5 +34,5 @@ const fem = montarFemenino(m.scene); window.fem = fem;
 const clk = new THREE.Clock();
 r.setAnimationLoop(() => { const dt = clk.getDelta(); mixers.forEach((x) => x.update(dt));
   const ac = act[1]; if (ac) { const fase = (ac.time / ac.getClip().duration) * Math.PI * 2; fem.aplicar(fase, /walk/i.test(ac.getClip().name) ? 1 : 0); }
-  ctl.update(); r.render(sc, cam); });
+  (window.utis || []).forEach((u) => u.actualizar()); ctl.update(); r.render(sc, cam); });
 </script></body></html>

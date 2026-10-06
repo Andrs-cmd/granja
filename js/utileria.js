@@ -32,6 +32,7 @@ export const UTILERIA_DE = {
   cocinar: ['sarten', 'r'], hornear: ['sarten', 'r'], hacerConservas: ['sarten', 'r'], segar: ['guadana', 'r'], esquilar: ['tijeras', 'r'], cepillar: ['tijeras', 'r'],
 };
 // cómo queda el objeto en la palma (en metros, ejes del hueso de la mano)
+const COLGANTES = new Set(['balde', 'cesta']);
 export const AJUSTE = { r: { pos: [0.05, -0.02, 0], rot: [Math.PI / 2, 0, 0] }, l: { pos: [-0.05, 0.02, 0], rot: [-Math.PI / 2, 0, 0] } };   // el mango atraviesa el puño
 // arma toda la utilería colgada de las manos de un modelo (oculta hasta que se use)
 export function montarUtileria(modelo, ajuste = {}) {
@@ -49,8 +50,15 @@ export function montarUtileria(modelo, ajuste = {}) {
     mano.add(g); piezas[nombre + '_' + lado] = g;
   }
   let visible = null;
+  const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
   return {
     piezas,
+    // baldes y cestas cuelgan derechos de la mano (por gravedad), sin importar cómo gire la muñeca
+    actualizar() {
+      const g = visible && piezas[visible]; if (!g || !COLGANTES.has(visible.slice(0, -2))) return;
+      modelo.getWorldQuaternion(qa); g.parent.getWorldQuaternion(qb);
+      g.quaternion.copy(qb.invert().multiply(qa));
+    },
     mostrar(tarea) {
       const u = UTILERIA_DE[tarea], clave = u ? u[0] + '_' + u[1] : null;
       if (clave === visible) return;
