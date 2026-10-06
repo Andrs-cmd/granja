@@ -42,7 +42,10 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 500);
   const CENTER = V((BLOQUE.x0 + BLOQUE.x1) / 2, 1.0, (BLOQUE.z0 + BLOQUE.z1) / 2);
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true; controls.enablePan = false;
+  controls.enableDamping = true;
+  // desplazarse: arrastre con dos dedos (celular), clic derecho o Mayús + arrastre (computador) o flechas del teclado
+  controls.enablePan = true; controls.screenSpacePanning = false; controls.panSpeed = 1.1; controls.keyPanSpeed = 24;
+  controls.listenToKeyEvents(window);
   controls.minDistance = 4; controls.maxDistance = 380; controls.zoomToCursor = true;   // acercarse hacia donde apunta el mouse, hasta ver a los personajes de cerca
   controls.maxPolarAngle = Math.PI * 0.46;
   controls.target.set(CENTER.x, 3, CENTER.z);
@@ -56,7 +59,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const key = new THREE.DirectionalLight(0xffffff, 3);
   key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
   Object.assign(key.shadow.camera, { left: -54, right: 54, top: 54, bottom: -54, near: 1, far: 200 });
-  key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
+  key.shadow.bias = -0.0005; key.shadow.normalBias = 0.05;
   scene.add(key, key.target); key.target.position.copy(CENTER);
   // anillo de luces de relleno en el borde del terreno (sin sombras): que las orillas del orbe no queden oscuras
   const relleno = Array.from({ length: 6 }, (_, i) => { const a = i / 6 * Math.PI * 2, l = new THREE.PointLight(0xfff1dc, 0, 34, 1.6); l.position.set(CENTER.x + Math.cos(a) * 40, 11, CENTER.z + Math.sin(a) * 40); scene.add(l); return l; });
@@ -91,12 +94,12 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   const BW = BLOQUE.x1 - BLOQUE.x0, BD = BLOQUE.z1 - BLOQUE.z0;
   const RT = 50;   // radio del terreno
   const PASTO_BASE = new THREE.Color(0x6f9a44), ESCARCHA = new THREE.Color(0xd8e6ee);
-  const pastoTerreno = new THREE.MeshStandardMaterial({ color: PASTO_BASE.clone(), roughness: 1 });
+  const pastoTerreno = new THREE.MeshStandardMaterial({ color: PASTO_BASE.clone(), roughness: 1, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 6 });
   const enTerreno = (x, z, m = 0) => Math.hypot(x - CENTER.x, z - CENTER.z) < RT - m;
   {
     const capa = (r0, r1, h, y, color) => {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 128), new THREE.MeshStandardMaterial({ color, roughness: 1 }));
-      m.position.set(CENTER.x, y, CENTER.z); m.receiveShadow = true; m.castShadow = true; root.add(m); return m;
+      m.position.set(CENTER.x, y, CENTER.z); m.receiveShadow = true; root.add(m); return m;
     };
     {
       const forma = new THREE.Shape(); forma.absarc(CENTER.x, -CENTER.z, RT - 0.12, 0, Math.PI * 2, false);
@@ -106,7 +109,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       const g = new THREE.ExtrudeGeometry(forma, { depth: 0.55, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 3, curveSegments: 96 });
       g.rotateX(-Math.PI / 2); g.translate(0, -0.67, 0);
       const pasto = new THREE.Mesh(g, pastoTerreno);
-      pasto.receiveShadow = true; pasto.castShadow = true; root.add(pasto);
+      pasto.receiveShadow = true; root.add(pasto);   // sin castShadow: el suelo plano haciéndose sombra a sí mismo titila
     }
     capa(RT - 0.2, RT - 0.4, 3.3, -2.35, 0x7a4b2b);
     capa(RT - 0.5, RT - 0.9, 1.6, -4.55, 0x5d5751);
@@ -470,11 +473,9 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // viento en la tarjeta gráfica: hojas, flores y frutos se mecen según su altura y su lugar en el mundo,
   // así las plantas quedan quietas para la CPU y se pueden agrupar en lotes (antes se rotaban una por una)
   const uViento = { value: 0 }, uRafaga = { value: 1 }, conViento = new WeakSet();
-  function viento(mat) {
-    if (!mat || conViento.has(mat)) return mat; conViento.add(mat);
-    mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uViento = uViento; sh.uniforms.uRafaga = uRafaga;
-      sh.vertexShader = `uniform float uViento;
+  const conVientoShader = (sh) => {
+    sh.uniforms.uViento = uViento; sh.uniforms.uRafaga = uRafaga;
+    sh.vertexShader = `uniform float uViento;
 uniform float uRafaga;
 ` + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
         vec4 wv = modelMatrix * vec4(transformed, 1.0);
@@ -482,8 +483,15 @@ uniform float uRafaga;
         float fv = uViento * 1.1 + wv.x * 0.37 + wv.z * 0.53;
         transformed.x += sin(fv) * hv * uRafaga;
         transformed.z += cos(fv * 0.8 + 1.3) * hv * 0.6 * uRafaga;`);
-    };
+  };
+  // la sombra se calcula con este material: así se mece igual que la hoja y no "parpadea" sobre ella
+  const profViento = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  profViento.onBeforeCompile = conVientoShader; profViento.customProgramCacheKey = () => 'viento-prof';
+  function viento(mat) {
+    if (!mat || conViento.has(mat)) return mat; conViento.add(mat);
+    mat.onBeforeCompile = conVientoShader;
     mat.customProgramCacheKey = () => 'viento';
+    mat.userData.profundidad = profViento;
     return mat;
   }
   const LEAF = (c) => viento(new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, flatShading: true }));
@@ -944,9 +952,10 @@ uniform float uRafaga;
   cerca(GALLINERO, GALLINERO.puerta.z, 1, 0.75);
   // pasto del corral: su color sigue al estado del pasto
   const pastoMat = new THREE.MeshStandardMaterial({ color: 0x7fae4a, roughness: 1 });
+  const pastoPiso = new THREE.MeshStandardMaterial({ color: 0x7fae4a, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
   {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(CORRAL.x1 - CORRAL.x0 - 0.4, CORRAL.z1 - CORRAL.z0 - 0.4), pastoMat);
-    m.rotation.x = -Math.PI / 2; m.position.set((CORRAL.x0 + CORRAL.x1) / 2, 0.02, (CORRAL.z0 + CORRAL.z1) / 2); m.receiveShadow = true; root.add(m);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(CORRAL.x1 - CORRAL.x0 - 0.4, CORRAL.z1 - CORRAL.z0 - 0.4), pastoPiso);
+    m.rotation.x = -Math.PI / 2; m.position.set((CORRAL.x0 + CORRAL.x1) / 2, 0.04, (CORRAL.z0 + CORRAL.z1) / 2); m.receiveShadow = true; root.add(m);
     const geos = [];
     for (let i = 0; i < 520; i++) { const g = new THREE.ConeGeometry(0.1, 0.35 + rand() * 0.3, 4); g.translate(CORRAL.x0 + 0.5 + rand() * (CORRAL.x1 - CORRAL.x0 - 1), 0.2, CORRAL.z0 + 0.5 + rand() * (CORRAL.z1 - CORRAL.z0 - 1)); geos.push(g); }
     var matas = new THREE.Mesh(mergeGeometries(geos), pastoMat); root.add(matas);
@@ -1506,6 +1515,7 @@ uniform float uRafaga;
 
   // ------------------------------------------------------------ selección de parcela con el mouse
   const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); ray.layers.enableAll();   // también ve las piezas apartadas en lotes
+  let planosListos = false;
   let downAt = null, seleccion = null, ultimoToque = null, vuelo = null, vistaLejos = null;
   const plano = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.5), pTmp = new THREE.Vector3();
   function dobleToque(e, r) {
@@ -1575,10 +1585,10 @@ uniform float uRafaga;
     () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.3)),
     () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
     () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
-    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.map?.dispose(); key.shadow.map = null; },
+    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.normalBias = 0.09; key.shadow.map?.dispose(); key.shadow.map = null; },
   ] : [
     () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
-    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.map?.dispose(); key.shadow.map = null; },
+    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.normalBias = 0.09; key.shadow.map?.dispose(); key.shadow.map = null; },
     () => renderer.setPixelRatio(Math.min(devicePixelRatio, 0.8)),
     () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
     () => renderer.setPixelRatio(0.65),
@@ -1690,7 +1700,7 @@ uniform float uRafaga;
     compostVis.scale.set(1, Math.max(0.15, Math.min(1.6, (s.rec.pila || 0) / 60)), 1);
     tankLevel(s.rec.cruda / TANQUE_MAX);
     poseGanado(s, t, dt);
-    pastoMat.color.setHSL(0.18 + Math.min(1, s.granja.pasto / 100) * 0.1, 0.45, 0.28 + Math.min(1, s.granja.pasto / 100) * 0.08);
+    pastoMat.color.setHSL(0.18 + Math.min(1, s.granja.pasto / 100) * 0.1, 0.45, 0.28 + Math.min(1, s.granja.pasto / 100) * 0.08); pastoPiso.color.copy(pastoMat.color);
     matas.scale.y = 0.3 + Math.min(1, s.granja.pasto / 100) * 0.9;
     pacas.forEach((m, i) => { m.visible = s.rec.heno > i * 22; });
     pesebreHeno.scale.y = Math.max(0.05, Math.min(1, s.rec.pesebre / 10)); pesebreHeno.visible = s.rec.pesebre > 0.2;
@@ -1778,13 +1788,21 @@ uniform float uRafaga;
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     crisisVis(s, t, dt);
     efectos(s, dt);
-    volar(dt); controls.update();
+    volar(dt);
+    // el centro de la vista no se sale del terreno: se puede recorrer la granja pero no perderse fuera del orbe
+    { const t0 = controls.target, dx = t0.x - CENTER.x, dz = t0.z - CENTER.z, d = Math.hypot(dx, dz), y = THREE.MathUtils.clamp(t0.y, 0.3, 14);
+      if (d > 42 || y !== t0.y) { const k = d > 42 ? 42 / d : 1, nx = CENTER.x + dx * k, nz = CENTER.z + dz * k; camera.position.x += nx - t0.x; camera.position.z += nz - t0.z; camera.position.y += y - t0.y; t0.set(nx, y, nz); } }
+    controls.update();
     calidad(dt);
     // profundidad: el plano cercano se aleja con la cámara (si no, de lejos las superficies casi pegadas titilan)
     const dCam = camera.position.distanceTo(controls.target), near = THREE.MathUtils.clamp(dCam * 0.02, 0.1, 8), far = dCam + 260;
     if (Math.abs(near - camera.near) > 0.02 * near || Math.abs(far - camera.far) > 5) { camera.near = near; camera.far = far; camera.updateProjectionMatrix(); }
     renderer.shadowMap.needsUpdate = true;   // sombras en cada cuadro: saltearlas se ve como temblor
     renderer.render(scene, camera);
+    if (cargada && !planosListos) {   // lo casi plano pegado al suelo (caminos, tablas, bordes) no proyecta sombra: se la haría a sí mismo y titila
+      planosListos = true; const b = new THREE.Box3();
+      scene.traverse((o) => { if (!o.isMesh || !o.castShadow) return; b.setFromObject(o); if (b.max.y - b.min.y < 0.1 && b.max.y < 0.4) o.castShadow = false; });
+    }
     if (cargada) lotes.revisar(dt);
     // las etiquetas usan las matrices que ya se calcularon al dibujar: no recorrer la escena otra vez
     scene.matrixWorldAutoUpdate = false; labelRenderer.render(scene, camera); scene.matrixWorldAutoUpdate = true;

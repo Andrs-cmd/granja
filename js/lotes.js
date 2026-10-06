@@ -53,6 +53,7 @@ export function crearLotes(scene, { excluir = () => false } = {}) {
     geo.computeBoundingSphere();
     const m = new THREE.Mesh(geo, ejemplo.material);
     m.isLote = true; m.castShadow = ejemplo.castShadow; m.receiveShadow = ejemplo.receiveShadow;
+    if (ejemplo.material.userData.profundidad) m.customDepthMaterial = ejemplo.material.userData.profundidad;   // sombra que se mece con el viento
     m.matrixAutoUpdate = false; m.raycast = () => {};
     grupo.add(m); L.malla = m;
     // recién ahora se apartan los originales: nunca hay un cuadro sin la pieza (ni con la pieza dos veces)
@@ -78,6 +79,7 @@ export function crearLotes(scene, { excluir = () => false } = {}) {
   function barrer() {
     const vistas = new Map();
     scene.traverse((o) => {
+      if (o.isMesh && !o.customDepthMaterial && o.material?.userData?.profundidad) o.customDepthMaterial = o.material.userData.profundidad;
       if (o === grupo || !apta(o) || fichas.has(o)) return;
       const p = pendientes.get(o);
       if (p && igual(o, p)) { if (p.vis) agrupar(o); else vistas.set(o, p); }
