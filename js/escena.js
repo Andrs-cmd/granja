@@ -1655,8 +1655,16 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       barricasVis.forEach((b, i) => { b.visible = i < Math.min(4, (s.barricas || []).length * 2); });
       botellas.forEach((b, i) => { b.visible = i < Math.min(12, Math.ceil((s.rec.vino || 0) / 5)); });
       mostoVis.visible = (s.rec.uvas || 0) >= 3;
-      carreta.visible = !!s.comercio?.visita;
-      if (carreta.visible) ramiro.rotation.y = Math.sin(t * 0.5) * 0.4;
+      // la carreta entra por el camino a las 8, se queda hasta las 5 y se va
+      const V = s.comercio?.visita;
+      const llega = V?.llega ?? -1e9, sale = V?.sale ?? -1e9;
+      carreta.visible = !!V && s.t >= llega - 50 && s.t <= sale + 50;
+      if (carreta.visible) {
+        const k = s.t < llega ? (s.t - (llega - 50)) / 50 : s.t > sale ? 1 - (s.t - sale) / 50 : 1;   // 0 = en el borde, 1 = estacionada
+        const ex = 47, ez = LUGAR.carreta.z + 2;
+        carreta.position.set(ex + (LUGAR.carreta.x - ex) * k, 0, ez + (LUGAR.carreta.z - ez) * k);
+        ramiro.rotation.y = k < 1 ? 0 : Math.sin(t * 0.5) * 0.4;
+      }
     }
     abejas.pts.visible = day > 0.3 && !s.clima.lluvia && ((s.t / MIN_DIA / 28) | 0) % 4 !== 3;
     if (abejas.pts.visible) for (let i = 0; i < abejas.N; i++) { const a = t * (0.6 + (i % 5) * 0.13) + i * 1.7; abejas.pos.set([30 + Math.cos(a) * (4 + (i % 4) * 2) + Math.sin(a * 3.1) * 0.6, 0.9 + Math.sin(a * 2.3 + i) * 0.35, 3 + Math.sin(a * 0.9) * (3 + (i % 3)) + Math.cos(a * 2.7) * 0.5], i * 3); }

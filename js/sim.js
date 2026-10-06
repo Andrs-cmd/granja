@@ -374,7 +374,8 @@ function planRuta(from, to) {
 
 // ---------------------------------------------------------------- partida nueva
 const placeresNuevos = () => ({ parras: PARRAS.slice(0, PARRAS_BASE).map((q, i) => ({ id: i, ...q, uvas: 0 })), matas: MATAS.map((q, i) => ({ id: i, ...q, crec: 0.2, estado: 'creciendo' })), barricas: [], curado: [] });
-const comercioNuevo = (t) => ({ proxima: Math.floor(t / MIN_DIA) + 9, visita: null, monedas: 0, vendido: {}, ultimo: null, visitas: 0, herramientas: [] });
+// (arrancan con algunos ahorros y el comerciante llega pronto)
+const comercioNuevo = (t) => ({ proxima: Math.floor(t / MIN_DIA) + 3, visita: null, monedas: 150, vendido: {}, ultimo: null, visitas: 0, herramientas: [] });
 const placerNuevo = () => ({ vino: { tol: 0, dep: 0, ult: -1e9, usos: 0 }, hierba: { tol: 0, dep: 0, ult: -1e9, usos: 0 } });
 function nuevoAgente(p) {
   const humano = p.tipo === 'humano';
@@ -464,7 +465,7 @@ export function nuevaPartida({ semilla = Date.now(), inicio = 6 * 60, generacion
     frutales: FRUTALES.map((f, i) => ({ id: i, ...f, fruta: 0 })),
     jardines: JARDINES.map((j, i) => ({ id: i, x: j.x, z: j.z, flor: j.flor, cuidado: 0.3, flores: 0 })),
     obras: OBRAS.map(([id, nombre, horas]) => ({ id, nombre, horas, progreso: 0 })), esculturas: 0, avanceEscultura: 0, belleza: 10,
-    ...placeresNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {},
+    ...placeresNuevos(), comercio: comercioNuevo(inicio), ...jugadorNuevo(), narrador: narradorNuevo(inicio), fuegos: [], prioridades: {}, ahorrosIniciales: true,
     agentes: PERSONAJES.map(nuevoAgente),
     ganado: [],
     ultimaCosecha: null, efectos: [],
@@ -669,6 +670,7 @@ function tick(s, d) {
   for (const a of s.agentes) if (a.vivo) { necesidades(s, a, d); comportamiento(s, a, d); }
   encuentros(s);
   if (s.fuegos?.length || s.lobos || s.ladron || s.forastero) crisisTick(s, d);
+  if (s.comercio?.visita) comercioTick(s);
   if (Math.floor(s.t / 30) !== Math.floor((s.t - d) / 30)) { vigilar(s); revisarDilemas(s); dilemasDelMomento(s); heridasTick(s); quiebres(s); }
 }
 
@@ -1362,7 +1364,7 @@ function elegirTarea(s, a) {
   { const uvas = s.parras.reduce((t, q) => t + q.uvas, 0); if (uvas >= 14 && !yaHace('vendimia')) opciones.push([uvas >= 40 ? 70 : 52, 'vendimia']); }
   if (R.uvas >= 10 && !yaHace('pisarUva') && !dilemaDe(s, 'uva')) opciones.push([R.uvas >= 30 ? 64 : 46, 'pisarUva']);
   if (s.matas.some((m) => m.estado === 'lista') && !yaHace('cosecharHierba')) opciones.push([58, 'cosecharHierba']);
-  { const V = s.comercio.visita; if (V && !V.hecho && h >= 8 && h < 17 && !yaHace('comerciar') && !dilemaDe(s, 'venta')) opciones.push([62 + (tiene(a, 'ahorradora') ? 10 : 0) + P5(a, 'extraversion') * 8, 'comerciar']); }
+  { const V = s.comercio.visita; if (V && V.llego && !V.hecho && h >= 8 && h < 17 && !yaHace('comerciar') && !dilemaDe(s, 'venta')) opciones.push([62 + (tiene(a, 'ahorradora') ? 10 : 0) + P5(a, 'extraversion') * 8, 'comerciar']); }
   // conservar la comida
   // (la despensa tiene un límite: frascos, quesos y secos solo hasta llenarla)
   if (R.leche >= 6 && (R.queso || 0) < CAPACIDAD.queso && !yaHace('hacerQueso')) opciones.push([58, 'hacerQueso']);
@@ -1776,7 +1778,7 @@ function completar(s, a, T) {
           for (const h of humanos(s)) recuerdo(s, h, `Terminamos ${o.nombre}`, 10, 48);
           memoria(s, a, `Construyó ${o.nombre}`, 1);
           const quedan = s.obras.filter((x) => x.progreso < 1).slice(0, 3);
-          if (quedan.length > 1) proponer(s, 'obra', '¿Qué construye Andrés ahora?', 'Terminó una obra. Elige la próxima.', [...quedan.map((x) => ({ k: x.id, txt: x.nombre[0].toUpperCase() + x.nombre.slice(1), pista: OBRAS.find((y) => y[0] === x.id)[5] })), { k: 'libre', txt: 'La que él quiera', pista: '' }], 'libre', {}, 12, 0);
+          if (quedan.length > 2) proponer(s, 'obra', '¿Qué construye Andrés ahora?', 'Terminó una obra. Elige la próxima.', [...quedan.map((x) => ({ k: x.id, txt: x.nombre[0].toUpperCase() + x.nombre.slice(1), pista: OBRAS.find((y) => y[0] === x.id)[5] })), { k: 'libre', txt: 'La que él quiera', pista: '' }], 'libre', {}, 12, 3);
         }
       }
       break;
@@ -2052,25 +2054,31 @@ function placeresDelDia(s) {
 export const COMERCIANTE = 'Don Ramiro';
 function comercioDelDia(s) {
   const C = s.comercio, d = dia(s), e = estacion(s);
-  if (C.visita && C.visita.dia < d) {
-    log(s, `${COMERCIANTE} se fue con su carreta${C.visita.hecho ? '' : ': nadie alcanzó a negociar'}.`, 'info');
-    C.visita = null; C.proxima = d + 12 + Math.floor(rng(s) * 7);
-  }
+  if (C.visita && C.visita.dia < d) { C.visita = null; C.proxima = d + 6 + Math.floor(rng(s) * 4); }   // (por si quedó abierta)
+  if (!C.visita && d === C.proxima - 1) log(s, `🛒 Mañana a las 8 llega ${COMERCIANTE} con su carreta.`, 'info');
   if (C.visita || d < C.proxima) return;
   if (e === 3 && rng(s) < 0.4) { C.proxima = d + 7; log(s, `El camino está helado: ${COMERCIANTE} no pudo venir esta semana.`, 'clima'); return; }
   // precios del día: base × estación × (lo que ya le vendieron) × azar
   for (const k of Object.keys(C.vendido)) C.vendido[k] *= 0.6;
   const precios = {};
   for (const [k, m] of Object.entries(MERCADO)) precios[k] = Math.round(m.base * m.est[e] / (1 + (C.vendido[k] || 0) / 25) * (0.8 + rng(s) * 0.4) * 100) / 100;
-  C.visita = { dia: d, precios, hecho: false, bolsa: Math.round(90 + rng(s) * 80) }; C.visitas += 1;
+  C.visita = { dia: d, llega: d * MIN_DIA + 8 * 60, sale: d * MIN_DIA + 17 * 60, precios, hecho: false, bolsa: Math.round(90 + rng(s) * 80) }; C.visitas += 1;
   const caro = Object.entries(precios).sort((x, y) => y[1] / MERCADO[y[0]].base - x[1] / MERCADO[x[0]].base)[0][0];
+  C.visita.caro = caro;
+}
+function comercioTick(s) {
+  const C = s.comercio, V = C.visita; if (!V) return;
+  if (V.llega && s.t >= V.llega && !V.llego) {
+    V.llego = true; const caro = V.caro, precios = V.precios;
   log(s, `🛒 Llegó ${COMERCIANTE} con su carreta. Hoy paga bien ${MERCADO[caro].nombre}.`, 'info');
   proponer(s, 'venta', `${COMERCIANTE} llegó a la granja`, `Hoy paga bien ${MERCADO[caro].nombre} (${precios[caro]} monedas). Vino a ${precios.vino}, hierba a ${precios.hierba}. Tienen ${Math.round(C.monedas)} monedas ahorradas.`, [
     { k: 'normal', txt: 'Vender lo que sobra', pista: 'guardan lo que la casa necesita' },
     { k: 'todo', txt: 'Vender todo lo posible', pista: 'más monedas, menos reservas' },
     { k: 'renta', txt: 'Solo vino y hierba', pista: 'la comida se queda en casa' },
     { k: 'guardar', txt: 'No vender nada', pista: 'solo comprar con los ahorros' },
-  ], 'normal', {}, 9, 0);
+  ], 'normal', {}, 3, 0);
+  }
+  if (V.sale && s.t >= V.sale) { log(s, `${COMERCIANTE} se fue con su carreta${V.hecho ? '' : ': nadie alcanzó a negociar'}.`, 'info'); C.visita = null; C.proxima = dia(s) + 6 + Math.floor(rng(s) * 4); }
 }
 function animalDeFuera(s, tipo, sexo) {
   const t = tipo === 'gallo' ? 'gallo' : tipo;
@@ -2147,13 +2155,14 @@ function comerciar(s, a) {
   }
   { const l = LUJOS.find(([id]) => !(C.lujos ||= []).includes(id)); if (l && (s.casa.mejoras || []).length >= 5 && !s.casa.obra && C.monedas > l[2] + 150 && paga(l[2])) { C.lujos.push(l[0]); compra.push(l[1]); humanos(s).forEach((x) => { recuerdo(s, x, `Estrenaron ${l[1]}`, 10, 72); memoria(s, x, `Compraron ${l[1]}`, 0.4); }); } }
   if ((s.casa.estado ?? 100) < 70 && paga(TIENDA.materiales)) { s.casa.estado = Math.min(100, s.casa.estado + 25); compra.push('tejas y tablas para la casa'); }
-  if (C.monedas > 20 && P5(a, 'apertura') > 0.45 && paga(TIENDA.libro)) { R.libros += 1; compra.push('un libro'); }
-  { const b = pareja(s, a); if (b && C.monedas > 25 && (s.pareja.afinidad < 75 || s.pareja.tension > 20 || rng(s) < 0.3) && paga(TIENDA.regalo)) {
+  const sobra = C.monedas > 220 || (s.casa.mejoras || []).length >= 4;   // primero la casa
+  if (sobra && P5(a, 'apertura') > 0.45 && paga(TIENDA.libro)) { R.libros += 1; compra.push('un libro'); }
+  { const b = pareja(s, a); if (b && (sobra ? C.monedas > 25 : C.monedas > 60 && s.pareja.afinidad < 50) && (s.pareja.afinidad < 75 || s.pareja.tension > 20 || rng(s) < 0.3) && paga(TIENDA.regalo)) {
     const cosa = ['una pañoleta', 'un perfume', 'unos aretes', 'una navaja', 'un sombrero', 'un cuaderno'][Math.floor(rng(s) * 6)];
     recuerdo(s, b, `Un regalo de ${a.nombre}`, 10, 48); s.pareja.afinidad = Math.min(100, s.pareja.afinidad + 3); s.pareja.tension = Math.max(0, (s.pareja.tension || 0) - 10);
     s.stats.regalos = (s.stats.regalos || 0) + 1; cumplirDeseo(s, b, 'regalo'); compra.push(`${cosa} para ${b.nombre}`); } }
-  if (C.monedas > 15 && rng(s) < 0.5 && paga(TIENDA.golosinas)) { humanos(s).forEach((x) => recuerdo(s, x, 'Chocolate del comerciante', 4, 24)); compra.push('chocolate'); }
-  if (C.monedas > 30 && rng(s) < 0.2 && paga(TIENDA.juguete)) { s.agentes.filter((x) => x.vivo && (x.tipo === 'perro' || x.tipo === 'gato')).forEach((x) => { x.n.diversion = 100; }); compra.push('un juguete para las mascotas'); }
+  if (sobra && rng(s) < 0.5 && paga(TIENDA.golosinas)) { humanos(s).forEach((x) => recuerdo(s, x, 'Chocolate del comerciante', 4, 24)); compra.push('chocolate'); }
+  if (sobra && rng(s) < 0.2 && paga(TIENDA.juguete)) { s.agentes.filter((x) => x.vivo && (x.tipo === 'perro' || x.tipo === 'gato')).forEach((x) => { x.n.diversion = 100; }); compra.push('un juguete para las mascotas'); }
   C.ultimo = { dia: dia(s), quien: a.nombre, vende, compra, monedas: C.monedas };
   recuerdo(s, a, compra.length ? 'Buen trueque' : 'Charló con el comerciante', compra.length ? 5 : 2, 12);
   a.n.social = Math.min(100, a.n.social + 25);
@@ -2191,6 +2200,7 @@ export function alertas(s) {
   if (s.lobos) L.push(['rojo', `🐺 ${s.lobos.n} lobos rondan el potrero`]);
   if (s.ladron) L.push(['amarillo', '🕵️ Un extraño ronda la granja']);
   if (s.pozoRoto) L.push(['amarillo', '🚱 El pozo está roto']);
+  if (s.comercio?.visita?.llego) L.push(['amarillo', `🛒 ${COMERCIANTE} está en la granja hasta las 5`]);
   for (const a of s.agentes.filter((x) => x.vivo)) {
     const sev = severidad(a), inf = (a.heridas || []).some((h) => h.infeccion > 0.3), fiebre = (a.heridas || []).find((h) => h.tipo === 'fiebre');
     if (inf) L.push(['rojo', `${a.nombre}: herida infectada`]);
@@ -3139,6 +3149,7 @@ function migrar(s) {
     { const n = placeresNuevos(); s.parras ??= n.parras; s.matas ??= n.matas; s.barricas ??= []; s.curado ??= [];
       for (let i = s.parras.length; i < PARRAS_BASE; i++) s.parras.push(n.parras[i]); for (let i = s.matas.length; i < MATAS.length; i++) s.matas.push(n.matas[i]); }
     s.comercio ??= comercioNuevo(s.t);
+    if (!s.ahorrosIniciales) { s.ahorrosIniciales = true; s.comercio.monedas = (s.comercio.monedas || 0) + 150; s.comercio.proxima = Math.min(s.comercio.proxima, dia(s) + 2); log(s, '🪙 Encontraron 150 monedas ahorradas en una lata vieja: alcanza para empezar a arreglar la casa.', 'bueno'); }
     s.narrador ??= narradorNuevo(s.t); s.fuegos ??= []; s.prioridades ??= {};
     // fichas nuevas (2026-10-05): las mascotas toman la afinidad que el usuario definió (una sola vez)
     if ((s.fichaVersion || 1) < 2) { s.fichaVersion = 2; for (const m of s.agentes) if (m.vinculo) for (const h of PERSONAJES.filter((x) => x.tipo === 'humano')) m.vinculo[h.id] = Math.round((h.habitos?.animales?.[m.id] ?? 0.5) * 100); }
