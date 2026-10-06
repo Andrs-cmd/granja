@@ -25,11 +25,11 @@ const yawTo = (dx, dz) => Math.atan2(-dz, dx);
 export function crearEscena(host, { onParcela, onAgente } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   const tactil = matchMedia('(pointer: coarse)').matches;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, tactil ? 1.0 : 1.25));   // en el celular arranca más liviano
+  renderer.setPixelRatio(Math.min(devicePixelRatio, tactil ? 1.6 : 1.25));   // en el celular las pantallas son densas: menos que esto se ve borroso
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.shadowMap.autoUpdate = false; let cuadroN = 0;
+  renderer.shadowMap.autoUpdate = false; 
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   host.appendChild(renderer.domElement);
   // capa de etiquetas flotantes (datos) encima del lienzo
@@ -54,7 +54,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 3);
-  key.castShadow = true; key.shadow.mapSize.set(tactil ? 1024 : 2048, tactil ? 1024 : 2048);
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
   Object.assign(key.shadow.camera, { left: -54, right: 54, top: 54, bottom: -54, near: 1, far: 200 });
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
   scene.add(key, key.target); key.target.position.copy(CENTER);
@@ -1506,11 +1506,44 @@ uniform float uRafaga;
 
   // ------------------------------------------------------------ selección de parcela con el mouse
   const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); ray.layers.enableAll();   // también ve las piezas apartadas en lotes
-  let downAt = null, seleccion = null;
+  let downAt = null, seleccion = null, ultimoToque = null, vuelo = null, vistaLejos = null;
+  const plano = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.5), pTmp = new THREE.Vector3();
+  function dobleToque(e, r) {
+    const off = controls.target.clone().sub(camera.position), dist = off.length();
+    if (!vistaLejos || dist > vistaLejos.dist * 0.6) {   // acercar
+      if (!vistaLejos) vistaLejos = { dist, target: controls.target.clone(), pos: camera.position.clone() };
+      mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(mouse, camera);
+      if (!ray.ray.intersectPlane(plano, pTmp) || pTmp.distanceTo(CENTER) > 50) return;
+      const nuevoT = pTmp.clone(); nuevoT.y = 1.5;
+      const nuevaD = Math.max(controls.minDistance * 3, dist * 0.32);
+      vuelo = { t: 0, de: [controls.target.clone(), camera.position.clone()], a: [nuevoT, nuevoT.clone().sub(off.setLength(nuevaD))] };
+    } else {   // volver a la vista completa
+      vuelo = { t: 0, de: [controls.target.clone(), camera.position.clone()], a: [vistaLejos.target.clone(), vistaLejos.pos.clone()] };
+      vistaLejos = null;
+    }
+  }
+  function volar(dt) {
+    if (!vuelo) return;
+    vuelo.t = Math.min(1, vuelo.t + dt / 0.55); const k = vuelo.t * vuelo.t * (3 - 2 * vuelo.t);
+    controls.target.lerpVectors(vuelo.de[0], vuelo.a[0], k); camera.position.lerpVectors(vuelo.de[1], vuelo.a[1], k);
+    if (vuelo.t >= 1) vuelo = null;
+  }
   renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
   renderer.domElement.addEventListener('pointerup', (e) => {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > (e.pointerType === 'touch' ? 14 : 6)) return;
     const r = renderer.domElement.getBoundingClientRect();
+    // doble toque: acerca la cámara a ese punto (y si ya está cerca, vuelve a la vista completa)
+    const ahora = performance.now();
+    if (e.pointerType === 'touch' && ultimoToque && ahora - ultimoToque.t < 320 && Math.hypot(e.clientX - ultimoToque.x, e.clientY - ultimoToque.y) < 40) {
+      clearTimeout(ultimoToque.espera); ultimoToque = null; dobleToque(e, r); return;
+    }
+    if (e.pointerType !== 'touch') return toqueSimple(e, r);
+    // con el dedo, el toque simple espera un instante: si llega un segundo toque era un doble toque
+    const x = e.clientX, y = e.clientY;
+    ultimoToque = { t: ahora, x, y, espera: setTimeout(() => { ultimoToque = null; toqueSimple({ clientX: x, clientY: y, pointerType: 'touch' }, r); }, 300) };
+  });
+  function toqueSimple(e, r) {
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     // ¿tocó a una persona? (se proyecta cada una a la pantalla: son pequeñas y así es fácil tocarlas)
     if (onAgente) {
@@ -1526,7 +1559,7 @@ uniform float uRafaga;
     ray.setFromCamera(mouse, camera);
     const hit = ray.intersectObjects(parcelas.map((p) => p.soil))[0];
     if (hit && onParcela) onParcela(hit.object.userData.parcela);
-  });
+  }
 
   // ------------------------------------------------------------ tamaño
   function resize() {
@@ -1538,14 +1571,19 @@ uniform float uRafaga;
   }
   addEventListener('resize', resize); resize();
   // calidad adaptativa: si el equipo no da (celulares, portátiles viejos), baja de a un paso la resolución y luego las sombras
-  const PASOS = [
+  const PASOS = tactil ? [   // celular: baja pero nunca por debajo de 1 (se vería borroso)
+    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.3)),
+    () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
+    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
+    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.map?.dispose(); key.shadow.map = null; },
+  ] : [
     () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
     () => { key.shadow.mapSize.set(1024, 1024); key.shadow.map?.dispose(); key.shadow.map = null; },
     () => renderer.setPixelRatio(Math.min(devicePixelRatio, 0.8)),
     () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
     () => renderer.setPixelRatio(0.65),
   ];
-  let paso = tactil ? 2 : 0, acum = 0, nCal = 0, esperaCal = 4, ocupado = false;
+  let paso = 0, acum = 0, nCal = 0, esperaCal = 4, ocupado = false;
   function calidad(dt) {
     if (paso >= PASOS.length || !cargada || document.hidden) return;
     if (ocupado) { acum = 0; nCal = 0; esperaCal = 2; return; }   // poniéndose al día: esos cuadros no cuentan
@@ -1740,10 +1778,12 @@ uniform float uRafaga;
     for (const a of s.agentes) poseAgente(a, vis[a.id], s, t, dt);
     crisisVis(s, t, dt);
     efectos(s, dt);
-    controls.update();
+    volar(dt); controls.update();
     calidad(dt);
-    // sombras: se recalculan un cuadro sí y uno no (a la vista no se nota y ahorra la mitad de ese pase)
-    renderer.shadowMap.needsUpdate = (cuadroN++ & 1) === 0 || dt > 0.05;
+    // profundidad: el plano cercano se aleja con la cámara (si no, de lejos las superficies casi pegadas titilan)
+    const dCam = camera.position.distanceTo(controls.target), near = THREE.MathUtils.clamp(dCam * 0.02, 0.1, 8), far = dCam + 260;
+    if (Math.abs(near - camera.near) > 0.02 * near || Math.abs(far - camera.far) > 5) { camera.near = near; camera.far = far; camera.updateProjectionMatrix(); }
+    renderer.shadowMap.needsUpdate = true;   // sombras en cada cuadro: saltearlas se ve como temblor
     renderer.render(scene, camera);
     if (cargada) lotes.revisar(dt);
     // las etiquetas usan las matrices que ya se calcularon al dibujar: no recorrer la escena otra vez
@@ -1965,7 +2005,7 @@ uniform float uRafaga;
     const halfV = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * utilH);
     const halfH = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * utilW);
     const dist = (ORB_R + 6) / Math.sin(Math.min(halfV, halfH));
-    controls.maxDistance = Math.max(380, dist * 1.25); camera.far = Math.max(500, dist * 2.5); camera.updateProjectionMatrix();
+    controls.maxDistance = Math.max(380, dist * 1.25);
     camera.position.sub(controls.target).setLength(dist).add(controls.target);
   }
 

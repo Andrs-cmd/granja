@@ -55,12 +55,14 @@ export function crearLotes(scene, { excluir = () => false } = {}) {
     m.isLote = true; m.castShadow = ejemplo.castShadow; m.receiveShadow = ejemplo.receiveShadow;
     m.matrixAutoUpdate = false; m.raycast = () => {};
     grupo.add(m); L.malla = m;
+    // recién ahora se apartan los originales: nunca hay un cuadro sin la pieza (ni con la pieza dos veces)
+    for (const o of L.miembros) o.layers.set(CAPA_OCULTA);
   }
 
   function agrupar(o) {
     const clave = claveDe(o);
     let L = lotes.get(clave); if (!L) lotes.set(clave, (L = { malla: null, miembros: new Set() }));
-    L.miembros.add(o); o.userData._capas = o.layers.mask; o.layers.set(CAPA_OCULTA);
+    L.miembros.add(o); o.userData._capas = o.layers.mask;
     fichas.set(o, { ...foto(o), lote: clave }); sucios.add(clave);
   }
   // si cambia una vez (crece, se construye), vuelve a agruparse cuando se aquiete; si cambia seguido, queda suelta
@@ -91,7 +93,12 @@ export function crearLotes(scene, { excluir = () => false } = {}) {
     revisar(dt = 0.016) {
       reloj += dt; cuadro++;
       if (cuadro % 12 === 0) cacheFirma = new Map();
-      if (cuadro % 12 === 0) for (const [o, f] of fichas) if (!igual(o, f)) soltar(o, true);
+      if (cuadro % 12 === 0) {
+        const antes = new Set(sucios); sucios.clear();
+        for (const [o, f] of fichas) if (!igual(o, f)) soltar(o, true);
+        for (const c of sucios) construir(c);   // lo que se soltó se rehace ya: la pieza no queda dibujada dos veces
+        sucios.clear(); for (const c of antes) sucios.add(c);
+      }
       if (reloj - ultimoBarrido > (lotes.size ? 8 : 2.5)) { ultimoBarrido = reloj; cacheFirma = new Map(); barrer(); }
       // rehace pocos lotes por cuadro para no trabar
       let n = 0; for (const c of sucios) { sucios.delete(c); construir(c); if (++n >= 3) break; }
