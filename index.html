@@ -83,6 +83,12 @@
   .vidaP .graf { margin-bottom: 10px; } .vidaP .graf h4 { margin: 0 0 2px; font-size: 11.5px; font-weight: 600; display: flex; justify-content: space-between; } .vidaP .graf svg { width: 100%; height: 46px; display: block; background: rgba(255,255,255,.04); border-radius: 6px; }
   .vidaP .esp { margin-bottom: 9px; } .vidaP .esp .fila { display: flex; justify-content: space-between; font-size: 12.5px; } .vidaP .esp u { display: block; height: 6px; background: rgba(255,255,255,.08); border-radius: 3px; margin: 3px 0; text-decoration: none; overflow: hidden; } .vidaP .esp u i { display: block; height: 100%; background: #7cc36a; } .vidaP .esp small { font-size: 10.5px; opacity: .65; line-height: 1.3; display: block; }
   .vidaP .hitos { font-size: 11.5px; line-height: 1.45; } .vidaP .hitos div { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); } .vidaP .hitos .d { opacity: .55; margin-right: 6px; } .vidaP .hitos .muerte { color: #ff9d94; }
+  .fichapj .seguirB { float: right; margin: 0 26px 0 6px; font-size: 11.5px; padding: 5px 9px; } .fichapj .seguirB.on { background: rgba(231,196,106,.9); color: #1b1a17; border-color: transparent; }
+  .elegirPj { position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 8; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: min(560px, calc(100vw - 24px)); background: rgba(24,22,30,.94); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 9px; }
+  .elegirPj.off, .siguiendoB.off { display: none; }
+  .elegirPj button { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: #f1ece2; font: inherit; font-size: 12.5px; padding: 7px 11px; border-radius: 99px; cursor: pointer; } .elegirPj button small { opacity: .6; margin-left: 4px; }
+  .siguiendoB { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(24,22,30,.88); color: #f1ece2; border: 1px solid rgba(231,196,106,.5); border-radius: 99px; padding: 6px 8px 6px 14px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 140px); }
+  .siguiendoB span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .siguiendoB button { background: rgba(255,255,255,.1); border: 0; color: inherit; border-radius: 99px; width: 24px; height: 24px; cursor: pointer; }
   .fichapj.off { display: none; } .fichapj .cerrar { position: absolute; right: 8px; top: 6px; background: none; border: 0; font-size: 18px; padding: 2px 6px; }
   .fichapj h3 { margin: 0 0 2px; font-size: 14px; } .fichapj .sub { font-size: 11.5px; opacity: .75; margin-bottom: 7px; } .fichapj .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
   .fichapj button:disabled { opacity: .35; cursor: default; }
@@ -234,6 +240,8 @@
 <div class="caption" id="caption"></div>
 <div class="dilema off" id="dilema"></div>
 <div class="fichapj off" id="fichapj"></div>
+<div class="elegirPj off" id="elegirPj"></div>
+<div class="siguiendoB off" id="siguiendoB"></div>
 <div class="influ" id="influ" title="Influencia: se recarga cada día"></div>
 <div class="alertas" id="alertas"></div>
 <button class="btn-trabajo" id="btnTrabajo">⚙ Trabajo</button>
@@ -463,7 +471,7 @@ function pintarDatos() {
     <div class="card" data-tab="diario"><h4>Diario</h4><ul class="diario">${s.diario.slice(0, angosto() ? 12 : 5).map((e) => `<li class="${e.tipo}">${e.texto}</li>`).join('')}</ul></div>
     ${s.fin ? `<div class="card" style="color:#ffcf8a">La granja quedó vacía tras ${s.fin.dias} días. Pronto llega otra generación…</div>` : ''}`;
 }
-setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); pintarVida(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
+setInterval(() => { try { pintarDatos(); } catch (e) { console.warn('[granja] error en el panel:', e); } try { pintarJugador(); pintarAlertas(); pintarDiseno(); pintarVida(); pintarSeguir(); } catch (e) { console.warn('[granja] error en el jugador:', e); } }, 400);
 
 // ---------------------------------------------------------------- alertas y prioridades de trabajo
 const elAlertas = document.getElementById('alertas'), elPrio = document.getElementById('prioridades'), tablaP = document.getElementById('tablaP');
@@ -501,7 +509,7 @@ function pintarJugador(forzar = false) {
   const conf = J.confianza[a.id] ?? 50;
   // la cabecera cambia seguido; los botones solo se rehacen si cambia la influencia (para no perder clics)
   if (!elFicha.querySelector('.cab') || forzar && elFicha.dataset.id !== a.id) { elFicha.innerHTML = '<button class="cerrar" data-cerrar="1">×</button><div class="cab"></div><div class="ops"></div>'; elFicha.dataset.id = a.id; htmlFicha = ''; }
-  const cab = `<h3>${Sim.caraAnimo(a.animo)} ${esc(a.nombre)}</h3>
+  const cab = `<button class="seguirB ${escena.siguiendo === a.id ? 'on' : ''}" data-seguir="1">${escena.siguiendo === a.id ? '🎯 Siguiendo' : '🎯 Seguir'}</button><h3>${Sim.caraAnimo(a.animo)} ${esc(a.nombre)}</h3>
     <div class="sub">${esc(a.dentro ? 'En casa · ' + a.accion.toLowerCase() : a.accion)}${a.deseo ? ` · ✨ ${esc(a.deseo.texto)}` : ''}</div>
     <div class="sub" style="margin:0">Confianza en ti: ${Math.round(conf)} / 100</div><div class="conf"><i style="width:${conf}%"></i></div>
     ${a.tipo === 'humano' ? `<div class="mente">${a.motivo ? `<div>🧭 Por qué: ${esc(a.motivo)}</div>` : ''}${a.pensamiento ? `<div>💭 <i>«${esc(a.pensamiento.texto)}»</i></div>` : ''}
@@ -579,6 +587,25 @@ elPlano.addEventListener('pointermove', (e) => {
 });
 const soltarArrastre = () => { arrastre = null; };
 elPlano.addEventListener('pointerup', soltarArrastre); elPlano.addEventListener('pointercancel', soltarArrastre);
+
+// ---------------------------------------------------------------- seguir a un personaje con la cámara
+const elElegir = document.getElementById('elegirPj'), elSig = document.getElementById('siguiendoB');
+const emojiDe = (a) => a.tipo === 'perro' ? '🐕' : a.tipo === 'gato' ? '🐈' : a.tipo === 'nino' ? '🧒' : a.id === 'lucia' ? '👩' : '🧔';
+function abrirElegir() {
+  if (!elElegir.classList.contains('off')) { elElegir.classList.add('off'); return; }
+  const L = estado.agentes.filter((a) => a.vivo);
+  elElegir.innerHTML = L.map((a) => `<button data-pj="${a.id}">${emojiDe(a)} ${esc(a.nombre)}<small>${esc((a.accion || '').toLowerCase().slice(0, 22))}</small></button>`).join('');
+  elElegir.classList.remove('off');
+}
+elElegir.addEventListener('click', (e) => { const b = e.target.closest('[data-pj]'); if (!b) return; elElegir.classList.add('off'); fichaId = b.dataset.pj; escena.seguir(fichaId); pintarSeguir(); pintarJugador(true); });
+function pintarSeguir() {
+  const id = escena.siguiendo, a = id && estado.agentes.find((x) => x.id === id);
+  if (!a || (fichaId === id && !elFicha.classList.contains('off'))) { elSig.classList.add('off'); return; }   // con la ficha abierta ya se ve ahí
+  const h = `<span>🎯 ${esc(a.nombre)} · ${esc(a.vivo ? (a.dentro ? 'en casa · ' + (a.accion || '').toLowerCase() : a.accion || '') : 'murió')}</span><button data-dejar="1" aria-label="Dejar de seguir">×</button>`;
+  if (elSig.innerHTML !== h) elSig.innerHTML = h; elSig.classList.remove('off');
+}
+elSig.addEventListener('click', (e) => { if (e.target.closest('[data-dejar]')) { escena.seguir(null); pintarSeguir(); pintarJugador(true); } });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && escena.siguiendo) { escena.seguir(null); pintarSeguir(); pintarJugador(true); } });
 
 // ---------------------------------------------------------------- el espíritu del orbe: poderes y crónica
 const elVida = document.getElementById('vidaP');
@@ -714,6 +741,7 @@ elDil.addEventListener('click', (e) => {
 });
 elFicha.addEventListener('click', (e) => {
   if (e.target.closest('[data-cerrar]')) { fichaId = null; pintarJugador(true); return; }
+  if (e.target.closest('[data-seguir]')) { escena.seguir(escena.siguiendo === fichaId ? null : fichaId); pintarSeguir(); pintarJugador(true); return; }
   const b = e.target.closest('button[data-acc]'); if (!b || !fichaId) return;
   const r = Sim.actuar(estado, fichaId, b.dataset.acc);
   const a = estado.agentes.find((x) => x.id === fichaId);
@@ -739,6 +767,7 @@ const bDatos = document.createElement('button');
 function aplicarDatos() { document.body.classList.toggle('datos', datos); tabs.classList.toggle('off', !datos); bDatos.classList.toggle('on', datos); bDatos.textContent = datos ? 'Datos ✓' : 'Datos'; izq.classList.toggle('off', !datos); der.classList.toggle('off', !datos); encuadre(); pintarDatos(); }
 bDatos.onclick = () => { datos = !datos; aplicarDatos(); };
 speeds.append(bDatos);
+{ const b = document.createElement('button'); b.textContent = '👁'; b.title = 'Elegir un personaje y seguirlo con la cámara'; b.onclick = () => abrirElegir(); speeds.append(b); }
 { const NOM = { auto: 'HD auto', alta: 'HD alta', ultra: 'HD ultra' }, SIG = { auto: 'alta', alta: 'ultra', ultra: 'auto' };
   const b = document.createElement('button'); b.textContent = NOM[modoCalidad] || NOM.auto; b.title = 'Calidad de imagen: auto se ajusta al equipo; alta y ultra se ven más nítidas (más exigentes)';
   b.onclick = () => { const n = SIG[modoCalidad] || 'auto'; try { localStorage.setItem('granja3d-calidad', n); } catch { /* sin almacenamiento */ } guardar(); location.reload(); }; speeds.append(b); }

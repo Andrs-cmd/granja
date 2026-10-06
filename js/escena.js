@@ -1784,6 +1784,21 @@ uniform float uRafaga;
       vistaLejos = null;
     }
   }
+  // seguir a un personaje: la cámara lo acompaña (se puede girar y acercar alrededor de él)
+  let siguiendo = null; const pSeg = new THREE.Vector3(), dSeg = new THREE.Vector3();
+  function puntoDe(id, out) { const v = vis[id]; if (!v) return null; v.g.getWorldPosition(out); out.y += v.kind === 'humano' ? 1.6 : 0.6; return out; }
+  function seguirCamara(dt) {
+    if (!siguiendo || vuelo) return;
+    if (!puntoDe(siguiendo, pSeg)) { siguiendo = null; return; }
+    dSeg.copy(pSeg).sub(controls.target).multiplyScalar(Math.min(1, dt * 4));
+    controls.target.add(dSeg); camera.position.add(dSeg);
+  }
+  function seguir(id) {
+    siguiendo = id || null; if (!siguiendo || !puntoDe(id, pSeg)) return;
+    const off = camera.position.clone().sub(controls.target); off.setLength(Math.min(off.length(), 16));
+    if (off.y < off.length() * 0.35) off.y = off.length() * 0.45;
+    vuelo = { t: 0, de: [controls.target.clone(), camera.position.clone()], a: [pSeg.clone(), pSeg.clone().add(off)] };
+  }
   function volar(dt) {
     if (!vuelo) return;
     vuelo.t = Math.min(1, vuelo.t + dt / 0.55); const k = vuelo.t * vuelo.t * (3 - 2 * vuelo.t);
@@ -2068,6 +2083,7 @@ uniform float uRafaga;
     efectos(s, dt);
     animarFauna(s, dt, t);
     volar(dt);
+    seguirCamara(dt);
     // el centro de la vista no se sale del terreno: se puede recorrer la granja pero no perderse fuera del orbe
     { const t0 = controls.target, dx = t0.x - CENTER.x, dz = t0.z - CENTER.z, d = Math.hypot(dx, dz), y = THREE.MathUtils.clamp(t0.y, 0.3, 14);
       if (d > 42 || y !== t0.y) { const k = d > 42 ? 42 / d : 1, nx = CENTER.x + dx * k, nz = CENTER.z + dz * k; camera.position.x += nx - t0.x; camera.position.z += nz - t0.z; camera.position.y += y - t0.y; t0.set(nx, y, nz); } }
@@ -2255,6 +2271,91 @@ uniform float uRafaga;
       }).catch((e) => console.warn('[granja] no se pudo cargar', u, e));
     }
   }
+  // ------------------------------------------------------------ leer y tejer de verdad: brazos con cinemática inversa (dos huesos) hasta un punto frente al pecho
+  const ikA = new THREE.Vector3(), ikB = new THREE.Vector3(), ikC = new THREE.Vector3(), ikT = new THREE.Vector3(), ikTmp = new THREE.Vector3(), ikAx0 = new THREE.Vector3(), ikAx1 = new THREE.Vector3();
+  const ikQ = new THREE.Quaternion(), ikPw = new THREE.Quaternion(), ikBw = new THREE.Quaternion();
+  const ac = (x) => Math.acos(THREE.MathUtils.clamp(x, -1, 1));
+  function rotarMundo(hueso, q) {   // gira un hueso en coordenadas del mundo
+    hueso.parent.getWorldQuaternion(ikPw); hueso.getWorldQuaternion(ikBw);
+    hueso.quaternion.copy(ikPw.invert().multiply(ikQ.copy(q).multiply(ikBw)));
+    hueso.updateMatrixWorld(true);
+  }
+  function ik2(sup, inf, mano, objetivo, polo) {
+    sup.getWorldPosition(ikA); inf.getWorldPosition(ikB); mano.getWorldPosition(ikC);
+    const lab = ikB.distanceTo(ikA), lcb = ikC.distanceTo(ikB), lat = THREE.MathUtils.clamp(objetivo.distanceTo(ikA), 0.01 * lab, (lab + lcb) * 0.999);
+    const ca = ikTmp.copy(ikC).sub(ikA).normalize(), ba = ikB.clone().sub(ikA).normalize(), ta = objetivo.clone().sub(ikA).normalize();
+    const ac0 = ac(ca.dot(ba)), bc0 = ac(ikA.clone().sub(ikB).normalize().dot(ikC.clone().sub(ikB).normalize())), at0 = ac(ca.dot(ta));
+    const ac1 = ac((lcb * lcb - lab * lab - lat * lat) / (-2 * lab * lat)), bc1 = ac((lat * lat - lab * lab - lcb * lcb) / (-2 * lab * lcb));
+    ikAx0.copy(ca).cross(polo).normalize(); ikAx1.copy(ca).cross(ta);
+    if (ikAx1.lengthSq() < 1e-8) ikAx1.copy(ikAx0); ikAx1.normalize();
+    rotarMundo(inf, new THREE.Quaternion().setFromAxisAngle(ikAx0, bc1 - bc0));
+    rotarMundo(sup, new THREE.Quaternion().setFromAxisAngle(ikAx0, ac1 - ac0));
+    rotarMundo(sup, new THREE.Quaternion().setFromAxisAngle(ikAx1, at0));
+  }
+  // la utilería de leer y tejer vive en el mundo (entre las dos manos), no colgada de una sola
+  const matPag = new THREE.MeshStandardMaterial({ color: 0xf4eedc, roughness: 0.9, side: THREE.DoubleSide }), matTapa = new THREE.MeshStandardMaterial({ color: 0x8a2a2a, roughness: 0.7 });
+  const matAguja = new THREE.MeshStandardMaterial({ color: 0xc9ced4, metalness: 0.7, roughness: 0.3 }), matLana = new THREE.MeshStandardMaterial({ color: 0xc86a5a, roughness: 1 });
+  function utileriaManos(v) {
+    if (v.manosU) return v.manosU;
+    const g = new THREE.Group(); g.userData.sinLote = true; root.add(g);
+    // libro abierto: dos mitades con su tapa y una hoja que se da vuelta de vez en cuando
+    const libro = new THREE.Group(); g.add(libro);
+    const mitad = (sg) => { const h = new THREE.Group(); h.rotation.y = sg * 0.28; libro.add(h);
+      const t = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.235, 0.008), matTapa); t.position.set(sg * 0.085, 0, -0.006); h.add(t);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.016), matPag); p.position.set(sg * 0.082, 0, 0.006); h.add(p); return h; };
+    mitad(-1); mitad(1);
+    const hoja = new THREE.Group(); libro.add(hoja); const hm = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.22), matPag); hm.position.x = 0.08; hm.position.z = 0.016; hoja.add(hm);
+    // tejido: dos agujas, la bufanda que cuelga y el ovillo
+    const tejido = new THREE.Group(); g.add(tejido);
+    const agujas = [0, 1].map(() => { const n = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.34, 6), matAguja); n.geometry.translate(0, 0.17, 0); tejido.add(n); return n; });
+    const bufanda = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1, 0.025), matLana); bufanda.geometry.translate(0, -0.5, 0); tejido.add(bufanda);
+    const ovillo = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 1), matLana); tejido.add(ovillo);
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    return (v.manosU = { g, libro, hoja, tejido, agujas, bufanda, ovillo });
+  }
+  const pF = new THREE.Vector3(), pU = new THREE.Vector3(), pS = new THREE.Vector3(), pPecho = new THREE.Vector3(), pCab = new THREE.Vector3(), qG = new THREE.Quaternion();
+  const objL = new THREE.Vector3(), objR = new THREE.Vector3(), mL = new THREE.Vector3(), mR = new THREE.Vector3(), pMid = new THREE.Vector3();
+  function posturaManos(v, modo, t, a) {
+    const U = v.manosU;
+    if (!modo || !v.modelo) { if (U) U.g.visible = false; return; }
+    const m = v.modelo, H = v.huesosBrazo ||= ['upperarm_l', 'lowerarm_l', 'hand_l', 'upperarm_r', 'lowerarm_r', 'hand_r', 'spine_03', 'Head', 'neck_01', 'pelvis'].map((n) => m.getObjectByName(n));
+    if (H.some((x) => !x)) return;
+    m.updateMatrixWorld(true);
+    // ejes del cuerpo: adelante, arriba y al costado (según hacia dónde mira el grupo)
+    v.g.getWorldQuaternion(qG); pU.set(0, 1, 0);
+    H[0].getWorldPosition(pS); H[3].getWorldPosition(pF); pS.sub(pF).setY(0).normalize();   // de hombro derecho a izquierdo: el costado izquierdo
+    pF.crossVectors(pS, pU).normalize();   // adelante, sacado del propio cuerpo (el modelo trae su propio giro)
+    H[6].getWorldPosition(pPecho);
+    const brazo = H[0].getWorldPosition(ikT).distanceTo(H[1].getWorldPosition(new THREE.Vector3())) * 2;
+    const lee = modo === 'leer', vaiven = lee ? Math.sin(t * 0.6) * 0.02 : Math.sin(t * 7) * 0.03;
+    const adel = brazo * (lee ? 0.62 : 0.55), abajo = brazo * (lee ? 0.32 : 0.42), lado = brazo * (lee ? 0.24 : 0.2);
+    objL.copy(pPecho).addScaledVector(pF, adel).addScaledVector(pU, -abajo + vaiven * brazo).addScaledVector(pS, lado);
+    objR.copy(pPecho).addScaledVector(pF, adel).addScaledVector(pU, -abajo - vaiven * brazo).addScaledVector(pS, -lado);
+    const poloL = pS.clone().multiplyScalar(0.6).addScaledVector(pU, -1).normalize(), poloR = pS.clone().multiplyScalar(-0.6).addScaledVector(pU, -1).normalize();
+    ik2(H[0], H[1], H[2], objL, poloL); ik2(H[3], H[4], H[5], objR, poloR);
+    // la cabeza mira lo que tiene en las manos
+    rotarMundo(H[8], new THREE.Quaternion().setFromAxisAngle(pS, lee ? 0.32 : 0.38));
+    const u = utileriaManos(v); u.g.visible = true;
+    H[2].getWorldPosition(mL); H[5].getWorldPosition(mR); pMid.addVectors(mL, mR).multiplyScalar(0.5);
+    const esc = brazo / 0.55;   // la utilería está en metros de un brazo de ~0,55
+    u.libro.visible = lee; u.tejido.visible = !lee;
+    if (lee) {
+      H[7].getWorldPosition(pCab);
+      u.libro.position.copy(pMid).addScaledVector(pU, 0.03 * esc).addScaledVector(pF, 0.02 * esc); u.libro.scale.setScalar(esc);
+      u.libro.lookAt(pCab);   // las páginas hacia la cara
+      const c = (t + (a.id.length * 1.7)) % 7, f = c > 6 ? (c - 6) : 0;   // cada 7 s pasa una hoja
+      u.hoja.visible = f > 0; u.hoja.rotation.y = -f * Math.PI;
+    } else {
+      u.tejido.position.copy(pMid); u.tejido.scale.setScalar(esc);
+      u.tejido.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(pS.clone().negate(), pU, pF));
+      const [n0, n1] = u.agujas; u.tejido.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(u.tejido.matrixWorld).invert();
+      const loc = (p) => p.clone().applyMatrix4(inv);
+      // cada aguja sale de su mano y cruza hacia la otra (se tocan en el medio)
+      for (const [n, de] of [[n0, mL], [n1, mR]]) { const p0 = loc(de), p1 = loc(pMid).add(new THREE.Vector3(0, 0.07, 0.06)), d = p1.clone().sub(p0); n.position.copy(p0); n.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize()); n.scale.y = d.length() * 1.3 / 0.34; }
+      u.bufanda.position.set(0, 0.03, 0.08); u.bufanda.scale.set(0.8, 0.2, 1);
+      H[9].getWorldPosition(ikT); ikT.addScaledVector(pS, brazo * 0.5).addScaledVector(pU, brazo * 0.05); u.ovillo.position.copy(loc(ikT));   // en el asiento, al lado de la cadera
+    }
+  }
   function animar(v, nombre, ts = 1) {
     const a = v.acciones[nombre]; if (!a) return;
     a.timeScale = ts;
@@ -2359,7 +2460,7 @@ uniform float uRafaga;
     const w = v.g.getWorldPosition(new THREE.Vector3());
     const rap = v.wPrev && dt > 0 ? Math.hypot(w.x - v.wPrev.x, w.z - v.wPrev.z) / dt : 0; v.wPrev = w;
     v.rap = (v.rap ?? 0) + (Math.min(rap, 12) - (v.rap ?? 0)) * Math.min(1, dt * 6);
-    m.quaternion.copy(qDePie); m.position.set(0, 0, 0); v.acostadoAhora = false;
+    m.quaternion.copy(qDePie); m.position.set(0, 0, 0); v.acostadoAhora = false; v.sentadoAhora = false;
     if (!a.vivo || Math.abs(v.g.rotation.z) > 0.5) {
       // acostado (cama, sofá o tumba): se endereza el grupo y se acuesta el cuerpo boca arriba
       const yaw = v.g.rotation.y; v.g.rotation.set(0, yaw, 0); m.quaternion.copy(qAcostado); v.acostadoAhora = true;
@@ -2376,7 +2477,7 @@ uniform float uRafaga;
       const pose = dentro ? (quieto ? sitioDe(a, s, t)[5] : 'camina') : null;
       if (!quieto) { clip = 'Walk_Loop'; ts = THREE.MathUtils.clamp(v.rap / (1.25 * v.k), 0.6, 2.1); }   // siempre caminan (el paso sigue a la velocidad)
       else if (dentro ? pose === 'sentado' : SENTADO_FUERA.includes(tipo)) {
-        clip = CHARLA.includes(tipo) ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop';
+        clip = CHARLA.includes(tipo) ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop'; v.sentadoAhora = true;
         const asiento = dentro ? suelo + 0.52 : tipo === 'tallar' || tipo === 'esculpir' ? 0.51 : 0.84;   // silla y sofá, tronco del taller, banca
         base = asiento - 0.46 * v.k * v.g.scale.y;   // 0,46 = de los pies a la cola al sentarse (medido), en la escala del mundo
       }
@@ -2400,8 +2501,10 @@ uniform float uRafaga;
       animar(v, clip, ts);
     }
     // utilería en la mano según la tarea (también adentro: sartén, libro, agujas, copa…)
-    v.uti.mostrar(a.vivo && !a.nadando && T && T.fase === 'trabajo' ? T.tipo : null);
+    const manos = a.vivo && v.sentadoAhora && (tipo === 'leer' || tipo === 'tejer') ? tipo : null;   // leer y tejer: las manos al frente con el libro o las agujas
+    v.uti.mostrar(a.vivo && !a.nadando && T && T.fase === 'trabajo' && !manos ? T.tipo : null);
     v.mixer.update(dt);
+    posturaManos(v, manos, t, a);
     if (v.cabeza && v.huesoCabeza) v.huesoCabeza.scale.setScalar(v.cabeza);   // los niños: cabeza más grande en proporción
     if (v.acostadoAhora) enderezarPiernas(v);   // acostado: las piernas apoyadas (la pose de pie trae la cadera flexionada)
     if (v.medirLecho && a.vivo && v.lecho && a.dentro) medirLecho(v);
@@ -2450,6 +2553,7 @@ uniform float uRafaga;
   return {
     update,
     seleccionar(i) { seleccion = i; },
+    seguir, get siguiendo() { return siguiendo; },
     _vis: vis,   // (depuración)
     _fuegos: fuegosVis,
     _renderer: renderer, _scene: scene, _lotes: lotes, _fauna: FA, _camara: camera, _controles: controls,
