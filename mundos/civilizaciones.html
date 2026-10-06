@@ -3,182 +3,550 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1b1a17">
+<meta name="theme-color" content="#14131a">
 <title>Civilizaciones</title>
 <link rel="stylesheet" href="motor/ui.css">
 <style>
-  body { background: radial-gradient(ellipse at 50% 40%, #3b3a46 0%, #23222b 55%, #121117 100%); }
-  .civ { cursor: pointer; border-left: 4px solid var(--c); position: relative; }
-  .civ:hover { border-color: var(--c); background: rgba(30,30,38,.85); }
-  .civ.muerta { opacity: .5; }
-  .civ .nom { font-weight: 700; font-size: 13px; display: flex; gap: 6px; align-items: center; } .civ .nom em { font-style: normal; font-size: 16px; }
-  .civ .sub { font-size: 11.2px; opacity: .78; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 2px 9px; }
-  .tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; } .tag { font-size: 10.5px; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,.08); white-space: nowrap; }
-  .tag.guerra { background: rgba(224,87,79,.3); } .tag.alianza { background: rgba(124,195,106,.28); } .tag.oro { background: rgba(231,196,106,.3); } .tag.plaga { background: rgba(140,180,60,.3); } .tag.trib { background: rgba(160,120,200,.3); }
-  .leyenda { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 10.5px; margin: 3px 0 5px; } .leyenda i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: var(--c); }
-  .card .lbl { font-size: 10.5px; opacity: .6; margin: 6px 0 2px; }
-  .rasgo { display: grid; grid-template-columns: 112px 1fr 64px; gap: 6px; align-items: center; font-size: 11.5px; margin: 3px 0; }
-  .rasgo u { position: relative; height: 7px; border-radius: 4px; background: rgba(255,255,255,.1); text-decoration: none; } .rasgo u i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--c, #e7c46a); }
-  .rasgo u b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; opacity: .8; } .rasgo em { font-style: normal; text-align: right; opacity: .8; font-size: 11px; }
-  .sube { color: #7cc36a; } .baja { color: #e0574f; }
-  .lista { display: grid; gap: 3px; } .lista button { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 5px 8px; cursor: pointer; font-size: 12px; }
-  .lista button:hover { background: rgba(255,255,255,.1); }
-  /* creador */
-  #creador { width: min(700px, calc(100vw - 16px)); }
-  .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 9px; font-size: 12px; } .fila > span { opacity: .75; }
-  .fila input[type=text] { width: 110px; }
-  .pestañas { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; } .pestañas button { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-bottom: 3px solid var(--c); border-radius: 10px; padding: 6px 10px; font-weight: 600; font-size: 12px; cursor: pointer; }
-  .pestañas button.on { background: rgba(255,255,255,.16); }
-  .cfg { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px; }
-  .deslizadores { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; margin-top: 6px; }
-  .deslizadores label { display: grid; grid-template-columns: 1fr 34px; gap: 0 6px; font-size: 11.5px; align-items: center; } .deslizadores label input { grid-column: 1 / 3; margin: 1px 0 6px; } .deslizadores label b { text-align: right; }
-  .emblemas button { padding: 3px 7px; font-size: 15px; }
-  .acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; }
-  .nota { font-size: 11px; opacity: .6; margin-top: 8px; }
-  input[type=color] { width: 38px; height: 28px; border: 0; background: none; padding: 0; cursor: pointer; }
-  #menu, #poderes { right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); width: 240px; }
-  #fin .ganador { font-size: 20px; font-weight: 800; text-align: center; margin: 6px 0; } #fin .em { font-size: 46px; text-align: center; }
-  #fin table { width: 100%; font-size: 11.5px; border-collapse: collapse; margin-top: 8px; } #fin td, #fin th { padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: left; }
-  .modoPoder #stage canvas { cursor: crosshair; }
-  #etiquetas .etq { pointer-events: none; z-index: 1; }
-  @media (max-width: 640px) {
-    .deslizadores { grid-template-columns: 1fr; }
-    #creador { top: 8px; bottom: calc(66px + env(safe-area-inset-bottom)); transform: translateX(-50%); max-height: none; width: calc(100vw - 16px); -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-    .rasgo { grid-template-columns: 96px 1fr 58px; }
-    #menu, #poderes { left: 8px; right: 8px; width: auto; }
-    body.sinPaneles .col { display: none !important; }
+  body { background: radial-gradient(ellipse at 50% 30%, #3b3a46 0%, #23222b 55%, #121117 100%); }
+  /* ---------- arriba: título, energía, volver ---------- */
+  .arriba { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px; z-index: 5; display: flex; gap: 6px; align-items: center; pointer-events: none; }
+  .arriba > * { pointer-events: auto; }
+  .pill { background: rgba(18,18,24,.8); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; color: inherit; text-decoration: none; }
+  #titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  #energia { display: flex; align-items: center; gap: 6px; } #energia u { width: 46px; height: 6px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; text-decoration: none; display: block; } #energia u i { display: block; height: 100%; background: linear-gradient(90deg, #b48ae0, #f5d77a); }
+  /* ---------- tablero de batalla (cámara de guerra) ---------- */
+  #frente { position: fixed; top: calc(52px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 5; width: min(420px, calc(100vw - 16px)); background: rgba(18,18,24,.86); border: 1px solid rgba(224,87,79,.5); border-radius: 14px; padding: 8px 10px; font-size: 12.5px; }
+  #frente.off { display: none; } body.conFrente .avisos { top: calc(150px + env(safe-area-inset-top)); } #frente .t { font-weight: 700; text-align: center; margin-bottom: 5px; }
+  .duelo { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: center; } .duelo .lado { min-width: 0; } .duelo .lado:last-child { text-align: right; }
+  .duelo .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .duelo small { opacity: .75; display: block; }
+  .duelo u { display: block; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 3px; text-decoration: none; } .duelo u i { display: block; height: 100%; }
+  .duelo .lado:last-child u i { margin-left: auto; } .duelo .vs { font-weight: 800; color: #e0574f; }
+  /* ---------- aviso de apuntar un poder ---------- */
+  #apunta { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(148px + env(safe-area-inset-bottom)); z-index: 7; width: min(440px, calc(100vw - 16px)); background: rgba(24,22,30,.96); border: 1px solid rgba(231,196,106,.6); border-radius: 14px; padding: 10px 12px; font-size: 13px; }
+  #apunta.off { display: none; } #apunta .fila2 { display: flex; gap: 8px; margin-top: 8px; } #apunta .fila2 button { flex: 1; min-height: 42px; }
+  /* ---------- la hoja de abajo (celular) / panel lateral (escritorio) ---------- */
+  #hoja { position: fixed; left: 0; right: 0; bottom: 0; height: var(--h, 148px); z-index: 6; display: flex; flex-direction: column; background: rgba(20,19,27,.97); border-top: 1px solid rgba(255,255,255,.14); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.4); transition: height .28s ease; padding-bottom: env(safe-area-inset-bottom); }
+  #hoja.arrastrando { transition: none; }
+  .asa { height: 22px; flex: none; display: grid; place-items: center; cursor: grab; touch-action: none; } .asa::before { content: ''; width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); }
+  .controles { display: flex; gap: 4px; align-items: center; padding: 0 10px 6px; flex: none; }
+  .controles button { min-height: 38px; min-width: 40px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; padding: 0 10px; }
+  .controles button.on { background: rgba(231,196,106,.95); color: #1b1a17; border-color: transparent; }
+  .controles .sep { flex: 1; } .controles #bGuerra.on { background: rgba(224,87,79,.85); color: #fff; }
+  .pestanas { display: flex; flex: none; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .pestanas button { flex: 1; min-height: 46px; background: none; border: 0; border-bottom: 3px solid transparent; font-size: 12px; font-weight: 700; cursor: pointer; opacity: .7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 2px 0; }
+  .pestanas button span { font-size: 17px; line-height: 1; } .pestanas button.on { opacity: 1; border-bottom-color: #e7c46a; color: #f5e3a8; }
+  .pestanas button .badge { font-size: 10px; background: #e0574f; color: #fff; border-radius: 99px; padding: 0 5px; margin-left: 2px; }
+  #cuerpo { flex: 1; overflow-y: auto; padding: 12px 12px 18px; font-size: 13.5px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  @media (min-width: 900px) {
+    #hoja { left: auto; right: 12px; top: 12px; bottom: 12px; width: 410px; height: auto !important; border-radius: 16px; border: 1px solid rgba(255,255,255,.14); }
+    .asa { display: none; } .controles { padding-top: 10px; }
+    .arriba { right: 434px; } #frente { left: calc(50% - 211px); } #apunta { left: calc(50% - 211px); bottom: 24px; }
   }
-  body.sinPaneles .col { display: none; }
-  body.creando .col, body.creando #ficha, body.creando #etiquetas { display: none !important; }
-  #creador .acciones { position: sticky; bottom: -12px; margin: 10px -12px -12px; padding: 10px 12px; background: rgba(24,22,30,.98); border-top: 1px solid rgba(255,255,255,.1); border-radius: 0 0 14px 14px; z-index: 1; }
-  .tiempo { list-style: none; border-left: 2px solid var(--c); margin: 4px 0 0 6px; padding-left: 10px; display: grid; gap: 4px; font-size: 11.5px; }
-  .tiempo li { position: relative; } .tiempo li::before { content: ''; position: absolute; left: -15px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-  .tiempo li b { opacity: .55; font-weight: 600; margin-right: 5px; }
-  #momento { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: none; text-align: center; width: min(560px, calc(100vw - 24px)); transition: opacity .8s, transform .8s; opacity: 0; }
+  /* ---------- contenido ---------- */
+  h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin: 14px 0 6px; font-weight: 700; } h3:first-child { margin-top: 2px; }
+  .nota { font-size: 12px; opacity: .7; line-height: 1.45; margin: 6px 0; }
+  .civ { border-left: 4px solid var(--c); background: rgba(255,255,255,.045); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+  .civ.muerta { opacity: .5; } .civ:active { background: rgba(255,255,255,.09); }
+  .civ .nom { font-weight: 800; font-size: 14.5px; display: flex; gap: 7px; align-items: center; } .civ .nom em { font-style: normal; font-size: 19px; }
+  .civ .sub { font-size: 12.5px; opacity: .82; margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px 12px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; } .tag { font-size: 11.5px; padding: 3px 8px; border-radius: 99px; background: rgba(255,255,255,.09); white-space: nowrap; }
+  .tag.guerra { background: rgba(224,87,79,.32); } .tag.alianza { background: rgba(124,195,106,.3); } .tag.oro { background: rgba(231,196,106,.3); } .tag.plaga { background: rgba(140,180,60,.32); } .tag.trib { background: rgba(160,120,200,.32); }
+  .boton { min-height: 40px; } .acc { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; } .acc .boton { flex: 1; }
+  .volverF { background: none; border: 0; color: #e7c46a; font-weight: 700; font-size: 13.5px; cursor: pointer; padding: 4px 0 8px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; } .kv span { opacity: .65; } .kv b { text-align: right; font-weight: 600; }
+  .rasgo { display: grid; grid-template-columns: 118px 1fr 52px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
+  .rasgo u { position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); text-decoration: none; } .rasgo u i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--c, #e7c46a); }
+  .rasgo u b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; opacity: .85; } .rasgo em { font-style: normal; text-align: right; font-size: 12px; }
+  .sube { color: #7cc36a; } .baja { color: #ff8a80; }
+  .lista { display: grid; gap: 5px; } .lista button { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 9px 10px; cursor: pointer; font-size: 13px; min-height: 42px; align-items: center; }
+  .esp { border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 12.5px; } .esp b { display: block; font-size: 13.5px; } .esp .pro { color: #9fdc8e; } .esp .con { color: #ff9d94; }
+  .tiempo { list-style: none; border-left: 2px solid var(--c); margin: 4px 0 0 6px; padding-left: 12px; display: grid; gap: 5px; font-size: 12.5px; }
+  .tiempo li { position: relative; } .tiempo li::before { content: ''; position: absolute; left: -17px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--c); } .tiempo li b { opacity: .55; margin-right: 6px; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; margin: 4px 0 6px; } .leyenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--c); }
+  svg.graf { height: 70px; }
+  /* guerra */
+  .guerraC { border: 1px solid rgba(224,87,79,.35); background: rgba(224,87,79,.07); border-radius: 12px; padding: 10px; margin-bottom: 8px; cursor: pointer; }
+  .guerraC .duelo { font-size: 13px; } .guerraC .det { font-size: 12px; opacity: .8; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 3px 12px; }
+  .parte { border-left: 3px solid var(--c); padding: 6px 10px; margin-bottom: 7px; background: rgba(255,255,255,.04); border-radius: 0 10px 10px 0; font-size: 12.5px; } .parte b { font-size: 13px; } .parte ul { margin: 4px 0 0 16px; opacity: .88; }
+  .doct { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; margin-bottom: 8px; } .doct em { font-style: normal; font-size: 22px; } .doct b { display: block; }
+  /* poderes */
+  .chips { gap: 6px; } .chips button { min-height: 36px; font-size: 12.5px; }
+  .poderes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px; margin-top: 8px; }
+  .poder { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 9px; cursor: pointer; min-height: 86px; }
+  .poder .t { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13.5px; } .poder .t em { font-style: normal; font-size: 20px; margin-right: 4px; }
+  .poder .c { font-size: 11.5px; color: #e7c46a; white-space: nowrap; } .poder small { display: block; font-size: 11.5px; opacity: .72; margin-top: 4px; line-height: 1.35; }
+  .poder:disabled { opacity: .4; cursor: default; } .poder.sel { border-color: #e7c46a; background: rgba(231,196,106,.14); }
+  .barraE { height: 10px; border-radius: 6px; background: rgba(255,255,255,.1); overflow: hidden; margin: 6px 0; } .barraE i { display: block; height: 100%; background: linear-gradient(90deg, #b48ae0, #f5d77a); }
+  /* laboratorio */
+  .comp { display: grid; grid-template-columns: 110px 1fr; gap: 3px 8px; font-size: 12px; align-items: center; margin: 6px 0; } .comp u { height: 7px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; display: block; text-decoration: none; } .comp u i { display: block; height: 100%; background: var(--c); }
+  table.t { width: 100%; border-collapse: collapse; font-size: 12.5px; } table.t td, table.t th { padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,.07); text-align: left; } table.t th { opacity: .65; font-weight: 600; } table.t td:last-child, table.t th:last-child { text-align: right; }
+  .dif { display: grid; grid-template-columns: 120px 1fr 44px; gap: 6px; align-items: center; font-size: 12.5px; margin: 4px 0; } .dif .eje { position: relative; height: 8px; background: rgba(255,255,255,.08); border-radius: 4px; } .dif .eje::after { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,.4); }
+  .dif .eje i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+  /* creador */
+  .cpest { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; } .cpest::-webkit-scrollbar { display: none; }
+  .cpest button { flex: none; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-bottom: 3px solid var(--c); border-radius: 10px; padding: 8px 11px; font-weight: 700; font-size: 12.5px; cursor: pointer; min-height: 40px; white-space: nowrap; } .cpest button.on { background: rgba(255,255,255,.17); }
+  .cfg { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px; margin-top: 8px; }
+  .filaC { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 9px; } .filaC input[type=text] { flex: 1; min-width: 120px; min-height: 40px; font-size: 14px; }
+  input[type=color] { width: 44px; height: 40px; border: 0; background: none; padding: 0; cursor: pointer; }
+  .emblemas { max-height: 92px; overflow-y: auto; } .emblemas button { min-width: 40px; font-size: 18px; padding: 4px 6px; }
+  .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; } .presets button { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 7px 9px; font-size: 12.5px; font-weight: 700; cursor: pointer; } .presets button small { display: block; font-weight: 400; opacity: .7; font-size: 11px; margin-top: 2px; } .presets button.on { border-color: #e7c46a; background: rgba(231,196,106,.14); }
+  .grupo { margin-top: 8px; } .grupo > b { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  .desl { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; } .desl label { display: grid; grid-template-columns: 1fr 34px; gap: 0 6px; font-size: 12.5px; align-items: center; } .desl label input { grid-column: 1 / 3; margin: 2px 0 8px; height: 22px; } .desl label b { text-align: right; }
+  .presu { position: sticky; top: -12px; z-index: 2; background: rgba(20,19,27,.98); padding: 8px 0; margin: 0 0 4px; font-size: 12.5px; } .presu u { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 4px; text-decoration: none; } .presu u i { display: block; height: 100%; background: #7cc36a; } .presu.pasa u i { background: #e0574f; }
+  .pie { position: sticky; bottom: -18px; margin: 12px -12px -18px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(20,19,27,.98); border-top: 1px solid rgba(255,255,255,.1); display: flex; gap: 8px; z-index: 2; } .pie .boton { flex: 1; min-height: 46px; font-size: 14px; }
+  .modoPoder #stage canvas { cursor: crosshair; }
+  #momento { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: none; text-align: center; width: min(560px, calc(100vw - 24px)); transition: opacity .8s, transform .8s; opacity: 0; }
   #momento.ver { opacity: 1; transform: translateX(-50%) translateY(6px); }
-  #momento .t1 { font-size: clamp(22px, 6vw, 34px); font-weight: 800; color: #f5e3a8; text-shadow: 0 2px 18px rgba(0,0,0,.8); }
-  #momento .t2 { margin-top: 6px; font-size: 14px; font-weight: 600; background: rgba(18,18,22,.72); display: inline-block; padding: 6px 14px; border-radius: 99px; }
+  #momento .t1 { font-size: clamp(24px, 7vw, 36px); font-weight: 800; color: #f5e3a8; text-shadow: 0 2px 18px rgba(0,0,0,.85); } #momento .t2 { margin-top: 6px; font-size: 14px; font-weight: 600; background: rgba(18,18,22,.78); display: inline-block; padding: 6px 14px; border-radius: 99px; }
+  #menu { right: 8px; bottom: calc(160px + env(safe-area-inset-bottom)); width: min(300px, calc(100vw - 16px)); }
+  @media (min-width: 900px) { #menu { right: 434px; bottom: 24px; } }
+  .finC { border: 1px solid rgba(231,196,106,.55); background: rgba(231,196,106,.08); border-radius: 14px; padding: 12px; margin-bottom: 10px; text-align: center; } .finC .em { font-size: 40px; } .finC .g { font-size: 19px; font-weight: 800; }
+  #etiquetas .etq { pointer-events: none; z-index: 1; font-size: 12px; }
+  @media (max-width: 420px) { .rasgo { grid-template-columns: 100px 1fr 46px; } .desl { grid-template-columns: 1fr; } .dif { grid-template-columns: 100px 1fr 40px; } }
 </style>
 </head>
 <body>
 <div id="loader">CREANDO EL MUNDO…</div>
 <div id="stage"></div>
 <div id="etiquetas"></div>
-<div class="volver"><a href="index.html">← Orbes</a></div>
-<div class="titulo" id="titulo">Civilizaciones</div>
-<aside class="col izq" id="izq"></aside>
-<aside class="col der" id="der"><div class="card" id="cronica"></div><div class="card" id="diario"></div></aside>
-<div class="barra" id="barra"></div>
-<div class="panel lado off" id="ficha"></div>
-<div class="panel off" id="menu"></div>
-<div class="panel off" id="poderes"></div>
-<div class="panel centro off" id="creador"></div>
-<div class="panel centro off" id="fin"></div>
+<div class="arriba"><a class="pill" href="index.html">←</a><div class="pill" id="titulo">Civilizaciones</div><div class="pill" id="energia" title="Energía del espíritu del orbe">✨ <b id="enN">0</b><u><i id="enB"></i></u></div></div>
+<div id="frente" class="off"></div>
+<div id="apunta" class="off"></div>
 <div id="momento"></div>
+<div class="panel off" id="menu"></div>
+<section id="hoja">
+  <div class="asa" id="asa"></div>
+  <div class="controles" id="controles"></div>
+  <nav class="pestanas" id="pestanas"></nav>
+  <div id="cuerpo"></div>
+</section>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 <script type="module">
 import { crearOrbe, THREE } from './motor/orbe3d.js';
 import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlGrafica, guardarJSON, cargarJSON } from './motor/ui.js';
 import * as S from './civilizaciones/sim.js';
 import { crearEscena } from './civilizaciones/escena.js';
+import { GRUPOS, PRESUPUESTO, costo, ajustarPresupuesto, ESTILOS } from './civilizaciones/facciones.js';
+import { CATEGORIAS } from './civilizaciones/poderes.js';
+import { analisis, COMPONENTES, configLote, correrMundo, estadisticas } from './civilizaciones/laboratorio.js';
 
-const CLAVE = 'orbe-civilizaciones', CLAVE_CFG = 'orbe-civilizaciones-config';
-const angosto = () => innerWidth <= 640;
+const CLAVE = 'orbe-civilizaciones', CLAVE_CFG = 'orbe-civilizaciones-config-v2';
+const escritorio = () => innerWidth >= 900;
 const O = crearOrbe($('#stage'), { radio: 46, colorSuelo: 0x1d4f7a, colorBase: 0x2a2018, camara: { pos: new THREE.Vector3(0, 78, 92), target: new THREE.Vector3(0, 0, 4) } });
 const ESC = crearEscena(O, { etiquetas: $('#etiquetas') });
-// cifras legibles: 950 · 12.400 · 45 mil · 1,2 millones
 const fmt = (n) => (n >= 1e6 ? `${(n / 1e6).toLocaleString('es-CO', { maximumFractionDigits: n >= 1e7 ? 0 : 1 })} ${n >= 2e6 ? 'millones' : 'millón'}` : n >= 1e4 ? `${Math.round(n / 1e3)} mil` : Math.round(n).toLocaleString('es-CO'));
-const RNOM = Object.fromEntries(S.RASGOS.map(([k, n, e]) => [k, `${e} ${n}`]));
+const pct = (x) => `${Math.round(x * 100)} %`;
+const R_NOM = Object.fromEntries(S.RASGOS.map(([k, n, e]) => [k, `${e} ${n}`]));
 
-// ---------------------------------------------------------------- estado
-let E = null, previa = null, mult = 0, acum = 0, frac = 0, modoPoder = null, fichaDe = null, tUI = 0, tGuardar = 0;
-const fichaP = panel($('#ficha'), { alCerrar: () => { fichaDe = null; } }), menuP = panel($('#menu')), poderesP = panel($('#poderes')), creadorP = panel($('#creador'), { alCerrar: () => document.body.classList.remove('creando') }), finP = panel($('#fin'));
+// ---------------------------------------------------------------- estado de la página
+let E = null, previa = null, mult = 0, acum = 0, frac = 0, tUI = 0, tGuardar = 0;
+let tab = 'pueblos', vista = null;          // vista: null (lista) | { t: 'civ'|'ciudad', id }
+let modoPoder = null, objetivo = null, catPoder = 'naturaleza';
+let camGuerra = false, siguiendoComb = -1, lento = true;
+let creando = false;
+const menuP = panel($('#menu'));
 
-// ---------------------------------------------------------------- barra de abajo (en el celular no se corta: lo extra va a «⋯»)
-const barra = $('#barra');
-const vel = barraVelocidades(barra, [['⏸', 0], ['×1', 1], ['×10', 10], ['×50', 50]], 'civ-vel', 2, (m) => { mult = m; });
-const bPod = document.createElement('button'); bPod.textContent = '⚡'; bPod.title = 'Poderes del orbe'; bPod.onclick = () => { menuP.cerrar(); pintarPoderes(); poderesP.alternar(); }; barra.append(bPod);
-const bPan = document.createElement('button'); bPan.textContent = '📜'; bPan.title = 'Paneles: civilizaciones / crónica / ninguno'; bPan.onclick = ciclarPaneles; barra.append(bPan);
-const bMas = document.createElement('button'); bMas.textContent = '⋯'; bMas.title = 'Más'; bMas.onclick = () => { poderesP.cerrar(); pintarMenu(); menuP.alternar(); }; barra.append(bMas);
-let vistaPan = 0; // 0 civs (+crónica en escritorio), 1 crónica, 2 nada
-function ciclarPaneles() { vistaPan = (vistaPan + 1) % 3; aplicarPaneles(); }
-function aplicarPaneles() {
-  document.body.classList.toggle('sinPaneles', vistaPan === 2);
-  document.body.classList.toggle('verDer', vistaPan === 1);
-  if (!angosto()) { $('#izq').classList.toggle('off', vistaPan === 1); $('#der').classList.remove('off'); }
+// ---------------------------------------------------------------- la hoja: cerrada / media / abierta (arrastrable); en escritorio es un panel lateral
+const hoja = $('#hoja'), ALTOS = () => [148 + (innerHeight < 640 ? -8 : 0), Math.round(innerHeight * 0.5), Math.round(innerHeight * 0.86)];
+let nivelHoja = 1;
+function ponerHoja(n, anim = true) {
+  nivelHoja = Math.max(0, Math.min(2, n)); hoja.classList.toggle('arrastrando', !anim);
+  hoja.style.setProperty('--h', `${ALTOS()[nivelHoja]}px`); setTimeout(encuadre, anim ? 300 : 0);
 }
+{ let y0 = null, h0 = 0;
+  const asa = $('#asa');
+  asa.addEventListener('pointerdown', (e) => { y0 = e.clientY; h0 = hoja.getBoundingClientRect().height; asa.setPointerCapture(e.pointerId); hoja.classList.add('arrastrando'); });
+  asa.addEventListener('pointermove', (e) => { if (y0 == null) return; const h = Math.max(110, Math.min(innerHeight * 0.92, h0 + (y0 - e.clientY))); hoja.style.setProperty('--h', `${h}px`); });
+  const soltar = (e) => { if (y0 == null) return; const dy = y0 - e.clientY, h = h0 + dy; y0 = null; hoja.classList.remove('arrastrando');
+    if (Math.abs(dy) < 6) return ponerHoja(nivelHoja === 0 ? 1 : nivelHoja === 1 ? 2 : 0);
+    const A = ALTOS(); let mejor = 0; A.forEach((a, i) => { if (Math.abs(a - h) < Math.abs(A[mejor] - h)) mejor = i; }); ponerHoja(mejor); };
+  asa.addEventListener('pointerup', soltar); asa.addEventListener('pointercancel', soltar);
+}
+// el orbe se corre para que quede en el espacio libre (arriba de la hoja, o a la izquierda del panel)
+function encuadre() {
+  const W = innerWidth, H = innerHeight;
+  if (escritorio()) O.camera.setViewOffset(W, H, 205, 0, W, H);
+  else { const h = hoja.getBoundingClientRect().height; O.camera.setViewOffset(W, H, 0, Math.min(h * 0.5, H * 0.33), W, H); }
+  O.camera.updateProjectionMatrix();
+}
+addEventListener('resize', () => { if (!escritorio()) ponerHoja(nivelHoja, false); encuadre(); });
+
+// ---------------------------------------------------------------- controles: velocidades, cámara de guerra, más
+const ctr = $('#controles');
+const vel = barraVelocidades(ctr, [['⏸', 0], ['×1', 1], ['×10', 10], ['×50', 50]], 'civ-vel', 2, (m) => { mult = m; });
+[...ctr.querySelectorAll('button')].forEach((b) => b.addEventListener('click', () => { velAntes = null; lentoHasta = 0; }));
+ctr.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+const bGuerra = Object.assign(document.createElement('button'), { id: 'bGuerra', textContent: '🎥', title: 'Cámara de guerra: sigue la batalla más grande' }); bGuerra.onclick = () => alternarCamGuerra(); ctr.append(bGuerra);
+const bMas = Object.assign(document.createElement('button'), { textContent: '⋯', title: 'Más' }); bMas.onclick = () => { pintarMenu(); menuP.alternar(); }; ctr.append(bMas);
 function pintarMenu() {
-  const m = $('#menu');
-  m.innerHTML = `<div class="cab"><b>Más</b><button data-cerrar>×</button></div><div class="ops">
-    <button id="mNuevo">🌍 Nuevo mundo<small>Diseña otras civilizaciones (la partida actual se pierde)</small></button>
-    <button id="mGuardar">💾 Guardar ahora<small>Se guarda solo cada pocos segundos</small></button>
-    <button id="mPan">📜 Paneles<small>Civilizaciones / crónica / ninguno</small></button>
-    <button id="mAyuda">❔ Cómo se juega</button></div><div class="fila" style="margin-top:8px" id="mCal"></div>`;
+  $('#menu').innerHTML = `<div class="cab"><b>Más</b><button data-cerrar>×</button></div><div class="ops">
+    <button id="mNuevo">🌍 Nuevo mundo<small>Diseña otras facciones (la partida actual se reemplaza)</small></button>
+    <button id="mGuardar">💾 Guardar ahora<small>Se guarda sola cada pocos segundos</small></button>
+    <button id="mLento">${lento ? '✅' : '⬜'} Pausa dramática<small>Con la cámara de guerra, las batallas grandes van a ×1</small></button>
+    <button id="mAyuda">❔ Cómo se juega</button></div><div class="acc" id="mCal"></div>`;
   $('#mNuevo').onclick = () => { menuP.cerrar(); abrirCreador(); };
   $('#mGuardar').onclick = () => { guardar(); aviso('Partida guardada.'); };
-  $('#mPan').onclick = ciclarPaneles;
-  $('#mAyuda').onclick = () => { menuP.cerrar(); aviso('Diseña pueblos, déjalos crecer aislados y mira qué pasa cuando cae el velo. Toca una ciudad o un territorio para ver su ficha. ⚡ usa los poderes del orbe.', 9000); };
+  $('#mLento').onclick = () => { lento = !lento; pintarMenu(); };
+  $('#mAyuda').onclick = () => { menuP.cerrar(); aviso('Diseña facciones, déjalas evolucionar aisladas y mira la guerra cuando cae el velo. 🎥 sigue la batalla más grande. ⚡ usa los poderes del orbe tocando el mapa. 🔬 te explica qué funciona y por qué.', 10000); };
   const cal = botonCalidad($('#mCal'), guardar); cal.className = 'boton';
 }
 
-// ---------------------------------------------------------------- creador
+// ---------------------------------------------------------------- pestañas
+const TABS = [['pueblos', '🏛️', 'Pueblos'], ['guerra', '⚔️', 'Guerra'], ['poderes', '⚡', 'Poderes'], ['cronica', '📈', 'Crónica'], ['lab', '🔬', 'Lab']];
+function pintarPestanas() {
+  const ng = E ? Object.values(E.rel).filter((r) => r.estado === 'guerra').length : 0;
+  pintarSi($('#pestanas'), creando ? `<button class="on"><span>🌍</span>Crear mundo</button>` : TABS.map(([k, e, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}"><span>${e}</span>${n}${k === 'guerra' && ng ? `<i class="badge">${ng}</i>` : ''}</button>`).join(''));
+}
+$('#pestanas').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; if (tab === b.dataset.tab && !escritorio() && nivelHoja > 0) { ponerHoja(nivelHoja === 1 ? 2 : 1); return; } tab = b.dataset.tab; vista = null; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintarTodo(true); $('#cuerpo').scrollTop = 0; });
+const cuerpo = $('#cuerpo');
+function pintarTodo(forzar) {
+  pintarPestanas(); pintarArriba();
+  if (creando) return; // el creador se pinta solo cuando cambia algo
+  const h = tab === 'pueblos' ? (vista ? (vista.t === 'civ' ? htmlCiv(vista.id) : htmlCiudad(vista.id)) : htmlPueblos()) : tab === 'guerra' ? htmlGuerra() : tab === 'poderes' ? htmlPoderes() : tab === 'cronica' ? htmlCronica() : htmlLab();
+  if (forzar) cuerpo._html = null; pintarSi(cuerpo, h);
+}
+function pintarArriba() {
+  if (!E || creando) { $('#titulo').textContent = creando ? '🌍 Diseña tu mundo' : 'Civilizaciones'; if (!E) $('#enN').textContent = '—'; return; }
+  const vivas = E.civs.filter((c) => c.vivo).length;
+  $('#titulo').textContent = `🏛️ Año ${E.año} · ${E.año < E.velo ? `🌫️ velo en ${E.velo - E.año}` : `${vivas} ${vivas === 1 ? 'pueblo' : 'pueblos'}`}`;
+  $('#enN').textContent = Math.floor(E.poderes.energia); $('#enB').style.width = `${E.poderes.energia / E.poderes.max * 100}%`;
+}
+
+// ---------------------------------------------------------------- pueblos y fichas
+const ESTADO = { guerra: '⚔️ En guerra', alianza: '🕊️ Aliados', paz: '🤝 En paz', tributo: '📜 Tributo' };
+function tagsCiv(c) {
+  const t = [];
+  for (const o of S.guerrasDe(E, c.id)) t.push(`<span class="tag guerra">⚔️ ${esc(E.civs[o].nombre)}</span>`);
+  for (const r of Object.values(E.rel)) { if (r.a !== c.id && r.b !== c.id) continue; const o = E.civs[r.a === c.id ? r.b : r.a]; if (r.estado === 'alianza') t.push(`<span class="tag alianza">🕊️ ${esc(o.nombre)}</span>`); else if (r.estado === 'tributo') t.push(`<span class="tag trib">📜 ${r.senor === c.id ? '← ' : '→ '}${esc(o.nombre)}</span>`); }
+  if (c.oro > 0) t.push('<span class="tag oro">✨ Edad de oro</span>'); if (c.plaga) t.push(`<span class="tag plaga">☣️ ${esc(c.plaga.nombre)}</span>`); if (c.heroe) t.push(`<span class="tag">🦸 ${esc(c.heroe.nombre)}</span>`);
+  return t.join('');
+}
+function htmlFin() {
+  if (!E?.fin || E.finVisto) return '';
+  const f = E.fin, g = E.civs[f.ganador], txt = { unica: 'es la única civilización que queda', domina: 'domina el orbe', tiempo: 'es la gran potencia tras dos mil años de contacto' }[f.tipo] || '';
+  return `<div class="finC">🏆 Fin de una era · año ${f.año}${g ? `<div class="em">${g.emblema}</div><div class="g" style="color:${g.color}">${esc(g.nombre)}</div><div class="nota">${txt}. Mira en 🔬 Lab por qué ganó.</div>` : '<div class="g">No queda nadie</div>'}
+    <div class="acc"><button class="boton" data-act="seguir">👁️ Seguir mirando</button><button class="boton prim" data-act="nuevo">🌍 Nuevo mundo</button></div></div>`;
+}
+function htmlPueblos() {
+  if (!E) return '<p class="nota">Crea un mundo para empezar.</p>';
+  const orden = [...E.civs].sort((a, b) => (b.vivo - a.vivo) || b.pob - a.pob);
+  return htmlFin() + orden.map((c) => {
+    if (!c.vivo) return `<div class="civ muerta" data-c="${c.id}" style="--c:${c.color}"><div class="nom"><em>${c.emblema}</em>${esc(c.nombre)}</div><div class="sub">💀 ${esc(c.causa)} · año ${c.murio}</div></div>`;
+    const d = S.DOCTRINAS[c.doctrina];
+    return `<div class="civ" data-c="${c.id}" style="--c:${c.color}"><div class="nom"><em>${c.emblema}</em>${esc(c.nombre)}</div>
+      <div class="sub"><span>${S.ERAS[c.era].e} ${S.ERAS[c.era].n}</span><span>👥 ${fmt(c.pob)}</span><span>🏙 ${c.nCiudades || 0}</span><span>${d ? `${d.e} ${d.n}` : ''}</span></div>
+      <div class="sub"><span>👑 ${esc(c.lider?.nombre || '')} ${esc(c.lider?.epiteto || '')}</span></div>${tagsCiv(c) ? `<div class="tags">${tagsCiv(c)}</div>` : ''}</div>`;
+  }).join('') + `<p class="nota">Toca un pueblo para ver sus rasgos, su doctrina, su historia y por qué gana o pierde. También puedes tocar una ciudad o un territorio en el orbe.</p>`;
+}
+function htmlRasgos(c) {
+  return GRUPOS.map((g) => `<div class="grupo"><b>${g}</b>${S.RASGOS.filter((r) => r[3] === g).map(([k, n, e]) => { const v = S.rv(c, k), i = c.r0[k] ?? 50, d = v - i; return `<div class="rasgo" style="--c:${c.color}"><span>${e} ${n}</span><u><i style="width:${v.toFixed(0)}%"></i><b style="left:${i}%"></b></u><em class="${d > 4 ? 'sube' : d < -4 ? 'baja' : ''}">${v.toFixed(0)}${d > 4 ? ' ▲' : d < -4 ? ' ▼' : ''}</em></div>`; }).join('')}</div>`).join('');
+}
+// los rasgos que más cambiaron a lo largo de su historia (de c.rh)
+function htmlDeriva(c) {
+  if (!c.rh || c.rh.length < 3) return '';
+  const ks = S.CLAVES.map((k, i) => [k, i, Math.abs((c.rh[c.rh.length - 1].r[i] ?? 50) - (c.rh[0].r[i] ?? 50))]).sort((a, b) => b[2] - a[2]).slice(0, 4).filter((x) => x[2] >= 4);
+  if (!ks.length) return '';
+  const COL = ['#e7c46a', '#7cc36a', '#8ab4ff', '#ff8a80'];
+  return `<h3>Cómo cambiaron sus rasgos</h3><div class="leyenda">${ks.map(([k], j) => `<span style="--c:${COL[j]}"><i></i>${R_NOM[k]}</span>`).join('')}</div>${htmlGrafica(ks.map(([, i], j) => ({ datos: c.rh.map((h) => h.r[i]), color: COL[j] })), 70)}
+    <p class="nota">Los rasgos derivan con lo que viven: la guerra sube la agresividad, las plagas la fe, la prosperidad la ciencia y el clima sus adaptaciones.</p>`;
+}
+function htmlCiv(id) {
+  const c = E.civs[id]; if (!c) { vista = null; return htmlPueblos(); }
+  const mias = E.ciudades.filter((x) => x.civ === c.id).sort((a, b) => b.pob - a.pob), L = c.lider, d = S.DOCTRINAS[c.doctrina], st = c.stats;
+  const rels = E.civs.filter((o) => o !== c && o.vivo).map((o) => { const r = S.relDe(E, c.id, o.id); let t = !r ? '❔ Sin contacto' : r.estado === 'tributo' ? (r.senor === c.id ? '📜 Le paga tributo' : '📜 Le paga a ella') : ESTADO[r.estado]; if (r?.comercio) t += ' · 💰'; return `<span>${o.emblema} ${esc(o.nombre)}</span><b>${t}${r ? ` <small style="opacity:.55">(${r.v > 0 ? '+' : ''}${Math.round(r.v)})</small>` : ''}</b>`; }).join('');
+  const padre = c.padre != null ? E.civs[c.padre] : null;
+  const unidades = S.composicion(c), uni = Object.entries(unidades).filter(([, v]) => v > 0.03).sort((a, b) => b[1] - a[1]).map(([u, v]) => `${S.nombreUnidad(u, c.era, c.bestia)} ${pct(v)}`).join(' · ');
+  return `<button class="volverF" data-back>← Pueblos</button>
+    <div class="civ" style="--c:${c.color};cursor:default"><div class="nom"><em>${c.emblema}</em>${esc(c.nombre)}</div><div class="sub"><span>${S.ERAS[c.era].e} ${S.ERAS[c.era].n}</span><span>👥 ${fmt(c.pob)}</span><span>🏙 ${mias.length}</span><span>🗺 ${c.celdas || 0} celdas</span></div>${tagsCiv(c) ? `<div class="tags">${tagsCiv(c)}</div>` : ''}</div>
+    ${!c.vivo ? `<p class="nota">💀 ${esc(c.causa)} en el año ${c.murio}${c.por != null ? ` por ${esc(E.civs[c.por].nombre)}` : ''}. Vivió ${c.murio - c.nacio} años.</p>` : ''}
+    <div class="kv">${c.vivo ? `<span>Gobierna</span><b>${L.titulo === 'reina' ? 'Reina' : 'Rey'} ${esc(L.nombre)} ${esc(L.epiteto)}</b>` : ''}<span>Fe</span><b>${esc(c.religion)}</b><span>Saber</span><b>${Math.round(c.tec)} · ${c.desc} inventos</b>${padre ? `<span>Origen</span><b>se separó de ${esc(padre.nombre)}</b>` : ''}
+      <span>Batallas</span><b>${st.batallasG} ganadas · ${st.batallasP} perdidas</b><span>Conquistas</span><b>${st.conquistas} · perdió ${st.perdidas}</b><span>Bajas</span><b>causó ${fmt(st.bajasCausadas || 0)} · sufrió ${fmt(st.bajasSufridas || 0)}</b><span>Emboscadas</span><b>${st.emboscadas || 0}</b></div>
+    <h3>Cómo pelea</h3>${d ? `<div class="doct"><em>${d.e}</em><div><b>Doctrina: ${d.n}</b>${esc(d.d)}</div></div>` : ''}<p class="nota">Su ejército: ${esc(uni)}${c.bestia ? ` · bestia de su tierra: ${esc(S.nombreUnidad('bestia', 0, c.bestia))}` : ''}.</p>
+    ${(c.esp || []).length ? `<h3>Rasgos especiales</h3>${c.esp.map((k) => { const x = S.ESPECIALES[k]; return x ? `<div class="esp"><b>${x.e} ${x.n}</b><span class="pro">＋ ${esc(x.pro)}</span><br><span class="con">－ ${esc(x.contra)}</span></div>` : ''; }).join('')}` : ''}
+    ${c.cronica?.length ? `<h3>Línea de tiempo</h3><ul class="tiempo" style="--c:${c.color}">${(c.cronica.length > 16 ? [c.cronica[0], { d: '…', t: '' }, ...c.cronica.slice(-14)] : c.cronica).map((h) => `<li><b>${h.d}</b>${esc(h.t)}</li>`).join('')}</ul>` : ''}
+    <h3>Rasgos · barra: hoy · línea blanca: al nacer</h3>${htmlRasgos(c)}
+    ${htmlDeriva(c)}
+    ${rels ? `<h3>Relaciones</h3><div class="kv">${rels}</div>` : ''}
+    ${mias.length ? `<h3>Ciudades</h3><div class="lista">${mias.slice(0, 30).map((x) => `<button data-ciu="${x.id}"><span>${x.capital ? '👑 ' : ''}${esc(x.nombre)}${x.fuego > 0 ? ' 🔥' : x.sitiada > 0 ? ' 🏹' : ''}</span><span style="opacity:.7">${S.NIVELES[x.nivel]} · ${fmt(x.pob)}</span></button>`).join('')}</div>` : ''}`;
+}
+function htmlCiudad(id) {
+  const ci = E.ciudades.find((x) => x.id === id); if (!ci) { vista = null; return htmlPueblos(); }
+  const c = E.civs[ci.civ], fund = E.civs[ci.fundador], b = S.BIOMAS[E.mapa.bioma[ci.celda]].n, sit = E.ejercitos.filter((e) => e.sitio === ci.id);
+  return `<button class="volverF" data-back>← Pueblos</button><div class="civ" style="--c:${c.color};cursor:default"><div class="nom"><em>${ci.capital ? '👑' : '🏙'}</em>${esc(ci.nombre)}</div><div class="sub"><span>${S.NIVELES[ci.nivel]}</span><span>👥 ${fmt(ci.pob)}</span><span>🧱 muralla ${pct(ci.muralla ?? 1)}</span></div></div>
+    <div class="kv"><span>Pertenece a</span><b style="color:${c.color}">${c.emblema} ${esc(c.nombre)}</b><span>Capacidad</span><b>${fmt(ci.cap)}</b><span>Fundada</span><b>año ${ci.fundada} por ${esc(fund.nombre)}</b><span>Terreno</span><b>${b}${E.mapa.rio[ci.celda] ? ' con río' : ''}</b>${ci.conq ? `<span>Conquistada</span><b>año ${ci.conq}</b>` : ''}${ci.asaltos ? `<span>Asaltos</span><b>${ci.asaltos}</b>` : ''}</div>
+    <div class="tags">${ci.fuego > 0 ? '<span class="tag guerra">🔥 En llamas</span>' : ''}${sit.length ? `<span class="tag guerra">🏹 Sitiada por ${sit.map((e) => esc(E.civs[e.civ].nombre)).join(', ')}</span>` : ''}</div>
+    <div class="acc"><button class="boton" data-civ="${c.id}">${c.emblema} Ver su pueblo</button><button class="boton" data-volar="${ci.id}">🎯 Ir a la ciudad</button></div>`;
+}
+
+// ---------------------------------------------------------------- guerra
+function fuerzaDe(civ, enemigo) { return E.ejercitos.filter((e) => e.civ === civ && e.enemigo === enemigo).reduce((s, e) => s + e.fuerza, 0); }
+function htmlDuelo(A, B, fa, fb, extraA = '', extraB = '') {
+  const tot = Math.max(1, fa + fb);
+  return `<div class="duelo"><div class="lado"><div class="n" style="color:${A.color}">${A.emblema} ${esc(A.nombre)}</div><small>${fmt(fa)} ${extraA}</small><u><i style="width:${fa / tot * 100}%;background:${A.color}"></i></u></div><div class="vs">VS</div>
+    <div class="lado"><div class="n" style="color:${B.color}">${esc(B.nombre)} ${B.emblema}</div><small>${extraB} ${fmt(fb)}</small><u><i style="width:${fb / tot * 100}%;background:${B.color}"></i></u></div></div>`;
+}
+function htmlGuerra() {
+  if (!E) return '<p class="nota">Crea un mundo para empezar.</p>';
+  const guerras = Object.values(E.rel).filter((r) => r.estado === 'guerra');
+  let h = `<div class="acc" style="margin-top:0"><button class="boton ${camGuerra ? 'prim' : ''}" data-act="camguerra">🎥 ${camGuerra ? 'Siguiendo la guerra' : 'Cámara de guerra'}</button></div>`;
+  h += `<h3>Batallas ahora (${E.combates.length})</h3>`;
+  if (!E.combates.length) h += `<p class="nota">${guerras.length ? 'Los ejércitos marchan: todavía no chocan.' : E.año < E.velo ? `Aún no hay contacto: el velo cae en el año ${E.velo}.` : 'Hay paz en el orbe… por ahora.'}</p>`;
+  const porId = new Map(E.ejercitos.map((e) => [e.id, e]));
+  for (const cb of [...E.combates].sort((x, y) => (y.f0[0] + y.f0[1]) - (x.f0[0] + x.f0[1]))) {
+    const a = porId.get(cb.a), b = porId.get(cb.b); if (!a || !b) continue; const A = E.civs[a.civ], B = E.civs[b.civ];
+    h += `<div class="guerraC" data-comb="${cb.id}"><b>⚔️ Batalla de ${esc(cb.lugar)}</b> <small style="opacity:.7">· ronda ${cb.ronda + 1}</small>${htmlDuelo(A, B, a.fuerza, b.fuerza, `· moral ${pct(Math.min(1, Math.max(0, a.moral)))}`, `moral ${pct(Math.min(1, Math.max(0, b.moral)))} ·`)}
+      <div class="det"><span>💀 ${fmt(cb.bajas[0] + cb.bajas[1])} caídos</span>${a.general ? `<span>🗡️ ${esc(a.general)}</span>` : ''}${b.general ? `<span>🗡️ ${esc(b.general)}</span>` : ''}<span>🎯 toca para ir</span></div></div>`;
+  }
+  const sitios = E.ejercitos.filter((e) => e.sitio >= 0);
+  if (sitios.length) { h += `<h3>Asedios (${sitios.length})</h3>`; for (const ej of sitios) { const o = E.ciudades.find((x) => x.id === ej.sitio); if (!o) continue; const P = E.civs[ej.civ], D = E.civs[o.civ]; h += `<div class="guerraC" data-ej="${ej.id}"><b>🏹 Sitio de ${esc(o.nombre)}</b> <small style="opacity:.7">· ${ej.sitioAños} año${ej.sitioAños === 1 ? '' : 's'}</small><div class="det"><span style="color:${P.color}">${P.emblema} ${esc(P.nombre)} · ${fmt(ej.fuerza)}</span><span style="color:${D.color}">contra ${D.emblema} ${esc(D.nombre)}</span><span>🧱 muralla ${pct(o.muralla ?? 1)}</span><span>${ej.hambre > 0.02 ? '🍞 pasan hambre' : ''}</span></div></div>`; } }
+  h += `<h3>Guerras (${guerras.length})</h3>`;
+  for (const r of guerras) {
+    const A = E.civs[r.agresor] || E.civs[r.a], B = E.civs[A.id === r.a ? r.b : r.a];
+    h += `<div class="guerraC" data-guerra="${A.id}-${B.id}">${htmlDuelo(A, B, fuerzaDe(A.id, B.id), fuerzaDe(B.id, A.id), 'en armas', 'en armas')}
+      <div class="det"><span>desde el año ${r.desde}</span><span>💀 ${fmt((r.bajas?.[A.id] || 0) + (r.bajas?.[B.id] || 0))} caídos</span><span>⚔️ ${r.batallas || 0} batallas</span>${r.santa ? '<span>✝️ guerra santa</span>' : ''}</div></div>`;
+  }
+  if (!guerras.length) h += '<p class="nota">Ninguna.</p>';
+  const vivas = E.civs.filter((c) => c.vivo);
+  h += `<h3>Cómo pelea cada pueblo</h3>${vivas.map((c) => { const d = S.DOCTRINAS[c.doctrina], u = S.composicion(c), top = Object.entries(u).sort((a, b) => b[1] - a[1])[0]; return `<div class="doct"><em>${d?.e || '⚔️'}</em><div><b style="color:${c.color}">${c.emblema} ${esc(c.nombre)} · ${d?.n || ''}</b>${esc(d?.d || '')} Sobre todo ${esc(S.nombreUnidad(top[0], c.era, c.bestia))}.</div></div>`; }).join('')}`;
+  if (E.partes.length) h += `<h3>Partes de guerra</h3>${E.partes.slice(0, 12).map((p) => { const W = E.civs[p.w], Lo = E.civs[p.l]; return `<div class="parte" style="--c:${W?.color || '#888'}"><b>${p.tipo === 'asedio' ? '🛡️' : '⚔️'} ${esc(p.lugar)} · año ${p.año}</b><div>${W ? `${W.emblema} ${esc(W.nombre)}` : '?'} vence a ${Lo ? `${Lo.emblema} ${esc(Lo.nombre)}` : '?'}${p.bajas ? ` · 💀 ${fmt((p.bajas[0] || 0) + (p.bajas[1] || 0))}` : ''}</div>${p.razones?.length ? `<ul>${p.razones.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>`; }).join('')}`;
+  return h;
+}
+// cámara de guerra: sigue el combate más grande (o el frente de una guerra)
+function alternarCamGuerra(on = !camGuerra) {
+  camGuerra = on; bGuerra.classList.toggle('on', camGuerra);
+  if (!camGuerra) { siguiendoComb = -1; O.seguir(null); $('#frente').classList.add('off'); } else { siguiendoComb = -1; vigilarGuerra(true); if (!E?.combates.length) aviso('🎥 Cámara de guerra: te llevo a la próxima batalla.'); }
+  pintarTodo(true);
+}
+function ejDeComb(cb) { return E.ejercitos.find((e) => e.id === cb.a) || E.ejercitos.find((e) => e.id === cb.b); }
+function seguirComb(cb) { siguiendoComb = cb.id; const ej = ejDeComb(cb); if (ej) O.seguir(() => ESC.posEjercito(ej.id), 17); }
+function vigilarGuerra(forzar = false) {
+  if (!camGuerra || !E) return;
+  const actual = E.combates.find((c) => c.id === siguiendoComb);
+  if (!actual || forzar) { const cb = [...E.combates].sort((x, y) => (y.f0[0] + y.f0[1]) - (x.f0[0] + x.f0[1]))[0]; if (cb) seguirComb(cb); else { siguiendoComb = -1; const ej = [...E.ejercitos].sort((a, b) => b.fuerza - a.fuerza)[0]; if (ej) O.seguir(() => ESC.posEjercito(ej.id), 36); } }
+  pintarFrente();
+}
+function pintarFrente() {
+  const el = $('#frente'), cb = E?.combates.find((c) => c.id === siguiendoComb);
+  document.body.classList.toggle('conFrente', !!(camGuerra && cb));
+  if (!camGuerra || !cb) { el.classList.add('off'); return; }
+  const a = E.ejercitos.find((e) => e.id === cb.a), b = E.ejercitos.find((e) => e.id === cb.b); if (!a || !b) { el.classList.add('off'); return; }
+  const A = E.civs[a.civ], B = E.civs[b.civ];
+  pintarSi(el, `<div class="t">⚔️ Batalla de ${esc(cb.lugar)} · 💀 ${fmt(cb.bajas[0] + cb.bajas[1])}</div>${htmlDuelo(A, B, a.fuerza, b.fuerza, `· ${S.DOCTRINAS[a.doc]?.e || ''} moral ${pct(Math.min(1, Math.max(0, a.moral)))}`, `moral ${pct(Math.min(1, Math.max(0, b.moral)))} ${S.DOCTRINAS[b.doc]?.e || ''} ·`)}`);
+  el.classList.remove('off');
+}
+
+// ---------------------------------------------------------------- poderes: elegir, apuntar (vista previa) y confirmar
+function htmlPoderes() {
+  if (!E) return '<p class="nota">Crea un mundo para usar los poderes.</p>';
+  const en = E.poderes.energia;
+  return `<div style="display:flex;justify-content:space-between;font-size:13px"><b>✨ Energía del orbe: ${Math.floor(en)} / ${E.poderes.max}</b><span style="opacity:.65">+${(0.5 * 10).toFixed(0)} cada 10 años</span></div><div class="barraE"><i style="width:${en / E.poderes.max * 100}%"></i></div>
+    <div class="chips" style="margin-top:8px">${CATEGORIAS.map(([k, n]) => `<button data-cat="${k}" class="${catPoder === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="poderes">${Object.entries(S.PODERES).filter(([, P]) => P.cat === catPoder).map(([k, P]) => `<button class="poder ${modoPoder === k ? 'sel' : ''}" data-p="${k}" ${en < P.costo ? 'disabled' : ''}><div class="t"><span><em>${P.e}</em>${esc(P.n)}</span><span class="c">✨${P.costo}</span></div><small>${esc(P.d)}</small><small style="opacity:.5">${P.obj === 'civ' ? '🎯 toca un pueblo' : P.obj === 'guerra' ? '🎯 un pueblo en guerra' : P.obj === 'agua' ? '🎯 toca el mar' : P.obj === 'tierra' ? '🎯 toca tierra' : '🎯 toca el mapa'}</small></button>`).join('')}</div>
+    <p class="nota">Elige un poder y toca el orbe: verás su alcance. Confirma con «Usar aquí». Tus intervenciones quedan en la crónica.</p>`;
+}
+function empezarPoder(k) {
+  modoPoder = k; objetivo = null; document.body.classList.add('modoPoder'); if (!escritorio()) ponerHoja(0); pintarApunta(); pintarTodo(true);
+}
+function cancelarPoder() { modoPoder = null; objetivo = null; ESC.apuntar(null); document.body.classList.remove('modoPoder'); $('#apunta').classList.add('off'); pintarTodo(true); }
+function pintarApunta() {
+  const el = $('#apunta'); if (!modoPoder) { el.classList.add('off'); return; }
+  const P = S.PODERES[modoPoder], err = objetivo != null ? S.puedePoder(E, modoPoder, objetivo) : null, civ = objetivo != null ? S.civEn(E, objetivo) : null;
+  el.innerHTML = `<b>${P.e} ${esc(P.n)}</b> · ✨${P.costo}<div class="nota" style="margin:4px 0 0">${objetivo == null ? 'Toca el orbe donde quieres usarlo.' : err ? `⚠️ ${esc(err)}` : `Objetivo: ${civ && (P.obj === 'civ' || P.obj === 'guerra') ? `${civ.emblema} ${esc(civ.nombre)}` : 'la zona marcada'}. ${esc(P.d)}`}</div>
+    <div class="fila2"><button class="boton" data-ap="cancelar">✕ Cancelar</button><button class="boton prim" data-ap="usar" ${objetivo == null || err ? 'disabled' : ''}>✓ Usar aquí</button></div>`;
+  el.classList.remove('off');
+}
+$('#apunta').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ap]'); if (!b) return;
+  if (b.dataset.ap === 'cancelar') return cancelarPoder();
+  if (!modoPoder || objetivo == null) return;
+  const P = S.PODERES[modoPoder], err = S.usarPoder(E, modoPoder, objetivo);
+  if (err) { aviso(err); return; }
+  aviso(`${P.e} ${P.n}`); const p = ESC.posCelda(objetivo); cancelarPoder(); if (p) O.volar(p, 40); guardar();
+});
+renderer().addEventListener('pointermove', (e) => { if (!modoPoder || !E || e.pointerType === 'touch' || objetivo != null) return; const t = ESC.tocar(e); if (t?.celda != null) ESC.apuntar(t.celda, modoPoder); });
+function renderer() { return O.renderer.domElement; }
+
+// ---------------------------------------------------------------- crónica
+function htmlCronica() {
+  if (!E) return '<p class="nota">Crea un mundo para empezar.</p>';
+  const con = E.civs.filter((c) => E.hist.some((h) => h.p[c.id]));
+  return `<div class="leyenda">${con.map((c) => `<span style="--c:${c.color}"><i></i>${c.emblema} ${esc(c.nombre)}</span>`).join('')}</div>
+    <h3>Población</h3>${htmlGrafica(con.map((c) => ({ datos: E.hist.map((h) => h.p[c.id] || 0), color: c.color })), 70)}
+    <h3>Poder militar</h3>${htmlGrafica(con.map((c) => ({ datos: E.hist.map((h) => h.w[c.id] || 0), color: c.color })), 70)}
+    <div class="nota" style="display:flex;justify-content:space-between"><span>año ${E.hist[0]?.a ?? 0}</span><span>año ${E.año}</span></div>
+    <h3>Hitos</h3>${htmlDiario(E.hitos.map((l) => ({ ...l, d: l.d })), 24)}<h3>Diario</h3>${htmlDiario(E.diario, 40)}`;
+}
+
+// ---------------------------------------------------------------- laboratorio: análisis en vivo y muchos mundos en segundo plano
+let lab = { corriendo: false, prog: 0, stats: null, modo: 'arquetipos', n: 20, error: null };
+function htmlLab() {
+  if (!E) return '<p class="nota">Crea un mundo para empezar.</p>';
+  const A = analisis(E); let h = '';
+  if (A) {
+    h += `<h3>Quién va ganando y por qué</h3><p class="nota" style="opacity:.9">${esc(A.texto)}</p>`;
+    h += A.filas.map((f) => `<div class="civ" style="--c:${f.c.color};cursor:default"><div class="nom"><em>${f.c.emblema}</em>${esc(f.c.nombre)} <small style="opacity:.7;font-weight:600">· poder ${Math.round(f.militarPct)}</small></div>
+      <div class="comp" style="--c:${f.c.color}">${COMPONENTES.map(([k, n]) => `<span>${n}</span><u><i style="width:${f.barras[k].toFixed(0)}%"></i></u>`).join('')}</div>
+      <div class="nota" style="margin:2px 0 0">${f.fuerte.length ? `💪 ${f.fuerte.map((o) => o[1].replace(/^\S+ /, '')).join(', ')}` : ''}${f.debil.length ? ` · ⚠️ flojo en ${f.debil.map((o) => o[1].replace(/^\S+ /, '').toLowerCase()).join(', ')}` : ''}${f.enArmas ? ` · ⚔️ ${fmt(f.enArmas)} en armas` : ''}</div></div>`).join('');
+    h += `<p class="nota">${COMPONENTES.map(([, n, d]) => `<b>${n}</b>: ${esc(d)}`).join('<br>')}</p>`;
+  }
+  h += `<h3>Simular muchos mundos</h3><p class="nota">Corre partidas completas en segundo plano y mira qué arquetipos, rasgos especiales, doctrinas y rasgos ganan más, y en qué se parecen los ganadores.</p>
+    <div class="chips"><button data-lm="arquetipos" class="${lab.modo === 'arquetipos' ? 'on' : ''}">🎲 Arquetipos al azar</button><button data-lm="actual" class="${lab.modo === 'actual' ? 'on' : ''}">🔁 Mis facciones, otras semillas</button></div>
+    <div class="chips" style="margin-top:6px">${[10, 20, 40].map((n) => `<button data-ln="${n}" class="${lab.n === n ? 'on' : ''}">${n} mundos</button>`).join('')}</div>
+    <div class="acc"><button class="boton prim" data-act="lab" ${lab.corriendo ? 'disabled' : ''}>${lab.corriendo ? `⏳ Simulando… ${pct(lab.prog)}` : '▶ Simular'}</button></div>
+    ${lab.corriendo ? `<div class="barraE"><i style="width:${lab.prog * 100}%"></i></div>` : ''}${lab.error ? `<p class="nota">⚠️ ${esc(lab.error)}</p>` : ''}`;
+  const st = lab.stats;
+  if (st) {
+    h += `<h3>Resultados de ${st.n} mundos</h3><p class="nota" style="opacity:.92">${st.frases.map(esc).join(' ')}</p>`;
+    const tabla = (titulo, filas, nombre) => filas.length ? `<h3>${titulo}</h3><table class="t"><tr><th></th><th>partidas</th><th>ganó</th></tr>${filas.slice(0, 10).map((f) => `<tr><td>${nombre(f.k)}</td><td>${f.n}</td><td>${pct(f.tasa)}</td></tr>`).join('')}</table>` : '';
+    h += tabla('Arquetipos', st.arquetipos, (k) => (S.PRESETS[k] ? `${S.PRESETS[k].emblema} ${esc(S.PRESETS[k].t)}` : esc(k)));
+    h += tabla('Rasgos especiales', st.especiales.filter((e) => e.n >= 2), (k) => (S.ESPECIALES[k] ? `${S.ESPECIALES[k].e} ${esc(S.ESPECIALES[k].n)}` : esc(k)));
+    h += tabla('Doctrinas', st.doctrinas, (k) => (S.DOCTRINAS[k] ? `${S.DOCTRINAS[k].e} ${esc(S.DOCTRINAS[k].n)}` : esc(k)));
+    const top = st.rasgos.slice(0, 10), mx = Math.max(8, ...top.map((r) => Math.abs(r.dif)));
+    h += `<h3>En qué se diferencian los ganadores</h3><p class="nota">Rasgos de los ganadores menos el promedio de todos (a la derecha: tenían más).</p>${top.map((r) => { const w = Math.abs(r.dif) / mx * 50; return `<div class="dif"><span>${R_NOM[r.k]}</span><div class="eje"><i style="${r.dif >= 0 ? `left:50%;width:${w}%;background:#7cc36a` : `left:${50 - w}%;width:${w}%;background:#ff8a80`}"></i></div><em class="${r.dif > 0 ? 'sube' : 'baja'}">${r.dif > 0 ? '+' : ''}${Math.round(r.dif)}</em></div>`; }).join('')}`;
+  }
+  return h;
+}
+let worker = null;
+function correrLab() {
+  if (lab.corriendo || !E) return;
+  lab = { ...lab, corriendo: true, prog: 0, stats: null, error: null };
+  const base = { semilla: E.semilla, tipo: E.tipo, velo: E.velo, civs: cfgActual()?.civs || [] }, msg = { modo: lab.modo, n: lab.n, base, maxAños: 2200, semilla: (Date.now() % 9973) + 1 };
+  const fin = (stats) => { lab.corriendo = false; lab.stats = stats; pintarTodo(true); aviso('🔬 Listo: mira los resultados del laboratorio.'); };
+  try {
+    worker?.terminate(); worker = new Worker(new URL('./civilizaciones/lab-worker.js', import.meta.url), { type: 'module' });
+    worker.onmessage = (e) => { const d = e.data; if (d.error) { lab.corriendo = false; lab.error = d.error; pintarTodo(true); return; } if (d.progreso != null) { lab.prog = d.progreso; if (tab === 'lab') pintarTodo(); } if (d.listo) fin(d.stats); };
+    worker.onerror = () => { worker = null; porLotes(msg, fin); };
+    worker.postMessage(msg);
+  } catch { porLotes(msg, fin); }
+}
+// sin Web Worker: de a un mundo por vez, dejando respirar a la página
+function porLotes(msg, fin) {
+  const res = []; let i = 0;
+  const uno = () => { if (i >= msg.n) return fin(estadisticas(res)); try { res.push(correrMundo(configLote(msg.modo, i, msg.base, msg.semilla), msg.maxAños)); } catch (e) { lab.corriendo = false; lab.error = String(e?.message || e); pintarTodo(true); return; } i++; lab.prog = i / msg.n; if (tab === 'lab') pintarTodo(); setTimeout(uno, 30); };
+  uno();
+}
+
+// ---------------------------------------------------------------- clics dentro de la hoja
+cuerpo.addEventListener('click', (e) => {
+  const q = (s) => e.target.closest(s);
+  if (creando) return clicCreador(e);
+  let b;
+  if ((b = q('[data-back]'))) { vista = null; return pintarTodo(true); }
+  if ((b = q('[data-c]'))) { vista = { t: 'civ', id: +b.dataset.c }; cuerpo.scrollTop = 0; const cap = E.ciudades.find((x) => x.id === E.civs[+b.dataset.c].capital); if (cap) O.volar(ESC.posCelda(cap.celda), 60); return pintarTodo(true); }
+  if ((b = q('[data-civ]'))) { vista = { t: 'civ', id: +b.dataset.civ }; cuerpo.scrollTop = 0; return pintarTodo(true); }
+  if ((b = q('[data-ciu]'))) { vista = { t: 'ciudad', id: +b.dataset.ciu }; const p = ESC.posCiudad(+b.dataset.ciu); if (p) O.volar(p, 30); cuerpo.scrollTop = 0; return pintarTodo(true); }
+  if ((b = q('[data-volar]'))) { const p = ESC.posCiudad(+b.dataset.volar); if (p) O.volar(p, 24); return; }
+  if ((b = q('[data-comb]'))) { const cb = E.combates.find((c) => c.id === +b.dataset.comb); if (cb) { if (!camGuerra) alternarCamGuerra(true); seguirComb(cb); if (!escritorio()) ponerHoja(0); } return; }
+  if ((b = q('[data-ej]'))) { const id = +b.dataset.ej; O.seguir(() => ESC.posEjercito(id), 30); if (!escritorio()) ponerHoja(0); return; }
+  if ((b = q('[data-guerra]'))) { const [a, bb] = b.dataset.guerra.split('-').map(Number); const ej = E.ejercitos.filter((x) => (x.civ === a && x.enemigo === bb) || (x.civ === bb && x.enemigo === a)).sort((x, y) => y.fuerza - x.fuerza)[0]; if (ej) { O.seguir(() => ESC.posEjercito(ej.id), 34); if (!escritorio()) ponerHoja(0); } else aviso('Esa guerra no tiene ejércitos en campaña ahora.'); return; }
+  if ((b = q('[data-cat]'))) { catPoder = b.dataset.cat; return pintarTodo(true); }
+  if ((b = q('[data-p]'))) { if (!b.disabled) empezarPoder(b.dataset.p); return; }
+  if ((b = q('[data-lm]'))) { lab.modo = b.dataset.lm; return pintarTodo(true); }
+  if ((b = q('[data-ln]'))) { lab.n = +b.dataset.ln; return pintarTodo(true); }
+  if ((b = q('[data-act]'))) {
+    const a = b.dataset.act;
+    if (a === 'camguerra') alternarCamGuerra();
+    if (a === 'lab') correrLab();
+    if (a === 'seguir') { E.finVisto = true; guardar(); pintarTodo(true); }
+    if (a === 'nuevo') { E.finVisto = true; abrirCreador(); }
+  }
+});
+
+// ---------------------------------------------------------------- tocar el orbe
+O.alTocar((ev) => {
+  const est = E || previa; if (!est) return;
+  const t = ESC.tocar(ev);
+  if (modoPoder && E) { const celda = t?.celda ?? null; if (celda == null) return; objetivo = celda; ESC.apuntar(celda, modoPoder); pintarApunta(); return; }
+  if (!E || creando) return;
+  if (t?.ciudad != null) { tab = 'pueblos'; vista = { t: 'ciudad', id: t.ciudad }; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintarTodo(true); }
+  else if (t?.celda != null && E.dueno[t.celda] >= 0) { tab = 'pueblos'; vista = { t: 'civ', id: E.dueno[t.celda] }; if (!escritorio() && nivelHoja === 0) ponerHoja(1); pintarTodo(true); }
+});
+
+// ---------------------------------------------------------------- creador de mundos
 const BASE = ['guerrero', 'sabios', 'mercaderes', 'fanaticos'];
-function cfgPorDefecto() { return { semilla: Math.floor(Math.random() * 99999) + 1, tipo: 'continente', velo: 400, civs: BASE.map((k) => civDePreset(k)) }; }
-function civDePreset(k) { const p = S.PRESETS[k]; return { nombre: p.nombre, color: p.color, emblema: p.emblema, r: { ...p.r }, preset: k }; }
-let cfg = (() => { try { const c = JSON.parse(localStorage.getItem(CLAVE_CFG)); if (c?.civs?.length >= 2) return c; } catch { /* nada */ } return cfgPorDefecto(); })(), pest = 0;
+const civDePreset = (k) => { const p = S.PRESETS[k]; return { nombre: p.nombre, color: p.color, emblema: p.emblema, r: { ...p.r }, especiales: [...(p.especiales || [])], doctrina: 'auto', estilo: p.estilo || 'piedra', preset: k }; };
+function cfgPorDefecto() { return { semilla: Math.floor(Math.random() * 99999) + 1, tipo: 'continente', velo: 400, civs: BASE.map(civDePreset) }; }
+let cfg = (() => { try { const c = JSON.parse(localStorage.getItem(CLAVE_CFG)); if (c?.civs?.length >= 2) return c; } catch { /* nada */ } return cfgPorDefecto(); })(), pest = 0, verDetalle = { emblemas: false };
+const cfgActual = () => cfg;
 const guardarCfg = () => { try { localStorage.setItem(CLAVE_CFG, JSON.stringify(cfg)); } catch { /* sin almacenamiento */ } };
 function aleatoria(i) {
   const ks = Object.keys(S.PRESETS), base = S.PRESETS[ks[Math.floor(Math.random() * ks.length)]], r = {};
-  for (const [k] of S.RASGOS) r[k] = Math.max(2, Math.min(98, Math.round(base.r[k] + (Math.random() - 0.5) * 50)));
-  const sil = ['ka', 'lo', 'ven', 'mar', 'ith', 'zu', 'ra', 'dor', 'el', 'sha', 'tor', 'ny'], nom = (sil[Math.floor(Math.random() * 12)] + sil[Math.floor(Math.random() * 12)] + sil[Math.floor(Math.random() * 12)]);
-  const usados = cfg.civs.map((c, j) => (j === i ? null : c.color)), libres = ['#c0392b', '#27ae60', '#2e86de', '#e67e22', '#8e44ad', '#f1c40f', '#16a085', '#d35d9b', '#7fb3d5', '#95a5a6'].filter((c) => !usados.includes(c));
-  return { nombre: `${['Reino', 'Imperio', 'Tribu', 'Liga', 'Pueblo', 'Clan'][Math.floor(Math.random() * 6)]} de ${nom[0].toUpperCase()}${nom.slice(1)}`, color: libres[Math.floor(Math.random() * libres.length)] || '#cccccc', emblema: S.EMBLEMAS[Math.floor(Math.random() * S.EMBLEMAS.length)], r, preset: null };
+  for (const [k] of S.RASGOS) r[k] = Math.max(2, Math.min(98, Math.round((base.r[k] ?? 50) + (Math.random() - 0.5) * 50)));
+  const sil = ['ka', 'lo', 'ven', 'mar', 'ith', 'zu', 'ra', 'dor', 'el', 'sha', 'tor', 'ny'], nom = sil[Math.floor(Math.random() * 12)] + sil[Math.floor(Math.random() * 12)] + sil[Math.floor(Math.random() * 12)];
+  const usados = cfg.civs.map((c, j) => (j === i ? null : c.color)), libres = S.COLORES.filter((c) => !usados.includes(c));
+  const esp = Object.keys(S.ESPECIALES).sort(() => Math.random() - 0.5).slice(0, 2);
+  return { nombre: `${['Reino', 'Imperio', 'Tribu', 'Liga', 'Pueblo', 'Clan', 'Orden', 'Horda'][Math.floor(Math.random() * 8)]} de ${nom[0].toUpperCase()}${nom.slice(1)}`, color: libres[Math.floor(Math.random() * libres.length)] || '#cccccc', emblema: S.EMBLEMAS[Math.floor(Math.random() * S.EMBLEMAS.length)], r: ajustarPresupuesto(r), especiales: esp, doctrina: 'auto', estilo: Object.keys(ESTILOS)[Math.floor(Math.random() * 8)], preset: null };
 }
 let tPrevia = 0;
-function rehacerPrevia() { clearTimeout(tPrevia); tPrevia = setTimeout(() => { previa = S.crearMundo(cfg); if (!E || creadorP.abierto) ESC.montar(previa); }, 120); }
-function abrirCreador() { pest = Math.min(pest, cfg.civs.length - 1); pintarCreador(); creadorP.abrir(); document.body.classList.add('creando'); fichaP.cerrar(); rehacerPrevia(); }
+function rehacerPrevia() { clearTimeout(tPrevia); tPrevia = setTimeout(() => { previa = S.crearMundo(cfg); if (creando) ESC.montar(previa); }, 150); }
+function abrirCreador() {
+  creando = true; cancelarPoder(); alternarCamGuerra(false); pest = Math.min(pest, cfg.civs.length - 1); cfg.civs.forEach((c) => { c.especiales ||= []; c.doctrina ||= 'auto'; c.estilo ||= 'piedra'; });
+  if (!escritorio()) ponerHoja(2); pintarCreador(); rehacerPrevia(); pintarTodo(true);
+}
+function cerrarCreador() { creando = false; if (E) ESC.montar(E); if (!escritorio()) ponerHoja(1); pintarTodo(true); }
 function pintarCreador() {
-  const c = cfg.civs[pest];
-  $('#creador').innerHTML = `<div class="cab"><b>🌍 Crea un mundo nuevo</b>${E ? '<button data-cerrar title="Volver a la partida">×</button>' : ''}</div>
-    <div class="fila"><span>Semilla</span><input type="text" id="cSem" value="${cfg.semilla}" inputmode="numeric"><button class="boton" id="cSemA" title="Otra semilla">🎲</button>
-      <span style="margin-left:6px">Mundo</span><div class="chips" id="cTipo">${[['continente', 'Continente'], ['archipielago', 'Archipiélago'], ['pangea', 'Pangea']].map(([k, n]) => `<button data-t="${k}" class="${cfg.tipo === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
-    <label class="campo"><span>🌫️ Años de aislamiento antes del contacto: <b id="cVeloV">${cfg.velo}</b> ${cfg.velo === 0 ? '(sin velo)' : ''}</span><input type="range" id="cVelo" min="0" max="1500" step="50" value="${cfg.velo}"></label>
-    <div class="fila"><span>Civilizaciones</span><div class="chips" id="cNum">${[2, 3, 4].map((n) => `<button data-n="${n}" class="${cfg.civs.length === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
-    <div class="pestañas" id="cPest">${cfg.civs.map((x, i) => `<button data-i="${i}" class="${i === pest ? 'on' : ''}" style="--c:${x.color}">${x.emblema} ${esc(x.nombre)}</button>`).join('')}</div>
+  const c = cfg.civs[pest], gasto = costo(c.r), pasa = gasto > PRESUPUESTO;
+  cuerpo._html = null;
+  cuerpo.innerHTML = `${E ? '<button class="volverF" data-cv="volver">← Volver a la partida</button>' : ''}
+    <div class="filaC"><b style="opacity:.75">Semilla</b><input type="text" id="cSem" value="${cfg.semilla}" inputmode="numeric" style="max-width:110px;min-height:40px"><button class="boton" data-cv="sem">🎲</button></div>
+    <div class="chips">${[['continente', '🗺️ Continente'], ['archipielago', '🏝️ Archipiélago'], ['pangea', '🌍 Pangea']].map(([k, n]) => `<button data-tipo="${k}" class="${cfg.tipo === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <label class="campo" style="margin-top:10px"><span>🌫️ Años de aislamiento antes del contacto: <b id="cVeloV">${cfg.velo}</b>${cfg.velo === 0 ? ' (sin velo)' : ''}</span><input type="range" id="cVelo" min="0" max="1500" step="50" value="${cfg.velo}"></label>
+    <div class="filaC"><b style="opacity:.75">Facciones</b><div class="chips">${[2, 3, 4, 5, 6, 7, 8].map((n) => `<button data-num="${n}" class="${cfg.civs.length === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+    <div class="cpest">${cfg.civs.map((x, i) => `<button data-pest="${i}" class="${i === pest ? 'on' : ''}" style="--c:${x.color}">${x.emblema} ${esc(x.nombre)}</button>`).join('')}</div>
     <div class="cfg">
-      <div class="fila"><input type="text" id="cNom" value="${esc(c.nombre)}" maxlength="28" style="flex:1;min-width:150px"><input type="color" id="cCol" value="${c.color}" title="Color"><button class="boton" id="cAle">🎲 Aleatoria</button></div>
-      <div class="chips emblemas" id="cEmb">${S.EMBLEMAS.map((e) => `<button class="${c.emblema === e ? 'on' : ''}">${e}</button>`).join('')}</div>
-      <div class="lbl" style="font-size:11px;opacity:.65;margin:8px 0 4px">Arquetipos</div>
-      <div class="chips" id="cPre">${Object.entries(S.PRESETS).map(([k, p]) => `<button data-k="${k}" class="${c.preset === k ? 'on' : ''}">${p.emblema} ${p.t}</button>`).join('')}</div>
-      <div class="deslizadores">${S.RASGOS.map(([k, n, e]) => `<label><span>${e} ${n}</span><b id="v_${k}">${c.r[k]}</b><input type="range" min="0" max="100" value="${c.r[k]}" data-k="${k}"></label>`).join('')}</div>
+      <div class="filaC"><input type="text" id="cNom" value="${esc(c.nombre)}" maxlength="28"><input type="color" id="cCol" value="${c.color}" title="Color"><button class="boton" data-cv="emb">${c.emblema} ▾</button><button class="boton" data-cv="ale">🎲</button></div>
+      ${verDetalle.emblemas ? `<div class="chips emblemas">${S.EMBLEMAS.map((e) => `<button data-emb="${e}" class="${c.emblema === e ? 'on' : ''}">${e}</button>`).join('')}</div>` : ''}
+      <h3>Arquetipo</h3><div class="presets">${Object.entries(S.PRESETS).map(([k, p]) => `<button data-pre="${k}" class="${c.preset === k ? 'on' : ''}">${p.emblema} ${esc(p.t)}<small>${esc(p.desc)}</small></button>`).join('')}</div>
+      <h3>Rasgos especiales (máximo 2)</h3><div class="chips">${Object.entries(S.ESPECIALES).map(([k, x]) => `<button data-esp="${k}" class="${c.especiales.includes(k) ? 'on' : ''}">${x.e} ${esc(x.n)}</button>`).join('')}</div>
+      ${c.especiales.map((k) => { const x = S.ESPECIALES[k]; return x ? `<div class="esp" style="margin-top:6px"><b>${x.e} ${x.n}</b><span class="pro">＋ ${esc(x.pro)}</span><br><span class="con">－ ${esc(x.contra)}</span></div>` : ''; }).join('')}
+      <h3>Doctrina de guerra</h3><div class="chips"><button data-doc="auto" class="${c.doctrina === 'auto' ? 'on' : ''}">🤖 Según sus rasgos</button>${Object.entries(S.DOCTRINAS).map(([k, d]) => `<button data-doc="${k}" class="${c.doctrina === k ? 'on' : ''}">${d.e} ${d.n}</button>`).join('')}</div>
+      <p class="nota">${c.doctrina === 'auto' ? 'La doctrina saldrá de sus rasgos y especiales.' : esc(S.DOCTRINAS[c.doctrina]?.d || '')}</p>
+      <h3>Estilo de sus ciudades</h3><div class="chips">${Object.entries(ESTILOS).map(([k, x]) => `<button data-est="${k}" class="${c.estilo === k ? 'on' : ''}">${x.n}</button>`).join('')}</div>
+      <h3>Rasgos</h3>
+      <div class="presu ${pasa ? 'pasa' : ''}" id="presu">${pasa ? `⚠️ Te pasas por ${gasto - PRESUPUESTO} puntos: al empezar se recorta lo más alto. <button class="boton" data-cv="ajustar" style="min-height:32px;padding:4px 10px">Ajustar ahora</button>` : `Puntos usados: ${gasto} de ${PRESUPUESTO}`}<u><i style="width:${Math.min(100, gasto / PRESUPUESTO * 100)}%"></i></u></div>
+      ${GRUPOS.map((g) => `<div class="grupo"><b>${g}</b><div class="desl">${S.RASGOS.filter((r) => r[3] === g).map(([k, n, e, , d]) => `<label title="${esc(d)}"><span>${e} ${n}</span><b id="v_${k}">${c.r[k] ?? 50}</b><input type="range" min="0" max="100" value="${c.r[k] ?? 50}" data-k="${k}"></label>`).join('')}</div></div>`).join('')}
     </div>
-    <div class="acciones"><button class="boton" id="cTodo">🎲 Todo al azar</button><button class="boton prim" id="cIr">▶ Empezar la historia</button></div>
-    <p class="nota">Cada pueblo nace donde mejor encaja su clima (los del calor en el desierto, los del frío al norte). Durante el aislamiento evolucionan solos; al caer el velo se descubren. Más aislamiento favorece a los pueblos científicos; poco, a los guerreros. Los rasgos derivan con la historia: guerras, plagas y prosperidad los cambian.</p>`;
-  const cambio = (previaToo = true) => { guardarCfg(); if (previaToo) rehacerPrevia(); };
+    <p class="nota">Cada punto cuenta: subir un rasgo obliga a bajar otro. Cada pueblo nace donde mejor encaja su clima. Durante el aislamiento evolucionan solos; al caer el velo se descubren.</p>
+    <div class="pie"><button class="boton" data-cv="todo">🎲 Todo al azar</button><button class="boton prim" data-cv="ir">▶ Empezar la historia</button></div>`;
+  const cambio = (prev = true) => { guardarCfg(); if (prev) rehacerPrevia(); };
   $('#cSem').onchange = (e) => { cfg.semilla = Math.max(1, parseInt(e.target.value, 10) || 1); cambio(); };
-  $('#cSemA').onclick = () => { cfg.semilla = Math.floor(Math.random() * 99999) + 1; pintarCreador(); cambio(); };
-  $('#cTipo').onclick = (e) => { const t = e.target.closest('[data-t]'); if (!t) return; cfg.tipo = t.dataset.t; pintarCreador(); cambio(); };
   $('#cVelo').oninput = (e) => { cfg.velo = +e.target.value; $('#cVeloV').textContent = cfg.velo; };
-  $('#cVelo').onchange = () => { pintarCreador(); cambio(); };
-  $('#cNum').onclick = (e) => { const t = e.target.closest('[data-n]'); if (!t) return; const n = +t.dataset.n; while (cfg.civs.length < n) cfg.civs.push(civDePreset(Object.keys(S.PRESETS).find((k) => !cfg.civs.some((c) => c.preset === k)) || 'horda')); cfg.civs.length = n; pest = Math.min(pest, n - 1); pintarCreador(); cambio(); };
-  $('#cPest').onclick = (e) => { const t = e.target.closest('[data-i]'); if (!t) return; pest = +t.dataset.i; pintarCreador(); };
-  $('#cNom').oninput = (e) => { c.nombre = e.target.value || 'Sin nombre'; const b = $(`#cPest [data-i="${pest}"]`); if (b) b.textContent = `${c.emblema} ${c.nombre}`; cambio(false); };
-  $('#cCol').oninput = (e) => { c.color = e.target.value; pintarCreador(); cambio(false); };
-  $('#cEmb').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; c.emblema = b.textContent; pintarCreador(); cambio(false); };
-  $('#cPre').onclick = (e) => { const t = e.target.closest('[data-k]'); if (!t) return; cfg.civs[pest] = civDePreset(t.dataset.k); pintarCreador(); cambio(); };
-  $('#cAle').onclick = () => { cfg.civs[pest] = aleatoria(pest); pintarCreador(); cambio(); };
-  $('#cTodo').onclick = () => { cfg.semilla = Math.floor(Math.random() * 99999) + 1; cfg.tipo = ['continente', 'archipielago', 'pangea'][Math.floor(Math.random() * 3)]; cfg.velo = 100 + Math.floor(Math.random() * 15) * 50; const n = 2 + Math.floor(Math.random() * 3); cfg.civs = []; for (let i = 0; i < n; i++) cfg.civs.push(aleatoria(i)); pest = 0; pintarCreador(); cambio(); };
-  for (const inp of $('#creador').querySelectorAll('.deslizadores input')) {
-    inp.oninput = () => { c.r[inp.dataset.k] = +inp.value; $(`#v_${inp.dataset.k}`).textContent = inp.value; c.preset = null; };
-    inp.onchange = () => { cambio(); $('#cPre').querySelectorAll('button').forEach((b) => b.classList.remove('on')); };
+  $('#cVelo').onchange = () => cambio();
+  $('#cNom').oninput = (e) => { c.nombre = e.target.value || 'Sin nombre'; cambio(false); };
+  $('#cNom').onchange = () => pintarCreador();
+  $('#cCol').oninput = (e) => { c.color = e.target.value; cambio(false); }; $('#cCol').onchange = () => { pintarCreador(); rehacerPrevia(); };
+  for (const inp of cuerpo.querySelectorAll('.desl input')) {
+    inp.oninput = () => { c.r[inp.dataset.k] = +inp.value; $(`#v_${inp.dataset.k}`).textContent = inp.value; c.preset = null; const g = costo(c.r), p = $('#presu'); p.classList.toggle('pasa', g > PRESUPUESTO); p.firstChild.textContent = g > PRESUPUESTO ? `⚠️ Te pasas por ${g - PRESUPUESTO} puntos ` : `Puntos usados: ${g} de ${PRESUPUESTO}`; p.querySelector('u i').style.width = `${Math.min(100, g / PRESUPUESTO * 100)}%`; };
+    inp.onchange = () => cambio();
   }
-  $('#cIr').onclick = empezar;
+}
+function clicCreador(e) {
+  const q = (s) => e.target.closest(s); let b; const c = cfg.civs[pest];
+  const listo = (prev = true) => { guardarCfg(); if (prev) rehacerPrevia(); const st = cuerpo.scrollTop; pintarCreador(); cuerpo.scrollTop = st; };
+  if ((b = q('[data-tipo]'))) { cfg.tipo = b.dataset.tipo; return listo(); }
+  if ((b = q('[data-num]'))) { const n = +b.dataset.num; while (cfg.civs.length < n) { const k = Object.keys(S.PRESETS).find((p) => !cfg.civs.some((x) => x.preset === p)) || 'horda'; cfg.civs.push(civDePreset(k)); } cfg.civs.length = n; pest = Math.min(pest, n - 1); return listo(); }
+  if ((b = q('[data-pest]'))) { pest = +b.dataset.pest; return listo(false); }
+  if ((b = q('[data-emb]'))) { c.emblema = b.dataset.emb; verDetalle.emblemas = false; return listo(false); }
+  if ((b = q('[data-pre]'))) { cfg.civs[pest] = civDePreset(b.dataset.pre); return listo(); }
+  if ((b = q('[data-esp]'))) { const k = b.dataset.esp; if (c.especiales.includes(k)) c.especiales = c.especiales.filter((x) => x !== k); else { if (c.especiales.length >= 2) c.especiales.shift(); c.especiales.push(k); } c.preset = null; return listo(); }
+  if ((b = q('[data-doc]'))) { c.doctrina = b.dataset.doc; c.preset = null; return listo(); }
+  if ((b = q('[data-est]'))) { c.estilo = b.dataset.est; return listo(); }
+  if ((b = q('[data-cv]'))) {
+    const a = b.dataset.cv;
+    if (a === 'volver') return cerrarCreador();
+    if (a === 'sem') { cfg.semilla = Math.floor(Math.random() * 99999) + 1; return listo(); }
+    if (a === 'emb') { verDetalle.emblemas = !verDetalle.emblemas; return listo(false); }
+    if (a === 'ale') { cfg.civs[pest] = aleatoria(pest); return listo(); }
+    if (a === 'ajustar') { c.r = ajustarPresupuesto(c.r); return listo(); }
+    if (a === 'todo') { cfg.semilla = Math.floor(Math.random() * 99999) + 1; cfg.tipo = ['continente', 'archipielago', 'pangea'][Math.floor(Math.random() * 3)]; cfg.velo = 100 + Math.floor(Math.random() * 15) * 50; const n = 3 + Math.floor(Math.random() * 4); cfg.civs = []; for (let i = 0; i < n; i++) cfg.civs.push(aleatoria(i)); pest = 0; return listo(); }
+    if (a === 'ir') return empezar();
+  }
 }
 function empezar() {
-  guardarCfg(); E = S.crearMundo(cfg); vistoMom = E.efectos.reduce((m, f) => Math.max(m, f.id), -1); previa = null; acum = 0; ESC.montar(E); creadorP.cerrar(); finP.cerrar(); fichaP.cerrar();
-  if (mult === 0) vel.elegir(2);
+  guardarCfg(); E = S.crearMundo(cfg); vistoMom = E.efectos.reduce((m, f) => Math.max(m, f.id), -1); previa = null; acum = 0; creando = false; vista = null; tab = 'pueblos';
+  ESC.montar(E); if (mult === 0) vel.elegir(2);
   guardar(); aviso(E.velo ? `Comienza la historia. El velo caerá en el año ${E.velo}.` : 'Comienza la historia.');
-  O.volar(new THREE.Vector3(0, 0, 4), 120);
+  if (!escritorio()) ponerHoja(1); O.volar(new THREE.Vector3(0, 0, 4), 120); pintarTodo(true);
 }
 
 // ---------------------------------------------------------------- guardado (con respaldo)
@@ -186,155 +554,45 @@ function guardar() { if (E) guardarJSON(CLAVE, S.exportar(E)); }
 addEventListener('pagehide', guardar);
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardar(); });
 
-// ---------------------------------------------------------------- poderes del espíritu del orbe
-const PODERES = [['meteorito', '☄️ Meteorito', 'Arrasa un punto del mapa y lo deja como cráter'], ['plaga', '☣️ Plaga', 'Enferma a la civilización que toques'], ['bendicion', '🌟 Bendición', 'Edad de oro, gente y cohesión'], ['terremoto', '🌋 Terremoto', 'Sacude las ciudades de una región']];
-function pintarPoderes() {
-  const p = E?.poderes || { cargas: 0, prox: 0 };
-  $('#poderes').innerHTML = `<div class="cab"><b>⚡ Espíritu del orbe</b><button data-cerrar>×</button></div>
-    <div style="font-size:12px;margin-bottom:8px">Cargas: <b>${'🔮'.repeat(p.cargas) || '—'}</b> <span style="opacity:.6">(+1 en el año ${p.prox}, máx. 3)</span></div>
-    <div class="ops">${PODERES.map(([k, n, d]) => `<button data-p="${k}" ${!E || p.cargas <= 0 ? 'disabled' : ''}>${n}<small>${d}</small></button>`).join('')}</div>`;
-  $('#poderes').querySelector('.ops').onclick = (e) => { const b = e.target.closest('[data-p]'); if (!b || b.disabled) return; modoPoder = b.dataset.p; document.body.classList.add('modoPoder'); poderesP.cerrar(); aviso('Toca el lugar del mapa donde quieres usarlo.'); };
-}
-
-// ---------------------------------------------------------------- tocar el mapa
-O.alTocar((ev) => {
-  const est = E || previa; if (!est) return;
-  const t = ESC.tocar(ev);
-  if (modoPoder && E) {
-    const celda = t?.celda ?? (t?.ciudad != null ? E.ciudades.find((c) => c.id === t.ciudad)?.celda : null);
-    if (celda == null) { aviso('Toca tierra dentro del orbe.'); return; }
-    const err = S.usarPoder(E, modoPoder, celda); modoPoder = null; document.body.classList.remove('modoPoder');
-    if (err) aviso(err); else pintarUI(true);
-    return;
-  }
-  if (!E || creadorP.abierto) return;
-  if (t?.ciudad != null) abrirCiudad(t.ciudad, true);
-  else if (t?.celda != null && E.dueno[t.celda] >= 0) abrirCiv(E.dueno[t.celda]);
-});
-
-// ---------------------------------------------------------------- fichas
-function abrirCiv(id) { fichaDe = { t: 'civ', id }; pintarFicha(); fichaP.abrir(); menuP.cerrar(); poderesP.cerrar(); }
-function abrirCiudad(id, volar = false) { fichaDe = { t: 'ciudad', id }; pintarFicha(); fichaP.abrir(); if (volar) { const p = ESC.posCiudad(id); if (p) O.volar(p, 34); } }
-const ESTADO = { guerra: '⚔️ En guerra', alianza: '🕊️ Aliados', paz: '🤝 En paz', tributo: '📜 Tributo' };
-function htmlRasgos(c) {
-  return S.RASGOS.map(([k, n, e]) => { const v = S.rv(c, k), i = c.r0[k], d = v - i; return `<div class="rasgo" style="--c:${c.color}"><span>${e} ${n}</span><u><i style="width:${v.toFixed(0)}%"></i><b style="left:${i}%" title="Inicial: ${i}"></b></u><em class="${d > 4 ? 'sube' : d < -4 ? 'baja' : ''}">${v.toFixed(0)} ${d > 4 ? '▲' : d < -4 ? '▼' : ''}</em></div>`; }).join('');
-}
-function pintarFicha() {
-  if (!fichaDe || !E) return; const el = $('#ficha');
-  if (fichaDe.t === 'civ') {
-    const c = E.civs[fichaDe.id]; if (!c) return fichaP.cerrar();
-    const mias = E.ciudades.filter((x) => x.civ === c.id).sort((a, b) => b.pob - a.pob), L = c.lider;
-    const rels = E.civs.filter((o) => o !== c && o.vivo).map((o) => { const r = S.relDe(E, c.id, o.id); let t = !r ? '❔ Sin contacto' : r.estado === 'tributo' ? (r.senor === c.id ? '📜 Le paga tributo' : '📜 Le paga tributo a ella') : ESTADO[r.estado]; if (r?.comercio) t += ' · 💰'; return `<div class="grid" style="grid-template-columns:1fr auto"><span style="opacity:1">${o.emblema} ${esc(o.nombre)}</span><b style="font-weight:600">${t}${r ? ` <small style="opacity:.55">(${r.v > 0 ? '+' : ''}${Math.round(r.v)})</small>` : ''}</b></div>`; }).join('');
-    const hitos = E.hitos.filter((h) => h.civ === c.id || h.texto.includes(c.nombre)).slice(0, 10);
-    const serie = E.hist.map((h) => h.p[c.id] || 0);
-    const padre = c.padre != null ? E.civs[c.padre] : null;
-    pintarSi(el, `<div class="cab"><b style="color:${c.color}">${c.emblema} ${esc(c.nombre)}</b><button data-cerrar>×</button></div>
-      ${!c.vivo ? `<div class="card" style="margin-bottom:8px">💀 ${esc(c.causa)} en el año ${c.murio}${c.por != null ? ` por ${esc(E.civs[c.por].nombre)}` : ''}. Vivió ${c.murio - c.nacio} años.</div>` : ''}
-      <div class="grid"><span>Era</span><b>${S.ERAS[c.era].e} ${S.ERAS[c.era].n}</b><span>Población</span><b>${fmt(c.pob)}</b><span>Ciudades</span><b>${mias.length}</b><span>Territorio</span><b>${c.celdas || 0} celdas</b>
-      <span>Saber</span><b>${Math.round(c.tec)} · ${c.desc} inventos</b><span>Fe</span><b style="font-weight:500">${esc(c.religion)}</b>${padre ? `<span>Origen</span><b>se separó de ${esc(padre.nombre)} (${c.nacio})</b>` : ''}
-      ${c.vivo ? `<span>Gobierna</span><b>${L.titulo === 'reina' ? 'Reina' : 'Rey'} ${esc(L.nombre)} ${esc(L.epiteto)} · ${L.edad} años</b>` : ''}${c.heroe ? `<span>Héroe</span><b>🗡️ General ${esc(c.heroe.nombre)}</b>` : ''}
-      <span>Guerras</span><b>${c.stats.guerras} · batallas ${c.stats.batallasG}/${c.stats.batallasG + c.stats.batallasP} · conquistas ${c.stats.conquistas}</b></div>
-      <div class="tags">${c.oro > 0 ? '<span class="tag oro">✨ Edad de oro</span>' : ''}${c.plaga ? `<span class="tag plaga">☣️ ${esc(c.plaga.nombre)}</span>` : ''}</div>
-      ${c.cronica?.length ? `<div class="lbl" style="font-size:10.5px;opacity:.6;margin:10px 0 3px">LÍNEA DE TIEMPO</div><ul class="tiempo" style="--c:${c.color}">${(c.cronica.length > 16 ? [c.cronica[0], { d: '…', t: '' }, ...c.cronica.slice(-14)] : c.cronica).map((h) => `<li><b>${h.d}</b>${esc(h.t)}</li>`).join('')}</ul>` : ''}
-      <div class="lbl" style="font-size:10.5px;opacity:.6;margin:10px 0 3px">RASGOS — barra: actual · línea blanca: al nacer</div>${htmlRasgos(c)}
-      <div class="lbl" style="font-size:10.5px;opacity:.6;margin:10px 0 3px">POBLACIÓN A LO LARGO DE LOS SIGLOS</div>${htmlGrafica([{ datos: serie, color: c.color }], 46)}
-      ${rels ? `<div class="lbl" style="font-size:10.5px;opacity:.6;margin:10px 0 3px">RELACIONES</div>${rels}` : ''}
-      ${mias.length ? `<div class="lbl" style="font-size:10.5px;opacity:.6;margin:10px 0 3px">CIUDADES</div><div class="lista">${mias.slice(0, 30).map((x) => `<button data-ciu="${x.id}"><span>${x.capital ? '👑 ' : ''}${esc(x.nombre)}${x.fuego > 0 ? ' 🔥' : x.sitiada > 0 ? ' 🏹' : ''}</span><span style="opacity:.7">${S.NIVELES[x.nivel]} · ${fmt(x.pob)}</span></button>`).join('')}</div>` : ''}
-      ${hitos.length ? `<div class="lbl" style="font-size:10.5px;opacity:.6;margin:10px 0 3px">SU HISTORIA</div>${htmlDiario(hitos, 10)}` : ''}`);
-  } else {
-    const ci = E.ciudades.find((x) => x.id === fichaDe.id);
-    if (!ci) { const ru = (E.ruinas || []).find((r) => r.id === fichaDe.id); pintarSi(el, `<div class="cab"><b>🏚️ Ruinas</b><button data-cerrar>×</button></div><p>La ciudad ya no existe.</p>`); void ru; return; }
-    const c = E.civs[ci.civ], fund = E.civs[ci.fundador], b = S.BIOMAS[E.mapa.bioma[ci.celda]].n, sit = E.ejercitos.filter((e) => e.sitio === ci.id);
-    pintarSi(el, `<div class="cab"><b>${ci.capital ? '👑 ' : ''}${esc(ci.nombre)}</b><button data-cerrar>×</button></div>
-      <div class="grid"><span>Pertenece a</span><b style="color:${c.color}">${c.emblema} ${esc(c.nombre)}</b><span>Tamaño</span><b>${S.NIVELES[ci.nivel]}</b><span>Habitantes</span><b>${fmt(ci.pob)}</b>
-      <span>Capacidad</span><b>${fmt(ci.cap)} (comida ${ci.comida.toFixed(0)})</b><span>Fundada</span><b>año ${ci.fundada} por ${esc(fund.nombre)}</b><span>Terreno</span><b>${b}${E.mapa.rio[ci.celda] ? ' con río' : ''}</b>
-      ${ci.conq ? `<span>Conquistada</span><b>año ${ci.conq}</b>` : ''}</div>
-      <div class="tags">${ci.fuego > 0 ? '<span class="tag guerra">🔥 En llamas</span>' : ''}${sit.length ? `<span class="tag guerra">🏹 Sitiada por ${sit.map((e) => esc(E.civs[e.civ].nombre)).join(', ')}</span>` : ''}</div>
-      <div class="acciones" style="justify-content:flex-start"><button class="boton" data-civ="${c.id}">Ver ${c.emblema} ${esc(c.nombre)}</button><button class="boton" data-volar="${ci.id}">🎯 Ir</button></div>`);
-  }
-}
-$('#ficha').addEventListener('click', (e) => {
-  const a = e.target.closest('[data-ciu]'); if (a) return abrirCiudad(+a.dataset.ciu, true);
-  const b = e.target.closest('[data-civ]'); if (b) return abrirCiv(+b.dataset.civ);
-  const v = e.target.closest('[data-volar]'); if (v) { const p = ESC.posCiudad(+v.dataset.volar); if (p) O.volar(p, 24); }
-});
-
-// ---------------------------------------------------------------- columnas: civilizaciones, crónica, diario
-$('#izq').addEventListener('click', (e) => { const c = e.target.closest('[data-c]'); if (c) abrirCiv(+c.dataset.c); });
-function pintarUI() {
-  if (!E) return;
-  const vivas = E.civs.filter((c) => c.vivo);
-  $('#titulo').textContent = `🏛️ Año ${E.año} · ${E.año < E.velo ? `🌫️ el velo cae en ${E.velo - E.año}` : `${vivas.length} ${vivas.length === 1 ? 'civilización' : 'civilizaciones'}`}`;
-  const orden = [...E.civs].sort((a, b) => (b.vivo - a.vivo) || b.pob - a.pob);
-  pintarSi($('#izq'), orden.map((c) => {
-    if (!c.vivo) return `<div class="card civ muerta" data-c="${c.id}" style="--c:${c.color}"><div class="nom"><em>${c.emblema}</em>${esc(c.nombre)}</div><div class="sub">💀 ${esc(c.causa)} · ${c.murio}</div></div>`;
-    const tags = [];
-    for (const o of S.guerrasDe(E, c.id)) tags.push(`<span class="tag guerra">⚔️ ${esc(E.civs[o].nombre)}</span>`);
-    for (const r of Object.values(E.rel)) { if (r.a !== c.id && r.b !== c.id) continue; const o = E.civs[r.a === c.id ? r.b : r.a]; if (r.estado === 'alianza') tags.push(`<span class="tag alianza">🕊️ ${esc(o.nombre)}</span>`); else if (r.estado === 'tributo') tags.push(`<span class="tag trib">📜 ${r.senor === c.id ? '← ' : '→ '}${esc(o.nombre)}</span>`); }
-    if (c.oro > 0) tags.push('<span class="tag oro">✨ Edad de oro</span>'); if (c.plaga) tags.push(`<span class="tag plaga">☣️ ${esc(c.plaga.nombre)}</span>`);
-    return `<div class="card civ" data-c="${c.id}" style="--c:${c.color}"><div class="nom"><em>${c.emblema}</em>${esc(c.nombre)}</div>
-      <div class="sub"><span>${S.ERAS[c.era].e} ${S.ERAS[c.era].n}</span><span>👥 ${fmt(c.pob)}</span><span>🏙 ${c.nCiudades || 0}</span><span>👑 ${esc(c.lider.nombre)} ${esc(c.lider.epiteto)}</span></div>
-      ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}</div>`;
-  }).join(''));
-  const conDatos = E.civs.filter((c) => E.hist.some((h) => h.p[c.id]));
-  const ley = `<div class="leyenda">${conDatos.map((c) => `<span style="--c:${c.color}"><i></i>${esc(c.nombre)}</span>`).join('')}</div>`;
-  pintarSi($('#cronica'), `<h4>📈 Crónica</h4>${ley}<div class="lbl">Población</div>${htmlGrafica(conDatos.map((c) => ({ datos: E.hist.map((h) => h.p[c.id] || 0), color: c.color })))}
-    <div class="lbl">Poder (gente × técnica × ánimo guerrero)</div>${htmlGrafica(conDatos.map((c) => ({ datos: E.hist.map((h) => h.w[c.id] || 0), color: c.color })))}
-    <div class="lbl" style="display:flex;justify-content:space-between"><span>${E.hist[0]?.a ?? 0}</span><span>año ${E.año}</span></div>
-    <h4 style="margin-top:8px">🏛️ Hitos</h4>${htmlDiario(E.hitos, 14)}`);
-  pintarSi($('#diario'), `<h4>📜 Diario</h4>${htmlDiario(E.diario, 30)}`);
-  if (fichaDe) pintarFicha();
-}
-
-// ---------------------------------------------------------------- fin
-function mostrarFin() {
-  const f = E.fin, g = E.civs[f.ganador], txt = { unica: 'es la única civilización que queda', domina: 'domina el orbe', tiempo: 'es la gran potencia tras dos mil años de contacto', nadie: '' }[f.tipo];
-  const filas = [...E.civs].sort((a, b) => b.stats.maxPob - a.stats.maxPob).map((c) => `<tr><td style="color:${c.color}">${c.emblema} ${esc(c.nombre)}</td><td>${fmt(c.stats.maxPob)}</td><td>${c.stats.conquistas}</td><td>${c.vivo ? '✓ viva' : `💀 ${esc(c.causa)} (${c.murio})`}</td></tr>`).join('');
-  $('#fin').innerHTML = `<div class="cab"><b>🏆 Fin de una era · año ${f.año}</b></div>
-    ${g ? `<div class="em">${g.emblema}</div><div class="ganador" style="color:${g.color}">${esc(g.nombre)}</div><p style="text-align:center;opacity:.85">${txt}.</p>` : '<div class="ganador">No queda nadie.</div>'}
-    <table><tr><th>Civilización</th><th>Máx. gente</th><th>Conquistas</th><th>Destino</th></tr>${filas}</table>
-    <div class="acciones"><button class="boton" id="fSeguir">👁️ Seguir mirando</button><button class="boton prim" id="fNuevo">🌍 Nuevo mundo</button></div>`;
-  $('#fSeguir').onclick = () => { E.finVisto = true; finP.cerrar(); guardar(); };
-  $('#fNuevo').onclick = () => { E.finVisto = true; finP.cerrar(); abrirCreador(); };
-  finP.abrir(); vel.elegir(0);
-}
-
-// ---------------------------------------------------------------- momentos destacados: cae el velo, primer contacto
-let vistoMom = -1, tMom = 0;
+// ---------------------------------------------------------------- momentos: cae el velo, primer contacto, batallas grandes
+let vistoMom = -1, tMom = 0, lentoHasta = 0, velAntes = null;
+function momento(html) { const el = $('#momento'); el.innerHTML = html; el.classList.add('ver'); clearTimeout(tMom); tMom = setTimeout(() => el.classList.remove('ver'), 5200); }
+function respiro(seg) { if (vel.indice > 1) { velAntes = vel.indice; vel.elegir(1); } lentoHasta = performance.now() + seg * 1000; }
 function momentos() {
   for (const f of E.efectos) {
     if (f.id <= vistoMom) continue; vistoMom = f.id;
-    if (f.t !== 'contacto' && f.t !== 'velo') continue;
-    const A = E.civs[f.a], B = E.civs[f.b], el = $('#momento');
-    el.innerHTML = f.t === 'velo' ? `<div class="t1">🌫️ ¡El velo cae!</div><div class="t2">Tras ${E.velo} años de aislamiento, los pueblos pueden encontrarse</div>`
-      : `<div class="t1">🤝 ¡Primer contacto!</div><div class="t2"><span style="color:${A.color}">${A.emblema} ${esc(A.nombre)}</span> y <span style="color:${B.color}">${B.emblema} ${esc(B.nombre)}</span> se descubren · año ${f.año}</div>`;
-    el.classList.add('ver'); clearTimeout(tMom); tMom = setTimeout(() => el.classList.remove('ver'), 5500);
-    if (f.t === 'contacto') O.volar(ESC.posCelda(f.celda), 42);
-    // un respiro: se baja a ×1 unos segundos para ver el encuentro y luego vuelve la velocidad que había
-    if (vel.indice > 1) { const antes = vel.indice; vel.elegir(1); setTimeout(() => { if (vel.indice === 1) vel.elegir(antes); }, 6000); }
+    if (f.t === 'velo') { momento(`<div class="t1">🌫️ ¡El velo cae!</div><div class="t2">Tras ${E.velo} años de aislamiento, los pueblos pueden encontrarse</div>`); respiro(6); }
+    else if (f.t === 'contacto') { const A = E.civs[f.a], B = E.civs[f.b]; if (!A || !B) continue; if (camGuerra) { aviso(`🤝 Primer contacto: ${A.emblema} ${A.nombre} y ${B.emblema} ${B.nombre}`); continue; } momento(`<div class="t1">🤝 ¡Primer contacto!</div><div class="t2"><span style="color:${A.color}">${A.emblema} ${esc(A.nombre)}</span> y <span style="color:${B.color}">${B.emblema} ${esc(B.nombre)}</span> · año ${f.año}</div>`); O.volar(ESC.posCelda(f.celda), 42); respiro(6); }
+    else if (f.t === 'batalla' && camGuerra) { const cb = E.combates.find((c) => c.id === f.comb); if (!cb) continue; const grande = cb.f0[0] + cb.f0[1]; const actual = E.combates.find((c) => c.id === siguiendoComb); if (!actual || grande > (actual.f0[0] + actual.f0[1]) * 1.2) seguirComb(cb); if (lento && grande > 1500) respiro(8); }
+    else if (f.t === 'caida' && camGuerra && f.arrasada) { const ci = E.ciudades.find((c) => c.celda === f.celda); aviso(`🔥 ¡${ci ? ci.nombre : 'Una ciudad'} es arrasada!`); }
   }
+  if (lentoHasta && performance.now() > lentoHasta) { lentoHasta = 0; if (velAntes != null && vel.indice === 1) vel.elegir(velAntes); velAntes = null; }
 }
 
 // ---------------------------------------------------------------- bucle
 O.cada((dt, t) => {
-  const pausado = !E || creadorP.abierto || finP.abierto;
+  const pausado = !E || creando || modoPoder;
   if (!pausado && mult > 0) {
     acum += dt * mult; let n = 0; const t0 = performance.now();
-    while (acum >= 1 && n < 60) { S.paso(E); acum -= 1; n++; momentos(); if (E.fin && !E.finVisto) { acum = 0; mostrarFin(); break; } if (performance.now() - t0 > 24) { acum = Math.min(acum, 1); break; } }
+    while (acum >= 1 && n < 60) { S.paso(E); acum -= 1; n++; momentos(); if (E.fin && !E.finVisto && !E._finAvisado) { E._finAvisado = true; acum = 0; vel.elegir(0); tab = 'pueblos'; vista = null; if (!escritorio()) ponerHoja(1); pintarTodo(true); break; } if (performance.now() - t0 > 22) { acum = Math.min(acum, 1); break; } }
     frac = Math.min(0.999, acum);
-  }
-  const est = E && !creadorP.abierto ? E : previa || E;
+  } else if (E && !creando) momentos();
+  const est = creando ? previa || E : E || previa;
   if (est) ESC.actualizar(est, est === E ? frac : 0, dt, t);
-  O.setHora(12.5 + 8.5 * Math.sin((t / 180) * Math.PI * 2)); // días largos y noches cortas: el sol va y vuelve sin saltos
-  tUI += dt; if (tUI > 0.3) { tUI = 0; pintarUI(); }
+  O.setHora(ESC.eclipse > 0 ? 23 : 12.5 + 8.5 * Math.sin((t / 180) * Math.PI * 2));
+  tUI += dt; if (tUI > 0.35) { tUI = 0; if (!creando) pintarTodo(); else pintarArriba(); vigilarGuerra(); }
   tGuardar += dt; if (tGuardar > 15) { tGuardar = 0; guardar(); }
 });
 
-// ---------------------------------------------------------------- arranque
-const cargado = S.importar(cargarJSON(CLAVE));
-if (cargado) { E = cargado; vistoMom = E.efectos.reduce((m, f) => Math.max(m, f.id), -1); ESC.montar(E); pintarUI(); if (E.fin && !E.finVisto) mostrarFin(); }
-else { previa = S.crearMundo(cfg); ESC.montar(previa); abrirCreador(); }
-if (angosto()) vistaPan = 0; aplicarPaneles();
+// ---------------------------------------------------------------- arranque (las partidas de la versión anterior se migran)
+const crudo = cargarJSON(CLAVE);
+if (crudo && crudo.poderes && crudo.poderes.energia == null) crudo.v = 1;   // la versión anterior tenía «cargas»: se convierte
+let cargado = null; try { cargado = S.importar(crudo); } catch (e) { console.warn('[civilizaciones] no se pudo cargar la partida', e); }
+if (cargado) { E = cargado; vistoMom = E.efectos.reduce((m, f) => Math.max(m, f.id), -1); ESC.montar(E); }
+else { previa = S.crearMundo(cfg); ESC.montar(previa); creando = true; }
+ponerHoja(escritorio() ? 1 : creando ? 2 : 1, false);
+if (creando) pintarCreador();
+pintarTodo(true); encuadre();
 setTimeout(() => { $('#loader').style.opacity = '0'; setTimeout(() => $('#loader').remove(), 600); }, 300);
 window.civ = { get E() { return E; }, S, ESC, O };
 </script>
