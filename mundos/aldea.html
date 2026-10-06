@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b1a17">
+<title>La aldea</title>
+<link rel="stylesheet" href="motor/ui.css">
+<style>
+  .fila { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin: 1px 0; } .fila span { opacity: .7; } .fila b { text-align: right; }
+  .card .estado { font-size: 11.5px; opacity: .85; margin-bottom: 4px; }
+  .lnk { background: none; border: 0; color: #e7c46a; cursor: pointer; font: inherit; font-weight: 600; padding: 0; text-decoration: underline dotted; }
+  .barra button .lbl { margin-left: 4px; }
+  .menu { right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); width: min(260px, calc(100vw - 24px)); }
+  body.panelAbierto .col.der { display: none; }
+  body.sinCols .col { display: none !important; }
+  .ficha .pens { font-style: italic; background: rgba(231,196,106,.1); border-left: 3px solid #e7c46a; padding: 6px 9px; border-radius: 6px; margin: 6px 0; font-size: 12.5px; }
+  .ficha .sub { font-size: 12px; opacity: .8; } .ficha h5 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #e7c46a; margin: 10px 0 4px; font-weight: 600; }
+  .ficha .ahora { font-size: 12.5px; } .ficha .ahora small { display: block; opacity: .7; font-size: 11.5px; margin-top: 1px; }
+  .rasgos { display: flex; flex-wrap: wrap; gap: 4px; } .rasgos span { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 2px 8px; font-size: 11.5px; cursor: help; }
+  .gentes { display: grid; gap: 3px; } .gentes button { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: 9px; padding: 5px 8px; cursor: pointer; font-size: 12px; }
+  .gentes button:hover { border-color: rgba(231,196,106,.6); } .gentes button small { grid-column: 1 / -1; opacity: .65; font-size: 11px; } .gentes .an { font-size: 11px; opacity: .8; }
+  .rel { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 12px; } .rel .pos { color: #8fd17a; } .rel .neg { color: #f07a70; }
+  .mem { list-style: none; display: grid; gap: 2px; font-size: 11.5px; } .mem .pos { color: #a8dc96; } .mem .neg { color: #f39a90; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 8px; } .tabs button { flex: 1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 5px; cursor: pointer; font-size: 12px; font-weight: 600; } .tabs button.on { background: #e7c46a; color: #1b1a17; }
+  .grafs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .grafs div > span { font-size: 11.5px; opacity: .8; display: flex; justify-content: space-between; margin-bottom: 2px; } .grafs b { opacity: 1; }
+  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; } .nums div { background: rgba(255,255,255,.05); border-radius: 8px; padding: 5px; text-align: center; font-size: 11px; opacity: .9; } .nums b { display: block; font-size: 16px; color: #e7c46a; }
+  .puntos { letter-spacing: 3px; color: #e7c46a; font-size: 15px; }
+  .etq.sel { border: 1px solid rgba(231,196,106,.7); }
+  #loader { pointer-events: none; }
+  @media (max-width: 640px) {
+    .barra { gap: 0; padding: 3px; } .barra button { padding: 6px 6.5px; font-size: 11.5px; } .barra button .lbl { display: none; }
+    .col { height: 30vh; } .grafs { grid-template-columns: 1fr; }
+    .menu { right: 8px; left: 8px; width: auto; bottom: calc(58px + env(safe-area-inset-bottom)); }
+    .panel.centro { top: 8px; transform: translateX(-50%); max-height: calc(100vh - 80px); }
+  }
+</style>
+</head>
+<body>
+<div id="loader">CONSTRUYENDO LA ALDEA…</div>
+<div id="stage"></div>
+<div class="volver"><a href="index.html">← Orbes</a></div>
+<div class="titulo" id="titulo">La aldea</div>
+<div class="col izq" id="colIzq"><div class="card" id="cAldea"></div><div class="card" id="cRec"></div><div class="card" id="cObras"></div></div>
+<div class="col der" id="colDer"><div class="card"><h4>Diario</h4><div id="diario"></div></div></div>
+<div class="panel lado off ficha" id="pFicha"></div>
+<div class="panel lado off" id="pGente"></div>
+<div class="panel lado off" id="pEdif"></div>
+<div class="panel lado off" id="pPoder"></div>
+<div class="panel centro off" id="pCronica"></div>
+<div class="panel menu off" id="pMenu"><div class="ops" id="menuOps"></div></div>
+<div class="etq sel" id="etq" style="display:none"></div>
+<div class="barra" id="barra"></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { crearOrbe, THREE } from './motor/orbe3d.js';
+import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlBarra, htmlGrafica, guardarJSON, cargarJSON } from './motor/ui.js';
+import * as S from './aldea/sim.js';
+import { crearEscenaAldea } from './aldea/escena.js';
+
+const CLAVE = 'orbe-aldea', MIN_POR_SEG = 2;   // ×1 = 2 minutos de juego por segundo: se alcanza a ver caminar a la gente
+let s = S.cargar(cargarJSON(CLAVE));
+const nueva = !s;
+if (!s) s = S.crearAldea((Math.random() * 2 ** 32) >>> 0);
+const O = crearOrbe($('#stage'), { radio: 46, colorSuelo: 0x7fa35a, camara: { target: new THREE.Vector3(0, 2, 0), pos: new THREE.Vector3(36, 50, 74) } });
+const E = crearEscenaAldea(O, s);
+window.aldea = { get s() { return s; }, S, E, O };
+
+// ------------------------------------------------------------ guardado
+const guardar = () => guardarJSON(CLAVE, S.guardar(s));
+addEventListener('pagehide', guardar);
+document.addEventListener('visibilitychange', () => { if (document.hidden) guardar(); });
+if (nueva) guardar();
+
+// ------------------------------------------------------------ barra: velocidades, gente, crónica y menú ⋯
+let mult = 1;
+const barra = $('#barra');
+barraVelocidades(barra, [['⏸', 0], ['×1', 1], ['×5', 5], ['×20', 20], ['×100', 100], ['×500', 500]], 'aldea-vel', 1, (m) => { mult = m; });
+const btn = (html, fn, titulo) => { const b = document.createElement('button'); b.innerHTML = html; b.title = titulo || ''; b.onclick = fn; barra.append(b); return b; };
+const paneles = { ficha: panel($('#pFicha'), { alCerrar: () => { elegir(null); lados(); } }), gente: panel($('#pGente'), { alCerrar: lados }), edif: panel($('#pEdif'), { alCerrar: lados }), poder: panel($('#pPoder'), { alCerrar: lados }), cronica: panel($('#pCronica')), menu: panel($('#pMenu')) };
+function lados() { document.body.classList.toggle('panelAbierto', ['ficha', 'gente', 'edif', 'poder'].some((k) => paneles[k].abierto)); }
+function abrirLado(k) { for (const x of ['ficha', 'gente', 'edif', 'poder']) if (x !== k && paneles[x].abierto) { $(`#p${{ ficha: 'Ficha', gente: 'Gente', edif: 'Edif', poder: 'Poder' }[x]}`).classList.add('off'); } paneles[k].abrir(); paneles.menu.cerrar(); lados(); pintar(true); }
+btn('👥<span class="lbl">Gente</span>', () => (paneles.gente.abierto ? (paneles.gente.cerrar()) : abrirLado('gente')), 'Habitantes');
+btn('📜<span class="lbl">Crónica</span>', () => { paneles.cronica.alternar(); paneles.menu.cerrar(); pintar(true); }, 'Crónica de la aldea');
+btn('⋯', () => paneles.menu.alternar(), 'Más');
+// menú ⋯
+const ops = $('#menuOps');
+const op = (txt, sub, fn) => { const b = document.createElement('button'); b.innerHTML = `${txt}<small>${sub}</small>`; b.onclick = () => { paneles.menu.cerrar(); fn(); }; ops.append(b); return b; };
+op('🏗 Construcciones', 'Edificios, obras y campos', () => abrirLado('edif'));
+op('✨ Poderes del espíritu', 'Influye en la aldea (con medida)', () => abrirLado('poder'));
+op('📖 Diario', 'Mostrar u ocultar el diario', () => { document.body.classList.remove('sinCols'); document.body.classList.toggle('verDer'); });
+op('◧ Paneles', 'Mostrar u ocultar los paneles', () => document.body.classList.toggle('sinCols'));
+op('🎥 Vista general', 'Dejar de seguir y ver todo el orbe', () => { O.seguir(null); O.volar(new THREE.Vector3(0, 2, 0), 105); });
+op('🌱 Nueva aldea', 'Empieza otra con otros colonos (la actual queda de respaldo)', () => { if (!confirm('¿Empezar una aldea nueva? La actual queda guardada como respaldo.')) return; guardarJSON(CLAVE, S.crearAldea((Math.random() * 2 ** 32) >>> 0)); location.reload(); });
+const hd = document.createElement('div'); ops.append(hd); botonCalidad(hd, guardar).className = 'op';
+if (matchMedia('(max-width: 640px)').matches) document.body.classList.add('sinCols');
+
+// ------------------------------------------------------------ elegir y seguir personas
+let selId = null, siguiendo = false;
+function elegir(id) { selId = id; E.elegir(id); if (id == null && siguiendo) { O.seguir(null); siguiendo = false; } }
+function abrirFicha(id) { elegir(id); abrirLado('ficha'); }
+function seguir(id) { if (siguiendo && selId === id) { O.seguir(null); siguiendo = false; } else { elegir(id); siguiendo = true; O.seguir(() => (S.vivo(s, id) ? E.posDe(id) : null), 16); } pintar(true); }
+O.alTocar((ev) => {
+  const id = E.personaEn(ev, s); if (id != null) return abrirFicha(id);
+  const bid = E.edificioEn(ev, s); if (bid == null) return;
+  const b = S.edificio(s, bid), T = S.TIPOS[b.tipo], viven = s.gente.filter((a) => a.hogar === b.id);
+  aviso(`${T.n}${b.hecho ? '' : ` (en obra, ${Math.round(b.p * 100)} %)`}${b.campo && b.hecho ? ` · ${{ barbecho: 'en barbecho', sembrado: `sembrado (${Math.round(b.campo.c * 100)} %)`, maduro: 'listo para cosechar' }[b.campo.e]}` : ''}${viven.length ? ` · viven: ${viven.map((a) => a.nombre).join(', ')}` : T.camas && b.hecho ? ' · vacía' : ''}${b.fuego > 0 ? ' · ¡EN LLAMAS!' : ''}`);
+});
+document.addEventListener('click', (e) => {
+  const p = e.target.closest('[data-p]'); if (p) { abrirFicha(+p.dataset.p); return; }
+  const f = e.target.closest('[data-seguir]'); if (f) seguir(+f.dataset.seguir);
+  const pw = e.target.closest('[data-poder]'); if (pw) { const r = S.usarPoder(s, pw.dataset.poder, selId); aviso(r || `Usaste: ${S.PODERES[pw.dataset.poder].n}`); pintar(true); }
+  const t = e.target.closest('[data-tab]'); if (t) { tabGente = t.dataset.tab; pintar(true); }
+});
+
+// ------------------------------------------------------------ pintar la interfaz
+const fmt = (n) => Math.round(n).toLocaleString('es-CO');
+const edadTxt = (e) => (e < 1 ? `${Math.max(1, Math.round(e * 12))} meses` : `${Math.floor(e)} años`);
+const nomBtn = (a) => `<button class="lnk" data-p="${a.id}">${esc(a.nombre)}</button>`;
+let tabGente = 'vivos', presionado = false;
+for (const id of ['pFicha', 'pGente', 'pEdif', 'pPoder']) { const el = $('#' + id); el.addEventListener('pointerdown', () => { presionado = true; }); }
+addEventListener('pointerup', () => setTimeout(() => { presionado = false; }, 50));
+function estadoTxt() {
+  const c = s.clima, l = [];
+  if (s.amenaza?.tipo === 'bandidos') l.push('⚔ ¡bandidos!'); if (s.edificios.some((b) => b.fuego > 0)) l.push('🔥 incendio');
+  if (s.fiesta) l.push('🎉 fiesta'); if (c.sequia) l.push('☀ sequía'); if (c.lluvia) l.push('🌧 lluvia'); if (c.nieve) l.push('❄ nieva'); if (c.duro && S.fecha(s).est === 3) l.push('🥶 invierno duro');
+  if (s.epidemia > 0 && s.gente.some((a) => a.enf > 0)) l.push('🤒 fiebre'); if (s._racion) l.push('🍞 racionan');
+  return l.join(' · ') || 'En calma';
+}
+function pintar(forzar) {
+  const r = S.resumen(s), f = S.fecha(s);
+  $('#titulo').textContent = `La aldea · ${S.fechaTxt(s)}`;
+  pintarSi($('#cAldea'), `<h4>Aldea</h4><div class="estado">${estadoTxt()}</div>
+    <div class="fila"><span>Habitantes</span><b>${r.pob}</b></div><div class="fila"><span>Adultos · niños · ancianos</span><b>${r.adultos} · ${r.ninos} · ${r.ancianos}</b></div>
+    <div class="fila"><span>Líder</span><b>${r.lider ? nomBtn(r.lider) : '—'}</b></div><div class="fila"><span>Camas</span><b>${r.camas}${r.sinTecho ? ` · ${r.sinTecho} sin techo` : ''}</b></div>
+    ${htmlBarra('Ánimo', r.animo)}${htmlBarra('Salud', r.salud)}${r.enfermos ? `<div class="fila"><span>Enfermos</span><b>${r.enfermos}</b></div>` : ''}`);
+  const R = s.res;
+  pintarSi($('#cRec'), `<h4>Recursos</h4>
+    <div class="fila"><span>Comida (cruda · preparada)</span><b>${fmt(R.alimentos)} · ${fmt(R.comidas)}</b></div>
+    <div class="fila"><span>Alcanza para</span><b>${r.reserva >= 99 ? '99+' : r.reserva.toFixed(1)} días</b></div>
+    <div class="fila"><span>Despensa</span><b>${fmt(R.alimentos + R.comidas)} / ${fmt(r.capacidad)}</b></div>
+    <div class="fila"><span>Madera · piedra</span><b>${fmt(R.madera)} · ${fmt(R.piedra)}</b></div><div class="fila"><span>Herramientas</span><b>${fmt(R.herramientas)}</b></div>
+    ${htmlBarra('Presas', s.fauna)}${htmlBarra('Peces', s.peces)}`);
+  pintarSi($('#cObras'), `<h4>Obras</h4>${r.obras.length ? r.obras.map((b) => htmlBarra(S.TIPOS[b.tipo].n, b.p * 100)).join('') : '<div class="fila"><span>Nada en obra</span></div>'}
+    ${s.meta ? `<div class="estado" style="margin-top:4px">Próximo: ${S.TIPOS[s.meta.tipo].n.toLowerCase()} (${esc(s.meta.motivo)}). Falta ${[s.meta.madera > 0 ? fmt(s.meta.madera) + ' de madera' : '', s.meta.piedra > 0 ? fmt(s.meta.piedra) + ' de piedra' : ''].filter(Boolean).join(' y ')}.</div>` : ''}`);
+  pintarSi($('#diario'), htmlDiario(s.diario, 50));
+  if (presionado && !forzar) return;
+  if (paneles.ficha.abierto) pintarSi($('#pFicha'), htmlFicha(selId));
+  if (paneles.gente.abierto) pintarSi($('#pGente'), htmlGente());
+  if (paneles.edif.abierto) pintarSi($('#pEdif'), htmlEdif());
+  if (paneles.poder.abierto) pintarSi($('#pPoder'), htmlPoder());
+  if (paneles.cronica.abierto) pintarSi($('#pCronica'), htmlCronica());
+}
+const cab = (t) => `<div class="cab"><b>${t}</b><button data-cerrar title="Cerrar">×</button></div>`;
+function htmlFicha(id) {
+  const a = S.vivo(s, id), d = a ? null : S.persona(s, id);
+  if (!a && !d) return cab('—') + '<p class="sub">No se encuentra a esta persona.</p>';
+  const rasgos = (p) => `<div class="rasgos">${p.rasgos.map((k) => `<span title="${esc(S.RASGOS[k].d)}">${S.RASGOS[k].n}</span>`).join('')}</div>`;
+  const fam = (p) => {
+    const l = []; const nm = (id2) => { const x = S.persona(s, id2); return x ? `<button class="lnk" data-p="${x.id}">${esc(x.nombre)}</button>${S.vivo(s, id2) ? '' : ' †'}` : ''; };
+    if (p.pareja) l.push(`<div class="fila"><span>Pareja</span><b>${nm(p.pareja)}</b></div>`);
+    if (p.padres.length) l.push(`<div class="fila"><span>Padres</span><b>${p.padres.map(nm).join(', ')}</b></div>`);
+    if (p.hijos?.length) l.push(`<div class="fila"><span>Hijos</span><b>${p.hijos.map(nm).join(', ')}</b></div>`);
+    return l.join('') || '<div class="sub">Sin familia en la aldea.</div>';
+  };
+  const vida = (p) => `<ul class="diario">${p.vida.map((v) => `<li><span class="d">${esc(v.d)}</span>${esc(v.texto)}</li>`).join('')}</ul>`;
+  if (!a) return cab(`${esc(d.nombre)} ${esc(d.apellido)}`) + `<div class="sub">${d.estado === 'muerto' ? `Murió a los ${Math.floor(d.edad)} años (${esc(d.causa)}), ${esc(d.d)}.` : `Se fue de la aldea a los ${Math.floor(d.edad)} años (${esc(d.causa)}), ${esc(d.d)}.`}</div><h5>Rasgos</h5>${rasgos(d)}<h5>Familia</h5>${fam(d)}<h5>Su vida</h5>${vida(d)}`;
+  const n = a.nec, casa = S.edificio(s, a.hogar), lider = s.lider === a.id;
+  const habs = Object.entries(a.hab).sort((x, y) => y[1] - x[1]);
+  const rel = S.relacionesDe(s, a.id, 7).map(({ p, v }) => `<span>${nomBtn(p)} <small style="opacity:.6">${S.parentesco(s, a, p) || (v >= 40 ? (p.sexo === 'f' ? 'amiga' : 'amigo') : v <= -40 ? 'enemistad' : v > 0 ? 'se llevan bien' : 'roces')}</small></span><b class="${v >= 0 ? 'pos' : 'neg'}">${v > 0 ? '+' : ''}${Math.round(v)}</b>`).join('');
+  return cab(`${esc(a.nombre)} ${esc(a.apellido)}${lider ? ' · líder' : ''}`) + `
+    <div class="sub">${edadTxt(a.edad)} · ${a.sexo === 'f' ? 'mujer' : 'hombre'} · ${esc(S.rolDe(a))}${a.emb > 0 ? ' · embarazada' : ''}${a.enf > 0 ? ' · con fiebre' : ''}</div>
+    <div class="pens">«${esc(S.pensamiento(s, a))}»</div>
+    <div class="ahora"><b>${esc(S.haciendo(s, a))}</b><small>${esc(S.porQue(s, a))}</small></div>
+    <div class="chips" style="margin-top:8px"><button data-seguir="${a.id}" class="${siguiendo && selId === a.id ? 'on' : ''}">${siguiendo && selId === a.id ? '◉ Siguiendo' : '◎ Seguir con la cámara'}</button></div>
+    <h5>Rasgos</h5>${rasgos(a)}
+    <h5>Necesidades</h5>${htmlBarra('Comida', n.saciedad)}${htmlBarra('Energía', n.energia)}${htmlBarra('Compañía', n.social)}${htmlBarra('Ánimo', n.animo)}${htmlBarra('Salud', n.salud)}
+    <div class="fila" style="font-size:12px;margin-top:4px"><span style="opacity:.7">Hogar</span><b>${casa ? S.TIPOS[casa.tipo].n : 'Sin techo'}</b></div><div class="fila" style="font-size:12px"><span style="opacity:.7">Bienes</span><b>${a.bienes.toFixed(1)}</b></div>
+    <h5>Familia</h5>${fam(a)}
+    <h5>Relaciones</h5>${rel ? `<div class="rel">${rel}</div>` : '<div class="sub">Aún no conoce bien a nadie.</div>'}
+    <h5>Habilidades</h5>${a.edad < 8 ? '<div class="sub">Todavía aprende jugando.</div>' : habs.map(([k, v]) => htmlBarra(S.HABS[k], v)).join('')}
+    <h5>Lo que le pesa o le alegra</h5>${a.mem.length ? `<ul class="mem">${a.mem.slice().sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).map((m) => `<li class="${m.v >= 0 ? 'pos' : 'neg'}">${m.v > 0 ? '+' : ''}${m.v} · ${esc(m.txt)}</li>`).join('')}</ul>` : '<div class="sub">Nada en particular.</div>'}
+    <h5>Su vida</h5>${a.vida.length ? vida(a) : '<div class="sub">Su historia apenas empieza.</div>'}`;
+}
+function htmlGente() {
+  const tabs = `<div class="tabs"><button data-tab="vivos" class="${tabGente === 'vivos' ? 'on' : ''}">Habitantes (${s.gente.length})</button><button data-tab="idos" class="${tabGente === 'idos' ? 'on' : ''}">Recordados (${s.difuntos.length + s.idos.length})</button></div>`;
+  if (tabGente === 'idos') {
+    const l = [...s.difuntos, ...s.idos].sort((x, y) => y.id - x.id).slice(0, 80);
+    return cab('Gente') + tabs + `<div class="gentes">${l.map((d) => `<button data-p="${d.id}"><span>${esc(d.nombre)} ${esc(d.apellido)}</span><span class="an">${d.estado === 'muerto' ? '†' : '↗'} ${Math.floor(d.edad)} años</span><small>${esc(d.d)} · ${esc(d.causa)}</small></button>`).join('') || '<div class="sub">Nadie todavía.</div>'}</div>`;
+  }
+  const l = s.gente.slice().sort((x, y) => (y.id === s.lider) - (x.id === s.lider) || y.edad - x.edad);
+  const cara = (v) => (v >= 70 ? '😊' : v >= 45 ? '🙂' : v >= 28 ? '😐' : '😟');
+  return cab('Gente') + tabs + `<div class="gentes">${l.map((a) => `<button data-p="${a.id}"><span>${esc(a.nombre)} ${esc(a.apellido)}${a.id === s.lider ? ' ★' : ''}</span><span class="an">${cara(a.nec.animo)} ${edadTxt(a.edad)}</span><small>${esc(S.rolDe(a))} · ${esc(S.haciendo(s, a))}${a.enf > 0 ? ' · 🤒' : ''}${a.hogar == null && a.edad >= 3 ? ' · sin techo' : ''}</small></button>`).join('')}</div>`;
+}
+function htmlEdif() {
+  const cuenta = {}; for (const b of s.edificios) if (b.hecho) cuenta[b.tipo] = (cuenta[b.tipo] || 0) + 1;
+  const campos = s.edificios.filter((b) => b.campo && b.hecho), ce = (e) => campos.filter((b) => b.campo.e === e).length;
+  return cab('Construcciones') + `
+    <h5 style="margin-top:0">Obras</h5>${s.edificios.filter((b) => !b.hecho).map((b) => htmlBarra(S.TIPOS[b.tipo].n, b.p * 100)).join('') || '<div class="sub">Nada en obra.</div>'}
+    ${s.meta ? `<div class="sub" style="margin-top:4px">El consejo quiere ${S.elTipo(s.meta.tipo)} (${esc(s.meta.motivo)}), pero falta material.</div>` : ''}
+    <h5>En pie</h5><div class="grid">${Object.entries(cuenta).map(([k, v]) => `<span>${S.TIPOS[k].n}</span><b>${v}</b>`).join('')}</div>
+    ${campos.length ? `<h5>Campos</h5><div class="grid"><span>Sembrados</span><b>${ce('sembrado')}</b><span>Listos para cosechar</span><b>${ce('maduro')}</b><span>En barbecho</span><b>${ce('barbecho')}</b></div>` : ''}
+    <h5>Cómo crece</h5><div class="sub">El consejo, guiado por el líder, decide qué construir según lo que haga falta (camas, comida, agua, herramientas, defensa, fe) y el carácter del líder. Si falta madera o piedra, la gente se pone a talar o picar.</div>`;
+}
+function htmlPoder() {
+  const sel = selId != null && S.vivo(s, selId);
+  return cab('Poderes del espíritu') + `<div class="sub">Eres el espíritu del orbe. Tu influencia es poca: se recupera con cada estación (más rápido si hay templo y fe).</div>
+    <div class="fila" style="margin:8px 0"><span>Influencia</span><b class="puntos">${'●'.repeat(Math.floor(s.esp.influencia))}${'○'.repeat(Math.max(0, 6 - Math.floor(s.esp.influencia)))}</b></div>${htmlBarra('Fe de la aldea', s.esp.fe)}
+    <div class="ops" style="margin-top:10px">${Object.entries(S.PODERES).map(([k, P]) => `<button data-poder="${k}" ${s.esp.influencia < P.costo || (k === 'inspirar' && !sel) ? 'disabled' : ''}>${P.n} · ${'●'.repeat(P.costo)}<small>${esc(P.d)}${k === 'inspirar' ? (sel ? ` (a ${esc(sel.nombre)})` : ' Toca primero a alguien.') : ''}</small></button>`).join('')}</div>`;
+}
+function htmlCronica() {
+  const H = s.hist, c = s.cont, f = S.fecha(s), ult = (l) => (l.length ? l[l.length - 1] : 0);
+  const g = (t, d, col) => `<div><span>${t}<b>${fmt(ult(d))}</b></span>${htmlGrafica([{ datos: d, color: col }], 58)}</div>`;
+  return cab(`Crónica · ${f.anio} año${f.anio > 1 ? 's' : ''}`) + `
+    <div class="nums"><div><b>${c.nacimientos}</b>nacimientos</div><div><b>${c.muertes}</b>muertes</div><div><b>${c.parejas}</b>parejas</div><div><b>${c.llegadas}</b>llegadas</div><div><b>${c.partidas}</b>partidas</div><div><b>${c.lideres}</b>líderes</div></div>
+    <div class="grafs">${g('Población', H.pob, '#e7c46a')}${g('Comida guardada', H.comida, '#7cc36a')}${g('Ánimo promedio', H.animo, '#6aa8e0')}${g('Construcciones', H.casas, '#c49a7a')}</div>
+    <h5 style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#e7c46a;margin:12px 0 5px">Hitos</h5>
+    <ul class="diario">${s.hitos.slice(0, 60).map((h) => `<li class="logro"><span class="d">${esc(h.d)}</span>${esc(h.texto)}</li>`).join('')}</ul>`;
+}
+
+// ------------------------------------------------------------ avisos de lo importante y etiqueta de la persona elegida
+let visto = s.diario[0];
+function avisosNuevos() {
+  const nuevos = []; for (const x of s.diario) { if (x === visto) break; nuevos.push(x); } visto = s.diario[0];
+  for (const x of nuevos.filter((x) => x.tipo === 'logro' || x.tipo === 'malo').slice(0, 2).reverse()) aviso(x.texto);
+}
+const etq = $('#etq');
+function etiqueta() {
+  const a = selId != null && S.vivo(s, selId), p = a && !a.dentro && E.posDe(selId);
+  if (!p) { etq.style.display = 'none'; return; }
+  const q = O.proyectar(p.add(new THREE.Vector3(0, 1.3 * (a.edad < 15 ? 0.6 : 1), 0)));
+  etq.style.display = q.visible ? '' : 'none'; etq.style.left = q.x + 'px'; etq.style.top = q.y + 'px'; etq.textContent = a.nombre;
+}
+
+// ------------------------------------------------------------ bucle
+let tUI = 0, tGuardar = 0;
+O.cada((dt) => {
+  if (mult) S.avanzar(s, dt * mult * MIN_POR_SEG);
+  O.setHora(S.horaDe(s) + s.resto / 60, { nublado: s.clima.lluvia > 0 || s.clima.nieve > 0 ? 0.7 : 0 });
+  E.actualizar(s, dt, mult);
+  etiqueta();
+  tUI += dt; if (tUI > 0.4) { tUI = 0; pintar(); avisosNuevos(); }
+  tGuardar += dt; if (tGuardar > 15) { tGuardar = 0; guardar(); }
+});
+pintar(true);
+$('#loader').style.opacity = '0'; setTimeout(() => $('#loader').remove(), 700);
+aviso(nueva ? 'Nace una aldea nueva. Toca a una persona para ver su ficha y seguirla.' : `Bienvenido de vuelta: ${S.fechaTxt(s, false)}.`, 5200);
+</script>
+</body>
+</html>

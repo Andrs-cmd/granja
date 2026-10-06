@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Arena de quimeras</title>
+<link rel="stylesheet" href="motor/ui.css">
+<style>
+  body { background: radial-gradient(ellipse at 50% 45%, #e6dccb 0%, #c9b79a 42%, #4e4234 100%); user-select: none; }
+  .hud { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; background: rgba(18,16,20,.78); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 6px 12px; width: min(620px, calc(100vw - 200px)); }
+  .hud .lado { flex: 1; min-width: 0; } .hud .lado.b { text-align: right; }
+  .hud .lado b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; } .hud .lado small { opacity: .7; font-size: 10.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud u { display: block; height: 8px; border-radius: 5px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 3px; text-decoration: none; } .hud u i { display: block; height: 100%; background: linear-gradient(90deg, #e0574f, #e3b04b 45%, #7cc36a); background-size: 220% 100%; transition: width .25s; }
+  .hud .lado.b u i { margin-left: auto; }
+  .hud .vs { text-align: center; font-weight: 800; color: #e7c46a; font-size: 13px; } .hud .vs small { display: block; font: 600 11px ui-monospace, monospace; color: #f1eee8; opacity: .8; }
+  .hud .st { font-size: 11px; min-height: 14px; } .hud.idle { justify-content: center; gap: 16px; font-size: 12.5px; } .hud.idle b { color: #e7c46a; }
+  .etq { text-align: center; padding: 3px 7px 4px; } .etq u { display: block; width: 64px; height: 4px; margin: 2px auto 0; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; text-decoration: none; } .etq u i { display: block; height: 100%; background: #7cc36a; } .etq u i.mid { background: #e3b04b; } .etq u i.low { background: #e0574f; } .etq .st { font-size: 10px; }
+  .flot { position: fixed; z-index: 3; pointer-events: none; font: 800 15px/1 system-ui, sans-serif; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.8), 0 0 2px #000; transform: translate(-50%, -50%); animation: sube 1.1s ease-out forwards; white-space: nowrap; }
+  .flot.crit { font-size: 24px; color: #ffd84a; } .flot.esq { font-size: 12px; color: #bcd8ff; font-weight: 600; } .flot.ven { color: #8cf06a; font-size: 13px; } .flot.san { color: #ff6a5a; font-size: 13px; } .flot.hab { font-size: 13px; color: #f0d0ff; letter-spacing: .04em; } .flot.logro { color: #ffd84a; font-size: 16px; }
+  @keyframes sube { 0% { opacity: 0; margin-top: 8px; } 12% { opacity: 1; } 100% { opacity: 0; margin-top: -46px; } }
+  .barra .sep { width: 1px; background: rgba(255,255,255,.18); margin: 4px 3px; } .barra #vels { display: flex; gap: 2px; }
+  .barra button .ic { margin-right: 4px; }
+  .avisos { top: 74px; }
+  .panel h5 { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #e7c46a; margin: 10px 0 5px; font-weight: 600; }
+  .fila { margin-bottom: 7px; } .fila > span { font-size: 11px; opacity: .7; display: block; margin-bottom: 3px; }
+  .chips.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding-bottom: 3px; } .chips.scroll button { white-space: nowrap; }
+  .nomQ { font-size: 19px; font-weight: 800; color: #ffe2a0; margin: 2px 0 6px; } .nomQ small { font-size: 11.5px; font-weight: 500; color: #f1eee8; opacity: .7; margin-left: 6px; }
+  .habs { display: grid; gap: 3px; font-size: 11.5px; } .habs div b { color: #f0d0ff; } .habs div span { opacity: .7; } .habs .pas b { color: #9fd8ff; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .cria { border: 1px solid rgba(255,255,255,.1); border-radius: 11px; padding: 8px 10px; margin-bottom: 7px; } .cria .top { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; } .cria .top b { font-size: 13.5px; color: #ffe2a0; }
+  .cria .meta { font-size: 11px; opacity: .75; margin: 2px 0 4px; } .cria .tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; } .cria .tags i { font-style: normal; font-size: 10.5px; padding: 1px 7px; border-radius: 99px; background: rgba(255,255,255,.08); } .cria .tags i.h { background: rgba(224,87,79,.25); } .cria .tags i.c { background: rgba(160,160,160,.2); } .cria .tags i.t { background: rgba(180,138,224,.25); }
+  .cria .acc { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; } .cria .acc button { font-size: 11px; padding: 4px 9px; border-radius: 99px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); cursor: pointer; }
+  .sel { border-color: rgba(231,196,106,.85) !important; background: rgba(231,196,106,.1); }
+  .lista { display: grid; gap: 5px; max-height: 210px; overflow-y: auto; } .lista button { text-align: left; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 9px; padding: 6px 9px; cursor: pointer; font-size: 12px; } .lista button small { opacity: .65; display: block; font-size: 10.5px; }
+  .cuota { font-size: 12px; padding: 7px 9px; border-radius: 9px; background: rgba(255,255,255,.05); margin: 8px 0; }
+  .acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .llaves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 11px; } .llaves .ronda > b { display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #e7c46a; margin-bottom: 4px; }
+  .llaves .par { border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 4px 6px; margin-bottom: 5px; } .llaves .par div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .65; } .llaves .par div.g { opacity: 1; font-weight: 700; color: #ffe2a0; } .llaves .par div.mia::before { content: '★ '; color: #e7c46a; } .llaves .par.ya { border-color: rgba(231,196,106,.8); }
+  .res h3 { font-size: 17px; color: #ffe2a0; margin-bottom: 4px; } .res .grid { margin: 6px 0 8px; }
+  #pMas { right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); width: 230px; } #pMas .ops button { font-size: 12px; padding: 7px 9px; }
+  #pRes { width: min(460px, calc(100vw - 24px)); }
+  .vacio { opacity: .6; font-size: 12px; padding: 6px 0; }
+  .col .card .grid { font-size: 11.5px; }
+  @media (max-width: 640px) {
+    .hud { top: 44px; width: calc(100vw - 16px); padding: 5px 9px; gap: 6px; } .hud .lado b { font-size: 12px; }
+    .avisos { top: 108px; }
+    .barra button { padding: 7px 9px; } .barra button .tx { display: none; } .barra button .ic { margin: 0; }
+    .col.izq, .col.der { display: none; } body.verFicha .col.izq:not(.off) { display: flex; } body.verDiario .col.der:not(.off) { display: flex; }
+    body.verFicha.verDiario .col.der { display: none; }
+    .col { height: 30vh; }
+    .dos { grid-template-columns: 1fr; }
+    .llaves { grid-template-columns: 1fr 1fr 1fr; font-size: 10px; }
+    .panel.lado { max-height: 58vh; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="volver"><a href="index.html">← Orbes</a></div>
+<div class="hud idle" id="hud"></div>
+<div class="col izq off" id="colIzq"></div>
+<div class="col der off" id="colDer"><div class="card"><h4>Diario de la pelea</h4><div id="diario"></div></div></div>
+<div class="barra" id="barra"><span id="vels"></span><i class="sep"></i></div>
+<div class="panel lado off" id="pLab">
+  <div class="cab"><b>Laboratorio de quimeras</b><button data-cerrar>×</button></div>
+  <div id="labNom"></div>
+  <div id="labPartes"></div>
+  <label class="campo"><span>Apodo (opcional)</span><input type="text" id="labApodo" maxlength="18" placeholder="p. ej. Relámpago"></label>
+  <div id="labStats"></div>
+  <div class="acciones"><button class="boton" id="labAzar">🎲 Al azar</button><button class="boton prim" id="labGuardar">Criar y guardar</button></div>
+</div>
+<div class="panel lado off" id="pCombate"></div>
+<div class="panel lado off" id="pTorneo"></div>
+<div class="panel lado off" id="pEstablo"></div>
+<div class="panel lado off" id="pCronica"></div>
+<div class="panel centro off res" id="pRes"></div>
+<div class="panel off" id="pMas"></div>
+<div id="etqs"></div>
+<div id="loader">ARMANDO EL COLISEO…</div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { crearOrbe, THREE, angLerp } from './motor/orbe3d.js';
+import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlBarra, guardarJSON, cargarJSON } from './motor/ui.js';
+import * as S from './quimeras/sim.js';
+import { crearModelo, liberarModelo, animarModelo, crearArena } from './quimeras/escena.js';
+const { HAB, TECNICAS, TEMPERAMENTOS, HERIDAS, PARTES, RANURAS, NOM_RANURA, nomParte, corto, xpPara } = S;
+
+// ---------------------------------------------------------------- estado guardado
+const CLAVE = 'orbe-quimeras';
+let est = cargarJSON(CLAVE);
+if (!est || est.v !== 1 || !Array.isArray(est.establo)) est = S.estadoInicial((Date.now() % 1e9) | 0);
+est.caidos ||= []; est.opc ||= { muerte: true, cine: true };
+const guardar = () => guardarJSON(CLAVE, est);
+guardar();
+const semilla = () => ((est.semilla * 31 + (++est.peleas) * 7919) >>> 0);
+const vivos = () => est.establo.filter((c) => c.viva);
+const rivalesVivos = () => est.rivales.filter((c) => c.viva);
+
+// ---------------------------------------------------------------- orbe y coliseo
+const O = crearOrbe($('#stage'), { radio: 26, colorSuelo: 0x8a7a5a, colorBase: 0x2a1e18, camara: { pos: new THREE.Vector3(0, 19, 31), target: new THREE.Vector3(0, 1.5, 0) } });
+const AR = crearArena(O);
+let mult = 1;
+barraVelocidades($('#vels'), [['⏸', 0], ['×1', 1], ['×2', 2], ['×4', 4]], 'quimeras-vel', 1, (m) => { mult = m; });
+const barra = $('#barra');
+const btn = (ic, tx, fn, titulo) => { const b = document.createElement('button'); b.innerHTML = `<span class="ic">${ic}</span><span class="tx">${tx}</span>`; b.title = titulo || tx; b.onclick = fn; barra.append(b); return b; };
+btn('⚔', 'Combate', () => abrirPanel('combate'), 'Preparar un combate');
+btn('🏆', 'Torneo', () => abrirPanel('torneo'), 'Torneo de 8 con llaves');
+btn('🧪', 'Laboratorio', () => abrirPanel('lab'), 'Crear una quimera');
+btn('⋯', '', () => { pMas.alternar(); pintarMas(); }, 'Más opciones');
+
+const pLab = panel($('#pLab'), { alCerrar: salirLab }), pCombate = panel($('#pCombate')), pTorneo = panel($('#pTorneo')), pEstablo = panel($('#pEstablo'), { alCerrar: () => { verCria = null; } }), pCronica = panel($('#pCronica')), pRes = panel($('#pRes'), { alCerrar: () => { if (combate && ctx?.cerrado) modoReposo(); } }), pMas = panel($('#pMas'));
+const PANELES = { lab: pLab, combate: pCombate, torneo: pTorneo, establo: pEstablo, cronica: pCronica };
+function abrirPanel(n) {
+  for (const [k, p] of Object.entries(PANELES)) if (k !== n && p.abierto) p.cerrar();
+  pMas.cerrar(); if (pRes.abierto) pRes.cerrar();
+  if (n === 'lab') { if (combate && !ctx?.cerrado) return aviso('Espera a que termine la pelea.'); entrarLab(); }
+  if (n === 'combate') { if (combate && !combate.fin) return aviso('Ya hay una pelea en curso.'); prepCombate.sel = null; pintarCombate(); }
+  if (n === 'torneo') pintarTorneo();
+  if (n === 'establo') pintarEstablo();
+  if (n === 'cronica') pintarCronica();
+  PANELES[n].abrir();
+}
+
+// ---------------------------------------------------------------- actores en la arena
+const etqs = $('#etqs');
+let combate = null, ctx = null, actores = [], tAnim = 0, hora = 16.5;
+function limpiarActores() { for (const a of actores) { liberarModelo(a.M); a.etq?.remove(); } actores = []; }
+function actor(cr, x, z, ang, conEtq = true) {
+  const M = crearModelo(cr); M.g.position.set(x, 0, z); M.g.rotation.y = ang; M.g.userData.id = cr.id; O.mundo.add(M.g);
+  let etq = null; if (conEtq) { etq = document.createElement('div'); etq.className = 'etq'; etqs.append(etq); }
+  const a = { cr, M, etq, x, z, ang, anim: 'quieto', rap: 0, obj: null, pausa: 1 + Math.random() * 2 }; actores.push(a); return a;
+}
+// en reposo: tus quimeras pasean por la arena (se ve quién está herido: cojea y va más lento)
+function modoReposo() {
+  combate = null; ctx = null; limpiarActores(); O.seguir(null);
+  vivos().sort((a, b) => b.fama - a.fama || b.nivel - a.nivel).slice(0, 3).forEach((cr, i) => actor(cr, Math.cos(i * 2.1) * 5, Math.sin(i * 2.1) * 5, i));
+  pintarHud(); pintarCols();
+}
+const ESTADO_IC = { veneno: ['🟢', 'Envenenado'], sangrado: ['🩸', 'Sangrando'], aturdido: ['💫', 'Aturdido'], miedo: ['😱', 'Asustado'], vuelo: ['🪽', 'Volando'], ceguera: ['🌑', 'Cegado'], lento: ['🕸', 'Enredado'], atrapado: ['⛓', 'Atrapado'], escudo: ['🛡', 'En su caparazón'], furia: ['🔥', 'Enfurecido'], agarrando: ['🤼', 'Apretando'] };
+const iconos = (L) => Object.keys(L.ef).map((k) => ESTADO_IC[k] ? `<span title="${ESTADO_IC[k][1]}">${ESTADO_IC[k][0]}</span>` : '').join('');
+const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+// ---------------------------------------------------------------- combate en vivo
+let diario = [];
+function iniciarCombate(a, b, tipo, extra = {}) {
+  [pCombate, pTorneo, pLab, pEstablo, pCronica, pRes, pMas].forEach((p) => p.abierto && p.cerrar());
+  limpiarActores(); preview = null;
+  combate = S.crearCombate(a, b, semilla());
+  ctx = { tipo, finT: 0, cerrado: false, ...extra };
+  combate.L.forEach((L) => actor(L.cr, L.x, L.z, L.ang));
+  hora = tipo === 'torneo' ? 16.5 + est.torneo.ronda * 0.8 : 12 + (est.jornada % 5) * 1.0; O.setHora(hora);   // de día se ve bien la pelea; los torneos cierran al atardecer
+  diario = [{ texto: `${S.nombreDe(a)} (nv ${a.nivel}, ${TEMPERAMENTOS[a.temp].nom.toLowerCase()}) contra ${S.nombreDe(b)} (nv ${b.nivel}, ${TEMPERAMENTOS[b.temp].nom.toLowerCase()}).`, tipo: 'logro', d: '0:00' }];
+  if (ctx.apuesta) diario.unshift({ texto: `Apostaste ${ctx.apuesta.monto} 🪙 por ${corto(ctx.apuesta.lado ? b : a)} a ×${ctx.apuesta.cuota.toFixed(2)}.`, tipo: '', d: '0:00' });
+  $('#colIzq').classList.remove('off'); $('#colDer').classList.remove('off');
+  const cel = innerWidth < 640; cortar(new THREE.Vector3(0, 1.5, 0), cel ? [20, 17, 7] : [0, 12.5, 15.5]); // en vertical se mira de lado: los dos luchadores caben
+  if (est.opc.cine) O.seguir(() => centroPelea(), cel ? 27 : 20);
+  if (mult === 0) aviso('Está en pausa: dale ×1 para que empiece.');
+}
+const _c = new THREE.Vector3();
+// corte de cámara: en vez de volar desde un ángulo cualquiera (que podía quedar tras el muro), salta a un plano alto y limpio
+function cortar(obj, off) { O.seguir(null); O.controls.target.copy(obj); O.camera.position.set(obj.x + off[0], obj.y + off[1], obj.z + off[2]); O.controls.update(); }
+function centroPelea() { if (!actores.length) return null; const [a, b] = actores; _c.set((a.M.g.position.x + (b || a).M.g.position.x) / 2, 1.6, (a.M.g.position.z + (b || a).M.g.position.z) / 2); return _c; }
+function flotante(a, texto, clase = '') {
+  if (!a) return; const p = O.proyectar(new THREE.Vector3(a.M.g.position.x, a.M.alto + a.M.alt * 0.9, a.M.g.position.z)); if (!p.visible) return;
+  const d = document.createElement('div'); d.className = 'flot ' + clase; d.textContent = texto; d.style.left = p.x + (Math.random() - 0.5) * 30 + 'px'; d.style.top = p.y + 'px'; document.body.append(d); setTimeout(() => d.remove(), 1150);
+}
+function procesar(e) {
+  const A = actores[e.de], B = actores[e.a], LB = combate.L[e.a];
+  if (e.texto) diario.unshift({ texto: e.texto, d: fmtT(e.t), tipo: e.tipo === 'fin' || e.crit ? 'logro' : e.tipo === 'golpe' && e.ef?.length ? 'malo' : '' });
+  if (diario.length > 60) diario.length = 60;
+  switch (e.tipo) {
+    case 'golpe': flotante(B, e.crit ? `¡−${e.dano}!` : `−${e.dano}`, e.crit ? 'crit' : ''); if (LB && e.dano > LB.max * 0.12) AR.mancha(LB.x, LB.z, 0.4); break;
+    case 'esquiva': flotante(B, 'esquiva', 'esq'); break;
+    case 'dot': flotante(B, `−${e.dano}`, e.estado === 'veneno' ? 'ven' : 'san'); break;
+    case 'grito': case 'vuelo': case 'escudo': case 'carga': flotante(A, HAB[e.h || (e.tipo === 'vuelo' ? 'vuelo' : 'caparazon')]?.nom.toUpperCase() || '', 'hab'); break;
+    case 'estado': flotante(B, HAB[e.h].nom, 'hab'); break;
+    case 'aliento': flotante(B, '¡Segundo aliento!', 'logro'); break;
+    case 'sangre': aviso(e.texto); break;
+    case 'fin': { AR.ola(); const P = combate.L[e.a]; if (combate.fin.motivo === 'ko') AR.mancha(P.x, P.z, 1); aviso(e.texto); if (est.opc.cine) O.seguir(() => actores[e.de] ? actores[e.de].M.g.position.clone().setY(1.6) : null, 14); break; }
+  }
+}
+function cerrarCombate() {
+  ctx.cerrado = true;
+  const r = S.azar(semilla() ^ 0x5bd1e995), f = combate.fin, G = combate.L[f.ganador].cr, P = combate.L[1 - f.ganador].cr;
+  const oficial = ctx.tipo !== 'amistoso';
+  const lineas = S.aplicarResultado(est, combate, r, { muerte: oficial && est.opc.muerte, bolsa: ctx.tipo === 'oficial' ? 15 + 5 * P.nivel : 0 });
+  if (ctx.apuesta) {
+    if (ctx.apuesta.lado === f.ganador) { const g = Math.round(ctx.apuesta.monto * ctx.apuesta.cuota); est.monedas += g; lineas.unshift({ texto: `¡Ganaste la apuesta! +${g} 🪙`, tipo: 'bueno' }); }
+    else lineas.unshift({ texto: `Perdiste la apuesta (−${ctx.apuesta.monto} 🪙).`, tipo: 'malo' });
+  }
+  est.historial.unshift(S.resumen(est, combate, ctx.tipo));
+  registrarMuertes([G, P]);
+  let titulo = `Gana ${S.nombreDe(G)}`;
+  if (ctx.tipo === 'torneo') { (est.torneo.log ||= []).unshift({ texto: `${corto(G)} vence a ${corto(P)}${P.viva ? '' : ' ☠'} (${fmtT(f.t)})`, tipo: G.dueno === 'tú' ? 'bueno' : P.dueno === 'tú' ? 'malo' : '' }); lineas.push(...pasoTorneo(G.id, r)); }
+  else lineas.push(...S.avanzarJornada(est, r));
+  noticias(lineas);
+  guardar();
+  mostrarResultado(titulo, f, lineas);
+}
+// las muertes salen del establo y quedan en la memoria del coliseo
+function registrarMuertes(lista) {
+  for (const cr of lista) if (!cr.viva && !est.caidos.some((x) => x.id === cr.id)) {
+    est.caidos.unshift({ id: cr.id, nombre: S.nombreDe(cr), dueno: cr.dueno, nivel: cr.nivel, v: cr.v, d: cr.d, j: est.jornada, por: cr.murio?.por || '¿?', partes: cr.partes });
+    est.cronica.unshift({ j: est.jornada, tipo: 'muerte', texto: `☠ Cayó ${S.nombreDe(cr)} (nv ${cr.nivel}, ${cr.v}-${cr.d}) de ${cr.dueno}, a manos de ${cr.murio?.por}.` });
+  }
+  est.establo = est.establo.filter((c) => c.viva); est.rivales = est.rivales.filter((c) => c.viva);
+  est.caidos.length = Math.min(est.caidos.length, 60); est.cronica.length = Math.min(est.cronica.length, 120);
+}
+function noticias(lineas) { for (const l of lineas) if (l.rival || /Llega a la arena/.test(l.texto)) est.cronica.unshift({ j: est.jornada, tipo: 'noticia', texto: l.texto }); }
+function mostrarResultado(titulo, f, lineas) {
+  const [A, B] = combate.L, mot = { ko: 'por nocaut', rendicion: 'por rendición', tiempo: 'por puntos' }[f.motivo];
+  const html = `<div class="cab"><b>Resultado</b><button data-cerrar>×</button></div><h3>${esc(titulo)}</h3><div style="opacity:.75;font-size:12px">${mot} · ${fmtT(f.t)}</div>
+    <div class="grid"><span></span><b style="text-align:left">${esc(A.nom)} · ${esc(B.nom)}</b><span>Daño hecho</span><b>${f.hecho[0]} · ${f.hecho[1]}</b><span>Críticos</span><b>${f.crits[0]} · ${f.crits[1]}</b><span>Esquivas</span><b>${f.esq[0]} · ${f.esq[1]}</b><span>Vida final</span><b>${Math.max(0, Math.round(f.vida[0] * 100))} % · ${Math.max(0, Math.round(f.vida[1] * 100))} %</b></div>
+    <h5>Consecuencias</h5>${htmlDiario(lineas, 30)}
+    <div class="acciones">${ctx.tipo === 'torneo' && est.torneo && est.torneo.campeon == null ? '<button class="boton prim" data-acc="verTorneo">Siguiente en el torneo</button>' : ''}${ctx.tipo !== 'torneo' && A.cr.viva && B.cr.viva ? '<button class="boton" data-acc="revancha">Revancha</button>' : ''}<button class="boton ${ctx.tipo === 'torneo' && est.torneo ? '' : 'prim'}" data-acc="seguir">Continuar</button></div>`;
+  $('#pRes').innerHTML = html; pRes.abrir();
+}
+$('#pRes').addEventListener('click', (e) => {
+  const acc = e.target.closest('[data-acc]')?.dataset.acc; if (!acc) return;
+  const par = combate ? [combate.L[0].cr, combate.L[1].cr] : null, tipo = ctx?.tipo;
+  pRes.cerrar(); modoReposo();
+  if (acc === 'verTorneo') abrirPanel('torneo');
+  if (acc === 'revancha' && par) iniciarCombate(par[0], par[1], tipo);
+});
+
+// ---------------------------------------------------------------- preparar combate (con apuesta)
+const prepCombate = { mio: null, rival: null, apuesta: 0, lado: 0, p: null };
+function pintarCombate() {
+  const P = prepCombate, mios = vivos();
+  if (!mios.some((c) => c.id === P.mio)) P.mio = mios[0]?.id ?? null;
+  const rivs = [...rivalesVivos().sort((a, b) => a.nivel - b.nivel), ...mios.filter((c) => c.id !== P.mio)];
+  if (!rivs.some((c) => c.id === P.rival)) P.rival = rivalesVivos()[0]?.id ?? null;
+  const a = S.buscar(est, P.mio), b = S.buscar(est, P.rival);
+  if (a && b && (P.p == null || P.pk !== a.id + ':' + b.id)) { P.p = S.probVictoria(a, b, 20, est.peleas + 11); P.pk = a.id + ':' + b.id; }
+  const amistoso = b && b.dueno === 'tú', cuota = (lado) => Math.max(1.1, 0.94 / (lado ? 1 - P.p : P.p));
+  const item = (c, campo) => `<button class="${P[campo] === c.id ? 'sel' : ''}" data-${campo}="${c.id}">${esc(S.nombreDe(c))} · nv ${c.nivel}${c.heridas.length ? ' 🩹' : ''}<small>${c.dueno === 'tú' ? 'tuya' : esc(c.dueno)} · ${TEMPERAMENTOS[c.temp].nom} · ${c.v}-${c.d} · fama ${c.fama}</small></button>`;
+  pintarSi($('#pCombate'), `<div class="cab"><b>Preparar combate</b><button data-cerrar>×</button></div>
+    ${mios.length ? '' : '<div class="vacio">No tienes quimeras vivas: crea una en el 🧪 Laboratorio.</div>'}
+    <div class="dos"><div><h5>Tu luchador</h5><div class="lista">${mios.map((c) => item(c, 'mio')).join('')}</div></div>
+    <div><h5>Rival</h5><div class="lista">${rivs.map((c) => item(c, 'rival')).join('')}</div></div></div>
+    ${a && b ? `<div class="cuota">Probabilidad estimada de ${esc(corto(a))}: <b>${Math.round(P.p * 100)} %</b>${amistoso ? '<br>Combate de entrenamiento entre tus quimeras: sin muertes, sin bolsa.' : `<br>Bolsa si ganas: ${15 + 5 * b.nivel} 🪙 · ${est.opc.muerte ? '☠ muerte permanente activa' : 'sin muertes'}`}</div>
+    ${amistoso ? '' : `<h5>Apuesta (tienes ${est.monedas} 🪙)</h5><div class="chips">${[0, 10, 25, 50, 100].map((m) => `<button class="${P.apuesta === m ? 'on' : ''}" data-apuesta="${m}" ${m > est.monedas ? 'disabled' : ''}>${m ? m + ' 🪙' : 'Sin apuesta'}</button>`).join('')}</div>
+    ${P.apuesta ? `<div class="chips" style="margin-top:6px">${[0, 1].map((l) => `<button class="${P.lado === l ? 'on' : ''}" data-lado="${l}">Por ${esc(corto(l ? b : a))} ×${cuota(l).toFixed(2)}</button>`).join('')}</div>` : ''}`}
+    <div class="acciones"><button class="boton prim" data-acc="pelear">¡A la arena!</button><button class="boton" data-acc="azar">Rival al azar</button></div>` : ''}`);
+  P.cuota = a && b ? cuota(P.lado) : 1;
+}
+$('#pCombate').addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return; const P = prepCombate, d = t.dataset;
+  if (d.mio) P.mio = +d.mio; if (d.rival) P.rival = +d.rival; if (d.apuesta) P.apuesta = Math.min(+d.apuesta, est.monedas); if (d.lado) P.lado = +d.lado;
+  if (d.acc === 'azar') { const rv = rivalesVivos(); P.rival = rv[Math.floor(Math.random() * rv.length)]?.id; }
+  if (d.acc === 'pelear') {
+    const a = S.buscar(est, P.mio), b = S.buscar(est, P.rival); if (!a || !b) return;
+    const amistoso = b.dueno === 'tú', ap = !amistoso && P.apuesta > 0 ? { monto: P.apuesta, lado: P.lado, cuota: P.cuota } : null;
+    if (ap) { est.monedas -= ap.monto; guardar(); }
+    iniciarCombate(a, b, amistoso ? 'amistoso' : 'oficial', { apuesta: ap }); return;
+  }
+  pintarCombate();
+});
+
+// ---------------------------------------------------------------- torneo
+const prepTorneo = { sel: new Set() };
+function pintarTorneo() {
+  const T = est.torneo;
+  if (!T) {
+    const mios = vivos(); if (!prepTorneo.sel.size) mios.slice(0, 4).forEach((c) => prepTorneo.sel.add(c.id));
+    for (const id of [...prepTorneo.sel]) if (!mios.some((c) => c.id === id)) prepTorneo.sel.delete(id);
+    pintarSi($('#pTorneo'), `<div class="cab"><b>Nuevo torneo</b><button data-cerrar>×</button></div>
+      <div style="font-size:12px;opacity:.8">Ocho quimeras, eliminación directa. Las heridas se arrastran entre rondas. Premio al campeón: 150 🪙 y mucha fama.</div>
+      <h5>Inscribe tus quimeras (${prepTorneo.sel.size}/8)</h5><div class="lista">${mios.map((c) => `<button class="${prepTorneo.sel.has(c.id) ? 'sel' : ''}" data-ins="${c.id}">${prepTorneo.sel.has(c.id) ? '✔ ' : ''}${esc(S.nombreDe(c))} · nv ${c.nivel}${c.heridas.length ? ' 🩹' : ''}<small>${TEMPERAMENTOS[c.temp].nom} · ${c.v}-${c.d}</small></button>`).join('') || '<div class="vacio">No tienes quimeras vivas.</div>'}</div>
+      <div style="font-size:11.5px;opacity:.7;margin-top:6px">Los cupos libres los llenan los rivales de nivel parecido.</div>
+      <div class="acciones"><button class="boton prim" data-acc="crear" ${prepTorneo.sel.size ? '' : 'disabled'}>Sortear llaves</button></div>`);
+    return;
+  }
+  const actual = S.peleaActual(T), nom = (id) => { const c = S.buscar(est, id); return c ? corto(c) : (est.caidos.find((x) => x.id === id)?.nombre || '¿?') + ' ☠'; }, mia = (id) => S.buscar(est, id)?.dueno === 'tú';
+  const rondas = [0, 1, 2].map((i) => T.rondas[i] || Array.from({ length: 4 >> i }, () => ({ a: null, b: null, g: null })));
+  pintarSi($('#pTorneo'), `<div class="cab"><b>${esc(T.nombre)}</b><button data-cerrar>×</button></div>
+    <div class="llaves">${rondas.map((R, i) => `<div class="ronda"><b>${['Cuartos', 'Semifinal', 'Final'][i]}</b>${R.map((p) => `<div class="par ${p === actual ? 'ya' : ''}">${[p.a, p.b].map((id) => `<div class="${p.g != null && p.g === id ? 'g' : ''} ${id != null && mia(id) ? 'mia' : ''}">${id == null ? '—' : esc(nom(id))}</div>`).join('')}</div>`).join('')}</div>`).join('')}</div>
+    ${T.campeon != null ? `<h5>Campeón</h5><div class="nomQ">🏆 ${esc(nom(T.campeon))}</div><div class="acciones"><button class="boton prim" data-acc="cerrarT">Archivar torneo</button></div>`
+      : `<h5>Siguiente: ${esc(nom(actual.a))} vs ${esc(nom(actual.b))}</h5><div class="acciones"><button class="boton prim" data-acc="ver">▶ Ver pelea</button><button class="boton" data-acc="sim">⏩ Simular</button><button class="boton" data-acc="simAjenas">⏩ Hasta mi próxima pelea</button></div>`}
+    ${T.log?.length ? `<h5>Resultados</h5>${htmlDiario(T.log, 20)}` : ''}`);
+}
+function pasoTorneo(gid, r) {
+  const T = est.torneo, out = []; S.registrarPelea(T, gid);
+  if (T.campeon != null) {
+    const c = S.buscar(est, T.campeon); c.fama += 12;
+    est.cronica.unshift({ j: est.jornada, tipo: 'campeon', texto: `🏆 ${S.nombreDe(c)} (nv ${c.nivel}, de ${c.dueno}) gana la ${T.nombre}.` });
+    if (c.dueno === 'tú') { est.monedas += 150; out.push({ texto: `🏆 ¡${corto(c)} es campeón! +150 🪙`, tipo: 'logro' }); } else out.push({ texto: `🏆 ${corto(c)} se lleva el torneo.`, tipo: 'logro' });
+    out.push(...S.avanzarJornada(est, r)); AR.ola();
+  }
+  return out;
+}
+function simularPelea() {
+  const T = est.torneo, p = S.peleaActual(T), a = S.buscar(est, p.a), b = S.buscar(est, p.b), r = S.azar(semilla() ^ 0x27d4eb2d);
+  if (!a || !b) { const l = pasoTorneo(a ? a.id : b ? b.id : p.a, r); noticias(l); (T.log ||= []).unshift({ texto: 'Pase directo: el rival no se presentó.', tipo: '' }); return; }
+  const c = S.resolverCombate(a, b, semilla()); S.aplicarResultado(est, c, r, { muerte: est.opc.muerte });
+  const g = c.L[c.fin.ganador].cr, pr = c.L[1 - c.fin.ganador].cr;
+  (T.log ||= []).unshift({ texto: `${corto(g)} vence a ${corto(pr)}${pr.viva ? '' : ' ☠'} (${fmtT(c.fin.t)})`, tipo: g.dueno === 'tú' ? 'bueno' : pr.dueno === 'tú' ? 'malo' : '' });
+  est.historial.unshift(S.resumen(est, c, 'torneo')); registrarMuertes([g, pr]);
+  const l = pasoTorneo(g.id, r); noticias(l); if (l.length) aviso(l[0].texto);
+}
+$('#pTorneo').addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
+  if (d.ins) { const id = +d.ins; prepTorneo.sel.has(id) ? prepTorneo.sel.delete(id) : prepTorneo.sel.size < 8 && prepTorneo.sel.add(id); }
+  if (d.acc === 'crear') {
+    const r = S.azar(semilla()), ids = [...prepTorneo.sel], nv = S.nivelRef(est);
+    const rivs = rivalesVivos().sort((x, y) => Math.abs(x.nivel - nv) - Math.abs(y.nivel - nv));
+    while (rivs.length < 8 - ids.length) { const c = S.aleatoria(est, r, Math.max(1, Math.round(nv)), 'Don Evelio'); est.rivales.push(c); rivs.push(c); }
+    ids.push(...rivs.slice(0, 8 - ids.length).map((c) => c.id));
+    est.torneo = S.crearTorneo(est, ids, r); est.torneo.log = []; guardar(); aviso(`Sorteadas las llaves de la ${est.torneo.nombre}.`);
+  }
+  if (d.acc === 'ver') { if (combate && !ctx?.cerrado) return; const p = S.peleaActual(est.torneo); if (!S.buscar(est, p.a) || !S.buscar(est, p.b)) { simularPelea(); guardar(); pintarTorneo(); return; } iniciarCombate(S.buscar(est, p.a), S.buscar(est, p.b), 'torneo'); return; }
+  if (d.acc === 'sim') { simularPelea(); guardar(); }
+  if (d.acc === 'simAjenas') { let n = 0; while (est.torneo.campeon == null && n++ < 8) { const p = S.peleaActual(est.torneo); if (S.buscar(est, p.a)?.dueno === 'tú' || S.buscar(est, p.b)?.dueno === 'tú') break; simularPelea(); } guardar(); }
+  if (d.acc === 'cerrarT') { est.torneo = null; prepTorneo.sel.clear(); guardar(); }
+  pintarTorneo();
+});
+
+// ---------------------------------------------------------------- laboratorio
+let preview = null; const lab = { partes: null, temp: 'agresivo' };
+const COSTO = 30;
+function entrarLab() {
+  if (!lab.partes) { lab.partes = S.partesAzar(Math.random); lab.temp = S.TEMPS[Math.floor(Math.random() * 3)]; }
+  limpiarActores(); $('#colIzq').classList.add('off'); $('#colDer').classList.add('off');
+  O.seguir(null); hora = 11; O.setHora(hora); armarPreview(); pintarLab(); encuadrarLab();
+}
+// la vista previa queda a un lado del panel (a la izquierda en escritorio, arriba en el celular)
+function encuadrarLab() { const cel = innerWidth < 640; cortar(new THREE.Vector3(cel ? 0 : 2.4, cel ? -3.6 : 1.4, 0), cel ? [0, 7.5, 17] : [0, 3.6, 9.5]); }
+function salirLab() { preview = null; modoReposo(); cortar(new THREE.Vector3(0, 1.5, 0), innerWidth < 640 ? [0, 24, 30] : [0, 19, 27]); }
+function armarPreview() { limpiarActores(); const cr = { id: -1, partes: lab.partes, temp: lab.temp, nivel: 1 }; preview = actor(cr, 0, 0, 0.6, false); }
+const REF = { vida: 450, fuerza: 40, defensa: 40, velocidad: 14, agilidad: 40, alcance: 3 }, NOM_ST = { vida: 'Vida', fuerza: 'Fuerza', defensa: 'Defensa', velocidad: 'Velocidad', agilidad: 'Agilidad', alcance: 'Alcance' };
+const htmlStats = (e) => S.ST.map((k) => htmlBarra(`${NOM_ST[k]} <b style="float:right;margin-left:6px">${k === 'alcance' ? e[k].toFixed(1) : Math.round(e[k])}</b>`, e[k], REF[k])).join('');
+const htmlHabs = (e) => `<div class="habs">${e.habs.filter((h) => h !== 'golpe').map((h) => `<div class="${HAB[h].tipo === 'pasiva' ? 'pas' : ''}"><b>${HAB[h].nom}</b> <span>${HAB[h].desc}</span></div>`).join('') || '<div class="vacio">Solo golpes básicos.</div>'}</div>`;
+function pintarLab() {
+  const cr = { partes: lab.partes, temp: lab.temp, nivel: 1 }, e = S.estadisticas(cr), gratis = !vivos().length;
+  pintarSi($('#labNom'), `<div class="nomQ">${esc(S.nombreQuimera(lab.partes))}<small>potencia ${S.potencia(cr)}</small></div>`);
+  pintarSi($('#labPartes'), RANURAS.map((r) => `<div class="fila"><span>${NOM_RANURA[r]}</span><div class="chips scroll">${PARTES[r].map((p) => `<button class="${lab.partes[r] === p.id ? 'on' : ''}" data-r="${r}" data-id="${p.id}">${esc(nomParte(r, p.id))}</button>`).join('')}</div></div>`).join('')
+    + `<div class="fila"><span>Temperamento</span><div class="chips">${S.TEMPS.map((t) => `<button class="${lab.temp === t ? 'on' : ''}" data-temp="${t}" title="${TEMPERAMENTOS[t].desc}">${TEMPERAMENTOS[t].nom}</button>`).join('')}</div><div style="font-size:11px;opacity:.7;margin-top:3px">${TEMPERAMENTOS[lab.temp].desc}</div></div>`);
+  pintarSi($('#labStats'), `<h5>Estadísticas</h5>${htmlStats(e)}<h5>Habilidades</h5>${htmlHabs(e)}`);
+  $('#labGuardar').textContent = gratis ? 'Criar gratis y guardar' : `Criar y guardar (−${COSTO} 🪙)`;
+  $('#labGuardar').disabled = !gratis && est.monedas < COSTO;
+}
+$('#labPartes').addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.r) { lab.partes = { ...lab.partes, [t.dataset.r]: t.dataset.id }; armarPreview(); }
+  if (t.dataset.temp) lab.temp = t.dataset.temp;
+  pintarLab();
+});
+$('#labAzar').onclick = () => { lab.partes = S.partesAzar(Math.random); lab.temp = S.TEMPS[Math.floor(Math.random() * 3)]; armarPreview(); pintarLab(); };
+$('#labGuardar').onclick = () => {
+  const gratis = !vivos().length; if (!gratis && est.monedas < COSTO) return aviso('No te alcanzan las monedas: gana combates o apuestas.');
+  if (vivos().length >= 12) return aviso('El establo está lleno (12). Libera alguna quimera.');
+  if (!gratis) est.monedas -= COSTO;
+  const c = S.nuevaCriatura(est, lab.partes, lab.temp, 'tú'); c.apodo = $('#labApodo').value.trim().slice(0, 18); est.establo.push(c);
+  est.cronica.unshift({ j: est.jornada, tipo: 'nace', texto: `Nace en tu establo ${S.nombreDe(c)} (${TEMPERAMENTOS[c.temp].nom.toLowerCase()}).` });
+  guardar(); aviso(`¡${S.nombreDe(c)} entra a tu establo!`); $('#labApodo').value = '';
+  lab.partes = S.partesAzar(Math.random); armarPreview(); pintarLab();
+};
+
+// ---------------------------------------------------------------- establo
+let verCria = null;
+function htmlCria(c, completo = false) {
+  const e = S.estadisticas(c);
+  return `<div class="cria ${verCria === c.id ? 'sel' : ''}"><div class="top"><b>${esc(S.nombreDe(c))}</b><span style="font-size:11px">nv ${c.nivel}</span></div>
+    <div class="meta">${TEMPERAMENTOS[c.temp].nom} · ${c.v}-${c.d} (${c.kos} KO) · fama ${c.fama} · nació en la jornada ${c.nacio}</div>
+    ${htmlBarra('XP', c.xp, xpPara(c.nivel))}
+    <div class="tags">${c.tecnicas.map((t) => `<i class="t" title="${TECNICAS[t].desc}">${TECNICAS[t].nom}</i>`).join('')}${c.heridas.map((h) => `<i class="h">🩹 ${HERIDAS[h.tipo].nom} (${h.restan} j)</i>`).join('')}${c.cicatrices.map((h) => `<i class="c">cicatriz: ${HERIDAS[h].nom.toLowerCase()}</i>`).join('')}</div>
+    <div style="font-size:11px;opacity:.7">${RANURAS.map((r) => nomParte(r, c.partes[r])).filter((n) => !/^Ningun/.test(n)).join(' · ')}</div>
+    ${completo ? `<h5>Estadísticas</h5>${htmlStats(e)}<h5>Habilidades</h5>${htmlHabs(e)}` : ''}
+    ${c.dueno === 'tú' ? `<div class="acc"><button data-ver="${c.id}">${verCria === c.id ? 'Ocultar' : 'Ver ficha'}</button><button data-ren="${c.id}">Renombrar</button>${c.heridas.length ? `<button data-cur="${c.id}">Curandero (−20 🪙)</button>` : ''}<button data-lib="${c.id}">Liberar</button></div>` : ''}</div>`;
+}
+function pintarEstablo() {
+  const v = vivos();
+  pintarSi($('#pEstablo'), `<div class="cab"><b>Tu establo (${v.length}/12) · ${est.monedas} 🪙</b><button data-cerrar>×</button></div>${v.map((c) => htmlCria(c, verCria === c.id)).join('') || '<div class="vacio">Vacío. Crea una quimera en el 🧪 Laboratorio (la primera es gratis).</div>'}
+    <h5>Rivales de la arena</h5>${rivalesVivos().sort((a, b) => b.fama - a.fama).map((c) => `<div class="cria"><div class="top"><b>${esc(corto(c))}</b><span style="font-size:11px">nv ${c.nivel}</span></div><div class="meta">de ${esc(c.dueno)} · ${TEMPERAMENTOS[c.temp].nom} · ${c.v}-${c.d} · fama ${c.fama}${c.heridas.length ? ' · 🩹 herido' : ''}</div></div>`).join('')}`);
+}
+$('#pEstablo').addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return; const d = t.dataset, c = S.buscar(est, +(d.ver || d.ren || d.cur || d.lib));
+  if (d.ver) verCria = verCria === c.id ? null : c.id;
+  if (d.ren) { const n = prompt('Nuevo apodo para ' + c.nombre, c.apodo || ''); if (n != null) { c.apodo = n.trim().slice(0, 18); guardar(); } }
+  if (d.cur) { if (est.monedas < 20) return aviso('No te alcanza: el curandero cobra 20 🪙.'); est.monedas -= 20; const h = c.heridas.shift(); aviso(`${corto(c)} sanó de ${HERIDAS[h.tipo].nom.toLowerCase()}.`); guardar(); }
+  if (d.lib && confirm(`¿Liberar a ${S.nombreDe(c)}? Se va para siempre.`)) { est.establo = est.establo.filter((x) => x !== c); est.cronica.unshift({ j: est.jornada, tipo: 'nace', texto: `Liberaste a ${S.nombreDe(c)} (${c.v}-${c.d}).` }); guardar(); if (!combate) modoReposo(); }
+  pintarEstablo();
+});
+
+// ---------------------------------------------------------------- crónica
+function pintarCronica() {
+  const camp = est.cronica.filter((x) => x.tipo === 'campeon');
+  pintarSi($('#pCronica'), `<div class="cab"><b>Crónica del coliseo</b><button data-cerrar>×</button></div>
+    <h5>Campeones</h5>${camp.length ? htmlDiario(camp.map((x) => ({ texto: x.texto, d: 'J' + x.j, tipo: 'logro' })), 20) : '<div class="vacio">Aún no hay campeones. Organiza un 🏆 torneo.</div>'}
+    <h5>Salón de los caídos</h5>${est.caidos.length ? htmlDiario(est.caidos.map((x) => ({ texto: `${x.nombre} (nv ${x.nivel}, ${x.v}-${x.d}, de ${x.dueno}) · lo mató ${x.por}`, d: 'J' + x.j, tipo: x.dueno === 'tú' ? 'malo' : '' })), 30) : '<div class="vacio">Nadie ha muerto todavía.</div>'}
+    <h5>Historial de combates</h5>${htmlDiario(est.historial.map((h) => ({ texto: `${h.g ? h.b : h.a} venció a ${h.g ? h.a : h.b} ${{ ko: 'por KO', rendicion: 'por rendición', tiempo: 'por puntos' }[h.m]} (${h.t} s · ${h.tipo})${h.murio ? ' ☠' : ''}`, d: 'J' + h.j })), 30)}
+    <h5>Noticias</h5>${htmlDiario(est.cronica.filter((x) => x.tipo !== 'campeon').map((x) => ({ texto: x.texto, d: 'J' + x.j, tipo: x.tipo === 'muerte' ? 'malo' : x.tipo === 'nace' ? 'bueno' : '' })), 40)}`);
+}
+
+// ---------------------------------------------------------------- menú «⋯»
+function pintarMas() {
+  pintarSi($('#pMas'), `<div class="ops">
+    <button data-m="establo">🐾 Establo</button><button data-m="cronica">📜 Crónica</button>
+    <button data-m="cine">🎥 Cámara de cine: ${est.opc.cine ? 'sí' : 'no'}</button>
+    <button data-m="muerte">☠ Muerte permanente: ${est.opc.muerte ? 'sí' : 'no'}<small>En combates oficiales y torneos</small></button>
+    <button data-m="ficha">📋 Ficha de luchadores</button><button data-m="diario">🗒 Diario de la pelea</button>
+    <button data-m="hd">🖥 Calidad de imagen (recarga)</button>
+    <button data-m="reset">↺ Empezar de cero</button></div>`);
+}
+$('#pMas').addEventListener('click', (e) => {
+  const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return;
+  if (m === 'establo' || m === 'cronica') return abrirPanel(m);
+  if (m === 'cine') { est.opc.cine = !est.opc.cine; guardar(); if (combate && est.opc.cine) O.seguir(() => centroPelea(), 22); else O.seguir(null); }
+  if (m === 'muerte') { est.opc.muerte = !est.opc.muerte; guardar(); }
+  if (m === 'ficha') { document.body.classList.toggle('verFicha'); document.body.classList.remove('verDiario'); }
+  if (m === 'diario') { document.body.classList.toggle('verDiario'); document.body.classList.remove('verFicha'); }
+  if (m === 'hd') { const b = document.createElement('div'); botonCalidad(b, guardar); b.firstChild.click(); }
+  if (m === 'reset' && confirm('¿Borrar tu establo, tu crónica y empezar de cero?')) { est = S.estadoInicial((Date.now() % 1e9) | 0); est.caidos = []; guardar(); location.reload(); }
+  pintarMas();
+});
+
+// ---------------------------------------------------------------- HUD, fichas y etiquetas
+function pintarHud() {
+  const h = $('#hud');
+  if (!combate) { h.className = 'hud idle'; pintarSi(h, `<span>Jornada <b>${est.jornada}</b></span><span><b>${est.monedas}</b> 🪙</span><span>Establo <b>${vivos().length}</b></span>${est.torneo ? '<span>🏆 torneo en curso</span>' : ''}`); return; }
+  h.className = 'hud';
+  const lado = (L, cls) => `<div class="lado ${cls}"><b>${esc(L.nom)}</b><small>nv ${L.cr.nivel} · ${TEMPERAMENTOS[L.temp].nom.toLowerCase()} · ${L.cr.dueno === 'tú' ? 'tuya' : esc(L.cr.dueno)}</small><u><i style="width:${Math.max(0, L.hp / L.max * 100).toFixed(1)}%;background-position:${(100 - Math.max(0, L.hp / L.max) * 100).toFixed(0)}% 0"></i></u><div class="st">${iconos(L)}</div></div>`;
+  pintarSi(h, `${lado(combate.L[0], 'a')}<div class="vs">VS<small>${fmtT(combate.t)}</small></div>${lado(combate.L[1], 'b')}`);
+}
+function pintarCols() {
+  if (!combate) { $('#colIzq').classList.add('off'); $('#colDer').classList.add('off'); return; }
+  pintarSi($('#colIzq'), combate.L.map((L) => `<div class="card"><h4>${esc(L.nom)}</h4><div class="grid"><span>Vida</span><b>${Math.max(0, Math.round(L.hp))} / ${Math.round(L.max)}</b><span>Daño hecho</span><b>${Math.round(L.hecho)}</b><span>Críticos · esquivas</span><b>${L.crits} · ${L.esq}</b></div>${htmlStats(L.e)}<div class="habs" style="margin-top:4px">${L.e.activas.filter((h) => h !== 'golpe').map((h) => `<div><b>${HAB[h].nom}</b> <span>${(L.cd[h] || 0) > 0 ? `recarga ${Math.ceil(L.cd[h])} s` : 'lista'}</span></div>`).join('')}</div></div>`).join(''));
+  pintarSi($('#diario'), htmlDiario(diario, 40));
+}
+let tPint = 0;
+const _p = new THREE.Vector3();
+function moverEtiquetas() {
+  actores.forEach((a, i) => {
+    if (!a.etq) return; const L = combate?.L[i];
+    _p.set(a.M.g.position.x, a.M.alto + a.M.alt + 0.4, a.M.g.position.z); const p = O.proyectar(_p);
+    a.etq.style.display = p.visible ? '' : 'none'; a.etq.style.left = p.x + 'px'; a.etq.style.top = p.y + 'px';
+    if (L) { const k = Math.max(0, L.hp / L.max); pintarSi(a.etq, `${esc(L.nom)}<u><i class="${k < 0.25 ? 'low' : k < 0.5 ? 'mid' : ''}" style="width:${(k * 100).toFixed(0)}%"></i></u><div class="st">${iconos(L)}</div>`); }
+    else pintarSi(a.etq, `${esc(corto(a.cr))}${a.cr.heridas.length ? ' 🩹' : ''}`);
+  });
+}
+
+// ---------------------------------------------------------------- bucle
+O.cada((dt, t) => {
+  const d = dt * mult; tAnim += d;
+  if (combate) {
+    if (!combate.fin) S.pasoCombate(combate, d);
+    for (const e of combate.ev) procesar(e); combate.ev.length = 0;
+    combate.L.forEach((L, i) => {
+      const a = actores[i]; if (!a) return; const g = a.M.g, k = Math.min(1, d * 12);
+      g.position.x += (L.x - g.position.x) * k; g.position.z += (L.z - g.position.z) * k; g.rotation.y = angLerp(g.rotation.y, L.ang, Math.min(1, d * 10));
+      animarModelo(a.M, { anim: L.anim, animT: L.animT, rap: L.rap, vuela: !!L.ef.vuelo, hab: L.hab, t: tAnim }, d);
+    });
+    if (combate.fin && !ctx.cerrado) { ctx.finT += d; if (ctx.finT > 2.6) cerrarCombate(); }
+  } else {
+    if (mult && !preview) { hora = (hora + d * 0.04) % 24; O.setHora(hora); }
+    for (const a of actores) {
+      if (a === preview) { a.ang += dt * 0.5; a.M.g.rotation.y = a.ang; animarModelo(a.M, { anim: 'quieto', t: tAnim + t }, dt); continue; }
+      // paseo de reposo: elige un punto, camina, se detiene (si está herido va más lento)
+      const vel = a.cr.heridas.length ? 0.7 : 1.5;
+      if (!a.obj) { a.pausa -= d; if (a.pausa <= 0) { const r = Math.random() * (S.ARENA - 3), an = Math.random() * 6.28; a.obj = [Math.cos(an) * r, Math.sin(an) * r]; } a.rap = 0; }
+      else { const dx = a.obj[0] - a.x, dz = a.obj[1] - a.z, dd = Math.hypot(dx, dz); if (dd < 0.3) { a.obj = null; a.pausa = 1 + Math.random() * 4; } else { a.x += dx / dd * vel * d; a.z += dz / dd * vel * d; a.ang = angLerp(a.ang, Math.atan2(dx, dz), Math.min(1, d * 4)); a.rap = vel; } }
+      a.M.g.position.set(a.x, 0, a.z); a.M.g.rotation.y = a.ang; animarModelo(a.M, { anim: a.rap ? 'camina' : 'quieto', rap: a.rap, t: tAnim }, d);
+    }
+  }
+  AR.animar(d, tAnim, combate ? combate.emocion : 0.12, O.luz.noche);
+  moverEtiquetas();
+  tPint += dt; if (tPint > 0.2) { tPint = 0; pintarHud(); if (combate) pintarCols(); if (pTorneo.abierto) pintarTorneo(); }
+});
+O.alTocar((e) => { if (combate || preview) return; const id = O.tocar(e, actores.map((a) => a.M.g)); if (id != null) { verCria = id; abrirPanel('establo'); } });
+
+modoReposo();
+if (est.jornada === 1 && !est.historial.length) setTimeout(() => aviso('Bienvenido a la Arena de quimeras: ⚔ pelea, 🏆 organiza torneos o 🧪 crea tus propias quimeras.', 6000), 900);
+setTimeout(() => { const l = $('#loader'); l.style.opacity = '0'; setTimeout(() => l.remove(), 700); }, 300);
+window.est = () => est; window.O = O;
+</script>
+</body>
+</html>
