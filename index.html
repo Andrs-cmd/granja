@@ -468,6 +468,7 @@ function loop(now) {
       if (t > finEn) { estado = nueva(estado.generacion + 1); finEn = null; guardar(); crearTarjetas(); aviso(`Generación ${estado.generacion}`); }
     }
   } catch (e) { console.warn('[granja] error en el bucle:', e); }
+  escena.ocupado = pendiente > 0;
   try { escena.update(estado, t, dt); fallosEscena = 0; } catch (e) { if (fallosEscena++ === 0) console.warn('[granja] error al dibujar:', e); }
   if (escena.cargada) { const l = document.getElementById('loader'); if (l) { l.style.opacity = 0; setTimeout(() => l.remove(), 600); } }
 }

@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { montarUtileria } from './utileria.js';
 import { armarPerro, armarGato } from './mascotas3d.js';
 import { montarFemenino } from './femenino.js';
+import { crearLotes } from './lotes.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -27,6 +28,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false; let cuadroN = 0;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   host.appendChild(renderer.domElement);
   // capa de etiquetas flotantes (datos) encima del lienzo
@@ -46,6 +48,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   camera.position.set(78, 60, 120);
 
   const root = new THREE.Group(); scene.add(root);
+  const lotes = crearLotes(scene);   // junta lo quieto en pocas mallas (menos llamadas de dibujo)
 
   // ------------------------------------------------------------ luces y paleta
   const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
@@ -463,7 +466,26 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // (las posiciones vienen del estado en la primera actualización)
 
   // plantas por cultivo
-  const LEAF = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, flatShading: true });
+  // viento en la tarjeta gráfica: hojas, flores y frutos se mecen según su altura y su lugar en el mundo,
+  // así las plantas quedan quietas para la CPU y se pueden agrupar en lotes (antes se rotaban una por una)
+  const uViento = { value: 0 }, uRafaga = { value: 1 }, conViento = new WeakSet();
+  function viento(mat) {
+    if (!mat || conViento.has(mat)) return mat; conViento.add(mat);
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uViento = uViento; sh.uniforms.uRafaga = uRafaga;
+      sh.vertexShader = `uniform float uViento;
+uniform float uRafaga;
+` + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec4 wv = modelMatrix * vec4(transformed, 1.0);
+        float hv = 0.03 * min(wv.y, 1.5) + 0.006 * max(wv.y - 1.5, 0.0);
+        float fv = uViento * 1.1 + wv.x * 0.37 + wv.z * 0.53;
+        transformed.x += sin(fv) * hv * uRafaga;
+        transformed.z += cos(fv * 0.8 + 1.3) * hv * 0.6 * uRafaga;`);
+    };
+    mat.customProgramCacheKey = () => 'viento';
+    return mat;
+  }
+  const LEAF = (c) => viento(new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, flatShading: true }));
   const MAT = { lechuga: LEAF(0x8fd16a), papa: LEAF(0x4f8a34), frijol: LEAF(0x5c9a3a), maiz: LEAF(0x6fa848), seco: LEAF(0x8a6a3a), muerto: LEAF(0x5b4630),
     tallo: LEAF(0x9a7a4a), flor: LEAF(0xf4f0d8), vaina: LEAF(0x9cc75a), mazorca: LEAF(0xf2c94c) };
   function planta(cultivo) {
@@ -647,7 +669,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     const copa = new THREE.Group(); copa.position.y = 2.3; t.add(copa);
     const hoja = LEAF(f.tipo === 'naranjo' ? 0x3f7a35 : 0x5d9a3c);
     for (let i = 0; i < 9; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + rand() * 0.3, 0), hoja); const a = rand() * 6.28, r = rand() * 0.9; m.position.set(Math.cos(a) * r, (rand() - 0.3) * 0.8, Math.sin(a) * r); m.castShadow = true; copa.add(m); }
-    const fm = new THREE.MeshStandardMaterial({ color: f.tipo === 'naranjo' ? 0xf28c1e : 0xd2342c, roughness: 0.5 });
+    const fm = viento(new THREE.MeshStandardMaterial({ color: f.tipo === 'naranjo' ? 0xf28c1e : 0xd2342c, roughness: 0.5 }));
     const frutas = [];
     for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), fm); const a = i * 2.4, r = 0.85 + (i % 3) * 0.2; m.position.set(Math.cos(a) * r, -0.3 + (i % 4) * 0.3, Math.sin(a) * r); copa.add(m); frutas.push(m); }
     // cerco bajo alrededor del tronco
@@ -661,7 +683,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     const tierra = new THREE.Mesh(new RoundedBoxGeometry(3.6, 0.22, 2.4, 2, 0.08), new THREE.MeshStandardMaterial({ color: 0x5e4029, roughness: 1 }));
     tierra.position.y = 0.08; tierra.receiveShadow = true; g.add(tierra);
     const borde = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 4, 24), new THREE.MeshStandardMaterial({ color: 0xbdb7aa, roughness: 1 })); borde.rotation.x = Math.PI / 2; borde.scale.set(1, 0.68, 1); borde.position.y = 0.14; g.add(borde);
-    const tallo = LEAF(0x4f8a34), petalo = new THREE.MeshStandardMaterial({ color: j.flor, roughness: 0.6 }), centro = new THREE.MeshStandardMaterial({ color: 0xf2c94c, roughness: 0.6 });
+    const tallo = LEAF(0x4f8a34), petalo = viento(new THREE.MeshStandardMaterial({ color: j.flor, roughness: 0.6 })), centro = viento(new THREE.MeshStandardMaterial({ color: 0xf2c94c, roughness: 0.6 }));
     const flores = [];
     for (let k = 0; k < 26; k++) {
       const f = new THREE.Group(); f.position.set(-1.5 + (k % 7) * 0.5 + (rand() - 0.5) * 0.15, 0.18, -0.9 + Math.floor(k / 7) * 0.6 + (rand() - 0.5) * 0.15); g.add(f);
@@ -723,7 +745,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   // ------------------------------------------------------------ viñedo: espalderas con racimos que pintan según maduran
   const palo = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 });
   const hojaParra = LEAF(0x5f8f34), hojaOtono = LEAF(0xb8742c);
-  const uvaMat = new THREE.MeshStandardMaterial({ color: 0x4b2350, roughness: 0.35 });
+  const uvaMat = viento(new THREE.MeshStandardMaterial({ color: 0x4b2350, roughness: 0.35 }));
   const parrasVis = PARRAS.map((q) => {
     const g = new THREE.Group(); g.position.set(q.x, 0, q.z); root.add(g);
     for (const dx of [-1.4, 1.4]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.6, 0.1), palo); m.position.set(dx, 0.8, 0); m.castShadow = true; g.add(m); }
@@ -739,7 +761,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     return { g, hojas, racimos };
   });
   // huerta de hierbas: matas de marihuana (crecen, florecen y se cortan en otoño)
-  const hojaMata = LEAF(0x3f8a3a), cogollo = new THREE.MeshStandardMaterial({ color: 0x9fb84a, roughness: 0.8, flatShading: true });
+  const hojaMata = LEAF(0x3f8a3a), cogollo = viento(new THREE.MeshStandardMaterial({ color: 0x9fb84a, roughness: 0.8, flatShading: true }));
   const matasVis = MATAS.map((m) => {
     const g = new THREE.Group(); g.position.set(m.x, 0, m.z); root.add(g);
     const tierra = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.18, 12), new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 })); tierra.position.y = 0.06; tierra.receiveShadow = true; g.add(tierra);
@@ -1216,7 +1238,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   };
   const vis = {};
   // altura real de la copa o del techito donde se sube el gato: se mide una vez con un rayo hacia abajo
-  const rayoT = new THREE.Raycaster(), altoSitio = {};
+  const rayoT = new THREE.Raycaster(), altoSitio = {}; rayoT.layers.enableAll();
   const esAgente = (o) => { for (; o; o = o.parent) { if (o.userData.agente) return true; if (!o.visible) return true; } return false; };
   function alturaTrepadero(a) {
     const k = a.trepado.sitio + '|' + Math.floor(tReal / 60);
@@ -1482,7 +1504,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
   }
 
   // ------------------------------------------------------------ selección de parcela con el mouse
-  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+  const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); ray.layers.enableAll();   // también ve las piezas apartadas en lotes
   let downAt = null, seleccion = null;
   renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
   renderer.domElement.addEventListener('pointerup', (e) => {
@@ -1511,6 +1533,24 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     renderer.setSize(w, h, false); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
   }
   addEventListener('resize', resize); resize();
+  // calidad adaptativa: si el equipo no da (celulares, portátiles viejos), baja de a un paso la resolución y luego las sombras
+  const PASOS = [
+    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 1.0)),
+    () => { key.shadow.mapSize.set(1024, 1024); key.shadow.map?.dispose(); key.shadow.map = null; },
+    () => renderer.setPixelRatio(Math.min(devicePixelRatio, 0.8)),
+    () => { renderer.shadowMap.type = THREE.PCFShadowMap; key.shadow.map?.dispose(); key.shadow.map = null; },
+    () => renderer.setPixelRatio(0.65),
+  ];
+  let paso = 0, acum = 0, nCal = 0, esperaCal = 4, ocupado = false;
+  function calidad(dt) {
+    if (paso >= PASOS.length || !cargada || document.hidden) return;
+    if (ocupado) { acum = 0; nCal = 0; esperaCal = 2; return; }   // poniéndose al día: esos cuadros no cuentan
+    if ((esperaCal -= dt) > 0) return;   // deja asentar la carga (y cada cambio) antes de medir
+    acum += dt; nCal++;
+    if (acum < 3) return;
+    const prom = acum / nCal; acum = 0; nCal = 0;
+    if (prom > 1 / 32) { PASOS[paso++](); esperaCal = 2; console.info('[granja] calidad baja un paso:', paso, (1 / prom).toFixed(0) + ' fps'); }
+  }
   camera.position.sub(controls.target).setLength(150 * Math.max(1, 1.2 / camera.aspect)).add(controls.target);
 
   // ------------------------------------------------------------ actualización por cuadro
@@ -1575,7 +1615,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
         if (p.cultivo) for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
           const pl = planta(p.cultivo); pl.position.set(-1.25 + c * 0.83, 0.17, -0.45 + r * 0.9); pl.rotation.y = rand() * 6; v.plants.add(pl);
         }
-        v.hoja = p.cultivo ? MAT[p.cultivo].clone() : null;   // material propio: amarillea o se mancha según la salud y la plaga
+        v.hoja = p.cultivo ? viento(MAT[p.cultivo].clone()) : null;   // material propio: amarillea o se mancha según la salud y la plaga
       }
       // suelo pobre: tierra más pálida; encharcado: charco
       v.charco.visible = (p.encharcado || 0) > 90;
@@ -1594,11 +1634,10 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
         pa.needsUpdate = true;
       }
       const C = CULTIVOS[p.cultivo];
-      const g = p.estado === 'lista' ? 1 : Math.min(1, p.crec / C.dias);
-      const dead = p.estado === 'muerta', dry = Math.max(0, 1 - p.agua / 25);
+      const g = p.estado === 'lista' ? 1 : Math.round(Math.min(1, p.crec / C.dias) * 12) / 12;   // a saltos
+      const dead = p.estado === 'muerta', dry = Math.round(Math.max(0, 1 - p.agua / 25) * 4) / 4;
       v.plants.children.forEach((pl, j) => {
         pl.scale.set(0.25 + g * 0.75, (0.15 + g * 0.85) * (dead ? 0.35 : 1 - dry * 0.15), 0.25 + g * 0.75);
-        pl.rotation.z = Math.sin(t * 1.2 + j) * 0.04;
         if (pl.userData.fruto) pl.userData.fruto.visible = p.estado === 'lista';
         for (const hm of pl.userData.hojas || []) hm.material = dead ? MAT.muerto : dry > 0.6 ? MAT.seco : v.hoja;
       });
@@ -1622,11 +1661,11 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     arcoiris.visible = arco > 0.01; arcMats.forEach((m) => { m.opacity = arco * 0.55; });
     comida.visible = s.rec.comedero > 0.05; comida.scale.set(1.2, 0.3 + Math.min(1, s.rec.comedero / 2) * 0.5, 1.2);
     aguaBowl.visible = s.rec.bebedero > 0.2;
-    for (const tr of trees) { tr.crown.rotation.z = Math.sin(t * 0.9 + tr.phase) * 0.02 * (1 + lluviaK); }
+    uViento.value = t; uRafaga.value = 1 + lluviaK;
     (s.jardines || []).forEach((j, i) => {
       const v = jardinesVis[i]; if (!v) return;
       const f = Math.max(0, Math.min(1, j.flores));
-      v.flores.forEach((fl, k) => { const umbral = (k % 13) / 13; const vivo = f > umbral * 0.9; fl.visible = vivo; if (vivo) fl.scale.setScalar(0.4 + f * 0.8); fl.rotation.z = Math.sin(t * 1.4 + k + v.fase) * 0.08; });
+      v.flores.forEach((fl, k) => { const umbral = (k % 13) / 13; const vivo = f > umbral * 0.9; fl.visible = vivo; if (vivo) fl.scale.setScalar(0.4 + Math.round(f * 12) / 12 * 0.8); });   // crece a saltos: entre salto y salto queda quieta (y agrupada)
     });
     for (const o of s.obras || []) {
       const v = obrasVis[o.id]; if (!v) continue;
@@ -1658,10 +1697,10 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
       const est = Math.floor(s.t / MIN_DIA / 28) % 4;
       (s.parras || []).forEach((q, i) => { const v = parrasVis[i]; if (!v) return;
         v.racimos.forEach((r, k) => { r.visible = k < Math.round(q.uvas / 2); });
-        v.hojas.forEach((h, k) => { h.visible = est !== 3 || k % 3 === 0; h.material = est === 2 && k % 2 ? hojaOtono : hojaParra; h.rotation.z = Math.sin(t * 1.1 + k) * 0.05 * (1 + lluviaK); }); });
+        v.hojas.forEach((h, k) => { h.visible = est !== 3 || k % 3 === 0; h.material = est === 2 && k % 2 ? hojaOtono : hojaParra; }); });
       (s.matas || []).forEach((m, i) => { const v = matasVis[i]; if (!v) return;
-        v.planta.visible = m.estado !== 'vacia'; v.planta.scale.setScalar(0.3 + Math.min(1, m.crec) * 1.25);
-        v.flores.visible = m.estado === 'lista'; v.planta.rotation.z = Math.sin(t * 1.2 + v.fase) * 0.04 * (1 + lluviaK); });
+        v.planta.visible = m.estado !== 'vacia'; v.planta.scale.setScalar(0.3 + Math.round(Math.min(1, m.crec) * 12) / 12 * 1.25);
+        v.flores.visible = m.estado === 'lista'; });
       colgados.visible = (s.curado || []).length > 0;
       barricasVis.forEach((b, i) => { b.visible = i < Math.min(4, (s.barricas || []).length * 2); });
       botellas.forEach((b, i) => { b.visible = i < Math.min(12, Math.ceil((s.rec.vino || 0) / 5)); });
@@ -1680,7 +1719,7 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     abejas.pts.visible = day > 0.3 && !s.clima.lluvia && ((s.t / MIN_DIA / 28) | 0) % 4 !== 3;
     if (abejas.pts.visible) for (let i = 0; i < abejas.N; i++) { const a = t * (0.6 + (i % 5) * 0.13) + i * 1.7; abejas.pos.set([30 + Math.cos(a) * (4 + (i % 4) * 2) + Math.sin(a * 3.1) * 0.6, 0.9 + Math.sin(a * 2.3 + i) * 0.35, 3 + Math.sin(a * 0.9) * (3 + (i % 3)) + Math.cos(a * 2.7) * 0.5], i * 3); }
     abejas.pts.geometry.attributes.position.needsUpdate = true;
-    (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); v.copa.rotation.z = Math.sin(t * 0.9 + v.fase) * 0.02 * (1 + lluviaK); });
+    (s.frutales || []).forEach((f, i) => { const v = frutales[i]; if (!v) return; v.frutas.forEach((m, k) => { m.visible = k < Math.floor(f.fruta); }); });
 
     // la casa se vuelve transparente cuando hay alguien adentro
     const adentro = s.agentes.some((x) => x.vivo && x.dentro);
@@ -1698,8 +1737,13 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     crisisVis(s, t, dt);
     efectos(s, dt);
     controls.update();
+    calidad(dt);
+    // sombras: se recalculan un cuadro sí y uno no (a la vista no se nota y ahorra la mitad de ese pase)
+    renderer.shadowMap.needsUpdate = (cuadroN++ & 1) === 0 || dt > 0.05;
     renderer.render(scene, camera);
-    labelRenderer.render(scene, camera);
+    if (cargada) lotes.revisar(dt);
+    // las etiquetas usan las matrices que ya se calcularon al dibujar: no recorrer la escena otra vez
+    scene.matrixWorldAutoUpdate = false; labelRenderer.render(scene, camera); scene.matrixWorldAutoUpdate = true;
   }
 
   // ------------------------------------------------------------ efectos flotantes: corazones, charla, discusión, kikirikí
@@ -1926,9 +1970,11 @@ export function crearEscena(host, { onParcela, onAgente } = {}) {
     seleccionar(i) { seleccion = i; },
     _vis: vis,   // (depuración)
     _fuegos: fuegosVis,
+    _renderer: renderer, _scene: scene, _lotes: lotes,
     // dónde se ve cada persona en la pantalla (para tocarla y para depurar)
     proyectar(id) { const v = vis[id]; if (!v) return null; const r = renderer.domElement.getBoundingClientRect(), w = new THREE.Vector3(); v.g.getWorldPosition(w); w.y += 0.9; w.project(camera); return { x: (w.x + 1) / 2 * r.width + r.left, y: (1 - w.y) / 2 * r.height + r.top, visible: v.g.visible }; },
     encuadrar,
     get cargada() { return cargada; },
+    set ocupado(v) { ocupado = v; },
   };
 }
