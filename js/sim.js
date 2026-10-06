@@ -3973,7 +3973,7 @@ function comportamientoAnimal(s, a, d) {
 }
 
 // ---------------------------------------------------------------- guardar / cargar
-const CLAVE = 'granja3d-partida', CLAVE_HIST = 'granja3d-historial';
+const CLAVE = 'granja3d-vida2', CLAVE_HIST = 'granja3d-vida2-historial';   // (2026-10-06) vida nueva desde cero; la anterior queda en granja3d-partida
 export function guardar(s) {
   try {
     s.guardadoReal = Date.now();
