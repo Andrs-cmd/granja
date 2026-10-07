@@ -14,6 +14,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { HACIENDA } from './sim.js';
 import { MIN_DIA, CULTIVOS, LUGAR, TANQUE_MAX, PERSONAJES, BLOQUE, CORRAL, GALLINERO, PISCINA, GANADO, FRUTALES, JARDINES, OBRAS, ESCULTURAS, PARRAS, MATAS, SOMBRAS, LUGAR_GYM, etapaDe, CAMINOS, largoCamino, puntoCamino, PIEZAS, rectsPieza, planoActual, PARCELAS } from './sim.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -668,7 +669,9 @@ uniform float uRafaga;
   }
   makeTree(-6.8, -12.0, 1.2); makeTree(8.5, -12.6, 1.3); makeTree(-17.5, 26.5, 1.05); makeTree(22.6, 4.8, 1.0); makeTree(6.0, 25.5, 0.9); makeTree(1.0, -13.5, 1.1);
   // el anillo nuevo (fuera del rectángulo de la granja): un bosque en el borde
-  const fueraGranja = (x, z) => x < BLOQUE.x0 + 1 || x > BLOQUE.x1 - 1 || z < BLOQUE.z0 + 1 || z > BLOQUE.z1 - 1;
+  // los sitios de la hacienda quedan despejados (ahí se construye cuando compran las tierras)
+  const SITIOS_H = Object.entries(HACIENDA).filter(([, v]) => !v.zona).map(([k, v]) => k === 'trigal' ? [v.x - 8.5, v.x + 8.5, v.z - 4.5, v.z + 4.5] : k === 'cabanas' ? [v.x - 3.5, v.x + 3.5, v.z - 7.5, v.z + 7.5] : k === 'caballeriza' ? [v.x - 5, v.x + 5.5, v.z - 4, v.z + 4] : [v.x - 3.5, v.x + 3.5, v.z - 3.5, v.z + 3.5]);
+  const fueraGranja = (x, z) => (x < BLOQUE.x0 + 1 || x > BLOQUE.x1 - 1 || z < BLOQUE.z0 + 1 || z > BLOQUE.z1 - 1) && !SITIOS_H.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1);
   const ESTANQUE = { x: -16, z: 47, rx: 7, rz: 3.6 };
   const libreAnillo = (x, z) => fueraGranja(x, z) && enTerreno(x, z, 2) && Math.hypot((x - ESTANQUE.x) / (ESTANQUE.rx + 2.5), (z - ESTANQUE.z) / (ESTANQUE.rz + 2.5)) >= 1;
   for (let k = 0; k < 12; k++) {   // pocos árboles: el anillo es sobre todo arbustos con flores
@@ -1002,6 +1005,67 @@ uniform float uRafaga;
       add(g, B(4.2, 0.06, 0.06), metal, 0, 0.55, 2.6); for (const dx of [-1.9, 1.9]) add(g, B(0.06, 0.45, 0.06), metal, dx, 0.33, 2.6);   // riel
       for (const [x, z, c] of [[-2.8, 3.4, 0xe0453a], [2.4, -0.4, 0x3a8ae0], [-1, 0.6, 0xf2c94c]]) add(g, B(0.9 + rand() * 0.6, 0.012, 0.5), M(c, { roughness: 1 }), x, 0.125, z);   // grafitis en el piso
     }
+    // ---------------- la hacienda: tierras del norte y del este (se compran cuando la granja prospera)
+    const cerco = (id, Z) => { const g = grupo(id, 0, 0), poste = M(0x7a5a3a), riel = M(0x9a7650);
+      const lados = [[Z.x0, Z.z0, Z.x1, Z.z0], [Z.x1, Z.z0, Z.x1, Z.z1], [Z.x1, Z.z1, Z.x0, Z.z1], [Z.x0, Z.z1, Z.x0, Z.z0]];
+      for (const [ax, az, bx, bz] of lados) { const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 2.4));
+        for (let i = 0; i <= n; i++) { const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n; if (!enTerreno(x, z, 1.2)) continue; add(g, B(0.14, 1.0, 0.14), poste, x, 0.5, z); }
+        for (const y of [0.45, 0.8]) for (let i = 0; i < n; i++) { const x0 = ax + ((bx - ax) * i) / n, z0 = az + ((bz - az) * i) / n, x1 = ax + ((bx - ax) * (i + 1)) / n, z1 = az + ((bz - az) * (i + 1)) / n; if (!enTerreno(x0, z0, 1.2) || !enTerreno(x1, z1, 1.2)) continue; const r = add(g, B(Math.hypot(x1 - x0, z1 - z0), 0.07, 0.06), riel, (x0 + x1) / 2, y, (z0 + z1) / 2); r.rotation.y = -Math.atan2(z1 - z0, x1 - x0); } }
+      return g; };
+    cerco('tierraNorte', HACIENDA.tierraNorte.zona); cerco('tierraEste', HACIENDA.tierraEste.zona);
+    // molino de viento: torre de piedra, techo y aspas que giran con el viento
+    { const H = HACIENDA.molino, g = grupo('molino', H.x, H.z), piedra = M(0xd8d0c0, { flatShading: true });
+      add(g, new THREE.CylinderGeometry(1.4, 2.0, 6.5, 10), piedra, 0, 3.25, 0); add(g, new THREE.ConeGeometry(1.8, 1.8, 10), TEMA.techo || M(0x8a3a2a), 0, 7.4, 0);
+      add(g, B(0.8, 1.4, 0.1), M(0x6a4a2a), 0, 0.7, 1.95);
+      const aspas = new THREE.Group(); aspas.position.set(0, 6.4, 1.6); g.add(aspas); g.userData.aspas = aspas;
+      for (let k = 0; k < 4; k++) { const brazo = new THREE.Group(); brazo.rotation.z = (k * Math.PI) / 2; aspas.add(brazo); add(brazo, B(0.18, 4.2, 0.08), M(0x7a5a3a), 0, 2.1, 0); add(brazo, B(1.0, 3.4, 0.03), M(0xf2ead8, { side: THREE.DoubleSide }), 0.55, 2.4, 0.04); }
+      add(aspas, new THREE.SphereGeometry(0.3, 10, 8), M(0x5a4030), 0, 0, 0); }
+    // trigal: un campo dorado que se mece (verde en primavera, dorado en verano y otoño)
+    { const H = HACIENDA.trigal, g = grupo('trigal', H.x, H.z), W = 15, D = 7;
+      add(g, B(W + 0.6, 0.08, D + 0.6), M(0x7a5a38, { roughness: 1 }), 0, 0.04, 0);
+      const geo = new THREE.ConeGeometry(0.09, 1.1, 4); geo.translate(0, 0.55, 0); const n = 520, mat = M(0xd8b04a);
+      const im = new THREE.InstancedMesh(geo, mat, n), m4 = new THREE.Matrix4(); im.castShadow = true;
+      for (let i = 0; i < n; i++) { m4.makeTranslation((rand() - 0.5) * W, 0.06, (rand() - 0.5) * D); im.setMatrixAt(i, m4); }
+      g.add(im); g.userData.trigo = im; g.userData.matTrigo = mat; }
+    // apiario: colmenas de madera pintada
+    { const H = HACIENDA.apiario, g = grupo('apiario', H.x, H.z);
+      [[0, 0, 0xf2c94c], [1.4, 0.3, 0xe8e2d0], [2.8, 0, 0x9ac0e0], [0.7, 1.6, 0xe8e2d0], [2.1, 1.7, 0xf2c94c]].forEach(([x, z, c]) => { add(g, B(0.9, 0.3, 0.9), M(0x6a5038), x, 0.15, z); add(g, B(0.8, 0.9, 0.8), M(c), x, 0.75, z); add(g, B(0.95, 0.1, 0.95), M(0x8a6a4a), x, 1.25, z); });
+      const abejas = []; for (let k = 0; k < 18; k++) abejas.push(add(g, new THREE.SphereGeometry(0.05, 5, 4), M(0x2a2210, { emissive: 0xc8a020, emissiveIntensity: 0.4 }), 0, 1, 0)); g.userData.abejas = abejas; }
+    // quesería: casita blanca con ruedas de queso en la puerta
+    { const H = HACIENDA.quesera, g = grupo('quesera', H.x, H.z);
+      add(g, B(3.6, 2.4, 2.8), M(0xf2efe6), 0, 1.2, 0); const r = add(g, B(4.0, 0.15, 3.2), TEMA.techo || M(0x8a3a2a), 0, 2.5, 0); r.rotation.x = 0.08;
+      add(g, B(0.9, 1.6, 0.08), M(0x6a4a2a), -0.9, 0.8, 1.42);
+      for (const dx of [0.4, 1.0, 0.7]) add(g, new THREE.CylinderGeometry(0.28, 0.28, 0.18, 14), M(0xf0c860), dx, dx === 0.7 ? 0.27 : 0.09, 1.8); }
+    // tractor rojo junto al trigal
+    { const H = HACIENDA.tractor, g = grupo('tractor', H.x, H.z), rojo = M(0xc8342a, { metalness: 0.3, roughness: 0.5 }), neg = M(0x1e1e1e);
+      add(g, B(1.2, 0.9, 2.0), rojo, 0, 1.0, 0.2); add(g, B(1.1, 1.1, 1.0), rojo, 0, 1.55, -0.6); add(g, B(1.0, 0.7, 0.9), M(0x9ad0e8, { transparent: true, opacity: 0.5 }), 0, 2.4, -0.6);
+      add(g, B(1.2, 0.08, 1.1), rojo, 0, 2.8, -0.6); add(g, new THREE.CylinderGeometry(0.06, 0.06, 0.8), neg, 0.35, 1.9, 0.9);
+      for (const [x, z, r] of [[-0.75, -0.7, 0.75], [0.75, -0.7, 0.75], [-0.65, 0.9, 0.42], [0.65, 0.9, 0.42]]) { const w = add(g, new THREE.CylinderGeometry(r, r, 0.4, 16), neg, x, r, z); w.rotation.z = Math.PI / 2; } }
+    // puesto de venta en el camino: toldo de rayas y cajones con la cosecha
+    { const H = HACIENDA.tienda, g = grupo('tienda', H.x, H.z);
+      add(g, B(3.2, 0.9, 1.2), TEMA.madera || M(0x8a6040), 0, 0.45, 0); for (const x of [-1.5, 1.5]) for (const z of [-0.5, 0.5]) add(g, B(0.1, 2.4, 0.1), M(0x6a4a2a), x, 1.2, z);
+      for (let k = 0; k < 6; k++) add(g, B(0.55, 0.12, 1.4), M(k % 2 ? 0xffffff : 0xd2342c), -1.4 + k * 0.56, 2.45, 0).rotation.x = 0.15;
+      [[0xd2342c, -1], [0xf2c94c, 0], [0x6f8f5a, 1]].forEach(([c, x]) => add(g, B(0.8, 0.25, 0.8), M(c), x, 1.02, 0));
+      add(g, B(1.4, 0.6, 0.06), M(0xf2ead8), 0, 2.0, 0.6); }
+    // caballeriza con corral y dos caballos
+    { const H = HACIENDA.caballeriza, g = grupo('caballeriza', H.x, H.z);
+      add(g, B(4.2, 2.6, 3.0), M(0x8a3a2a), -2.0, 1.3, 0); const r = add(g, B(4.6, 0.15, 3.4), TEMA.techo || M(0x5a4a3a), -2.0, 2.75, 0); r.rotation.z = 0.06;
+      add(g, B(1.4, 1.8, 0.08), M(0x4a3020), -2.0, 0.9, 1.52);
+      for (const [x0, z0, x1, z1] of [[0.2, -3, 4.5, -3], [4.5, -3, 4.5, 3], [4.5, 3, 0.2, 3]]) { const L = Math.hypot(x1 - x0, z1 - z0); for (const y of [0.5, 0.95]) { const rr = add(g, B(L, 0.08, 0.06), M(0xb8955c), (x0 + x1) / 2, y, (z0 + z1) / 2); rr.rotation.y = -Math.atan2(z1 - z0, x1 - x0); } }
+      const caballos = [];
+      for (const [c, x, z] of [[0x6a3e22, 1.8, -1.2], [0xe8e0d0, 3.0, 1.0]]) {
+        const h = new THREE.Group(); h.position.set(x, 0, z); g.add(h); const pel = M(c), crin = M(0x2a1a10);
+        add(h, B(0.55, 0.6, 1.5), pel, 0, 1.15, 0); add(h, B(0.32, 0.75, 0.35), pel, 0, 1.6, 0.75).rotation.x = -0.5; add(h, B(0.28, 0.3, 0.6), pel, 0, 1.95, 1.05);
+        add(h, B(0.08, 0.5, 0.3), crin, 0, 1.75, 0.6).rotation.x = -0.5; add(h, B(0.12, 0.6, 0.12), crin, 0, 1.05, -0.8).rotation.x = 0.4;
+        for (const [lx, lz] of [[-0.2, 0.6], [0.2, 0.6], [-0.2, -0.6], [0.2, -0.6]]) add(h, B(0.13, 0.85, 0.13), pel, lx, 0.43, lz);
+        caballos.push(h); }
+      g.userData.caballos = caballos; }
+    // cabañas para huéspedes: tres cabañas de troncos con porche
+    { const H = HACIENDA.cabanas, g = grupo('cabanas', H.x, H.z), tronco = M(0x9a6a3e, { flatShading: true });
+      for (const dz of [-5, 0, 5]) {
+        add(g, B(3.0, 2.0, 2.6), tronco, 0, 1.0, dz); const t1 = add(g, B(1.8, 0.12, 2.9), TEMA.techo || M(0x5a3a2a), -0.75, 2.35, dz); t1.rotation.z = 0.55; const t2 = add(g, B(1.8, 0.12, 2.9), TEMA.techo || M(0x5a3a2a), 0.75, 2.35, dz); t2.rotation.z = -0.55;
+        add(g, B(0.08, 1.4, 0.8), M(0x4a3020), -1.52, 0.7, dz); add(g, B(0.08, 0.6, 0.6), M(0xfff0b8, { emissive: 0xffc860, emissiveIntensity: 0.3 }), -1.52, 1.25, dz + 0.9);
+        add(g, B(1.0, 0.1, 2.6), TEMA.madera || M(0x8a6040), -2.0, 0.15, dz); } }
     // muelle de tablas sobre el estanque (para pescar)
     { const g = new THREE.Group(); g.position.set(LUGAR.muelle.x, 0, LUGAR.muelle.z); root.add(g); const tabla = TEMA.madera || M(0x8a6040), poste = M(0x5a3e28);
       for (let k = 0; k < 9; k++) add(g, B(2.6, 0.08, 0.36), tabla, 0, 0.32, -0.6 + k * 0.4).rotation.y = (rand() - 0.5) * 0.03;
@@ -1021,7 +1085,7 @@ uniform float uRafaga;
       for (const y of [1.2, 2.6]) add(g, B(3.2, 0.08, 0.6), m, 0, y, 1.5);
       for (let k = 0; k < 4; k++) add(g, B(0.5, 0.35, 0.5), M(0xb06a42), -1 + k * 0.6, 0.18, -2.2); }
   }
-  const L2 = (k) => [LUGAR[k].x, LUGAR[k].z], SITIO_OBRA = { skatepark: L2('skatepark'), vinedo2: L2('andamioVinedo'), huertaGrande: L2('obraHierbas'), vinedo: L2('andamioVinedo'), bodegaVino: L2('bodegaVino'), cultivoCaseta: L2('cultivoCaseta'), cultivoPro: L2('cultivoCaseta'), piscina: L2('andamioPiscina'), jacuzzi: L2('jacuzzi'), gimnasio: [LUGAR_GYM.x, LUGAR_GYM.z - 1.4], establo2: [LUGAR.establo.x + 3.6, LUGAR.establo.z], gallinero2: [LUGAR.gallinero.x - 3.4, LUGAR.gallinero.z] };
+  const L2 = (k) => [LUGAR[k].x, LUGAR[k].z], SITIO_OBRA = { ...Object.fromEntries(Object.entries(HACIENDA).map(([k, v]) => [k, [v.x, v.z]])), skatepark: L2('skatepark'), vinedo2: L2('andamioVinedo'), huertaGrande: L2('obraHierbas'), vinedo: L2('andamioVinedo'), bodegaVino: L2('bodegaVino'), cultivoCaseta: L2('cultivoCaseta'), cultivoPro: L2('cultivoCaseta'), piscina: L2('andamioPiscina'), jacuzzi: L2('jacuzzi'), gimnasio: [LUGAR_GYM.x, LUGAR_GYM.z - 1.4], establo2: [LUGAR.establo.x + 3.6, LUGAR.establo.z], gallinero2: [LUGAR.gallinero.x - 3.4, LUGAR.gallinero.z] };
 
   // ------------------------------------------------------------ la carreta de Don Ramiro (solo los días de visita)
   const carreta = new THREE.Group(); carreta.position.set(LUGAR.carreta.x, 0, LUGAR.carreta.z); carreta.rotation.y = -Math.PI / 2; carreta.visible = false; root.add(carreta);
@@ -1710,7 +1774,7 @@ uniform float uRafaga;
       const bend = ['cepillar', 'construir', 'cuidarJardin', 'secar', 'recogerFruta', 'regar', 'sembrar', 'cosechar', 'limpiar', 'sacarAgua', 'alimentar', 'jugarGato', 'ordenar', 'esquilar', 'segar', 'alimentarGanado', 'recogerHuevos', 'reparar', 'curar', 'recogerFlores', 'jugarPerro', 'vendimia', 'cosecharHierba', 'pisarUva', 'renovar'].includes(tipo) ? 1 : 0;
       v.g.position.y = -sit * (v.h - asiento) + Math.abs(Math.sin(ph)) * 0.04 * w;
       // forma de andar de su ficha: zancada (pasos largos, hombros) o cadera (paso fluido, balanceo de cadera)
-      const zancada = v.ficha.fisico?.andar !== 'cadera';
+      const zancada = v.ficha?.fisico?.andar !== 'cadera';
       const amp = (zancada ? 0.6 : 0.45) * (a.enfermo > 0 ? 0.6 : 1);
       const viejo = Math.max(0, Math.min(1, (a.edad - 55) / 20));
       v.legs.forEach((l, j) => {
@@ -2020,7 +2084,13 @@ uniform float uRafaga;
       if (estVis !== temaActual) aplicarTema(estVis);
       for (const obj in ESTRUCTURAS) { const e = vistaPrevia[obj] || s.diseno?.[obj] || estVis; if (ESTRUCTURAS[obj].userData.est !== e) vestir(obj, e); }
       const k = (id) => (hechos.includes(id) ? 1 : O?.id === id ? Math.max(0.06, O.progreso) : 0);
-      for (const id of ['bodegaVino', 'cultivoCaseta', 'piscina', 'jacuzzi', 'gimnasio', 'skatepark']) { const g = proy[id], kk = k(id); g.visible = kk > 0; g.scale.y = kk || 1; }
+      for (const id of ['bodegaVino', 'cultivoCaseta', 'piscina', 'jacuzzi', 'gimnasio', 'skatepark', 'molino', 'trigal', 'apiario', 'quesera', 'tienda', 'caballeriza', 'cabanas']) { const g = proy[id], kk = k(id); g.visible = kk > 0; g.scale.y = kk || 1; }
+      for (const id of ['tierraNorte', 'tierraEste', 'tractor']) proy[id].visible = hechos.includes(id);
+      // la hacienda se mueve: aspas al viento, trigo que se mece y cambia de color, abejas, caballos pastando
+      if (proy.molino.visible) proy.molino.userData.aspas.rotation.z = t * 0.9;
+      if (proy.trigal.visible) { const e = Math.floor(((s.t / MIN_DIA) % 112) / 28); proy.trigal.userData.matTrigo.color.set(e === 0 ? 0x8ab04a : e === 3 ? 0x9a8a6a : 0xd8b04a); proy.trigal.userData.trigo.rotation.z = Math.sin(t * 1.3) * 0.015; proy.trigal.userData.trigo.scale.y = e === 3 ? 0.35 : e === 0 ? 0.7 : 1; }
+      if (proy.apiario.visible) proy.apiario.userData.abejas.forEach((b, i) => { const a = t * (1.5 + (i % 3) * 0.4) + i; b.position.set(1.4 + Math.cos(a) * (1 + (i % 4) * 0.4), 1.3 + Math.sin(t * 3 + i) * 0.4, 0.8 + Math.sin(a * 1.3) * (1 + (i % 3) * 0.3)); });
+      if (proy.caballeriza.visible) proy.caballeriza.userData.caballos.forEach((h, i) => { h.position.y = Math.abs(Math.sin(t * 0.8 + i)) * 0.03; h.rotation.y = Math.sin(t * 0.15 + i * 2) * 0.6; });
       proy.cultivoCaseta.userData.luz.visible = hechos.includes('cultivoPro');
       if (proy.jacuzzi.visible) proy.jacuzzi.userData.burbujas.forEach((b, i) => { const a = t * 1.3 + i * 2.1, r = 0.2 + (i % 4) * 0.2; b.position.set(Math.cos(a) * r, 0.74 + Math.abs(Math.sin(t * 3 + i)) * 0.08, Math.sin(a) * r); });
       if (proy.gimnasio.visible) proy.gimnasio.userData.saco.rotation.z = Math.sin(t * 2.2) * 0.06;

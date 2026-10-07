@@ -109,7 +109,7 @@
   .fichapj button:disabled { opacity: .35; cursor: default; }
   .conf { height: 4px; background: rgba(255,255,255,.1); border-radius: 3px; margin: 3px 0 8px; } .conf i { display: block; height: 100%; background: #e7c46a; border-radius: 3px; }
   .influ { position: fixed; left: 50%; transform: translateX(-50%); bottom: 62px; z-index: 4; font-size: 12px; letter-spacing: .08em; padding: 4px 10px; border-radius: 99px;
-    background: rgba(18,18,22,.55); border: 1px solid rgba(180,138,224,.25); color: #d9c2f5; pointer-events: none; }
+    background: rgba(18,18,22,.55); border: 1px solid rgba(180,138,224,.25); color: #d9c2f5; pointer-events: auto; white-space: nowrap; }
   @media (max-width: 640px) {
     .dilema { top: auto; bottom: 58px; padding: 9px 10px 10px; } .dilema.off { transform: translate(-50%, 12px); }
     .dilema h3 { font-size: 12.5px; } .dilema p { font-size: 11px; margin-bottom: 6px; } .dilema .ops { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -515,11 +515,12 @@ tablaP.addEventListener('click', (e) => {
 
 // ---------------------------------------------------------------- el jugador: dilemas, ficha e influencia
 const elDil = document.getElementById('dilema'), elFicha = document.getElementById('fichapj'), elInflu = document.getElementById('influ');
+elInflu.style.cursor = 'pointer'; elInflu.title = 'Nivel de la granja (toca para ver cómo crecer) e influencia del orbe'; elInflu.addEventListener('click', () => abrirObras());
 let htmlDil = '', htmlFicha = '';
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function pintarJugador(forzar = false) {
   const s = estado, J = s.jugador; if (!J) return;
-  elInflu.textContent = `✦ ${'●'.repeat(Math.floor(J.influencia))}${'○'.repeat(Math.max(0, J.max - Math.floor(J.influencia)))}`;
+  { const nv = Sim.nivelGranja(s); elInflu.textContent = `${nv.icono} ${nv.nombre} · ✦ ${'●'.repeat(Math.floor(J.influencia))}${'○'.repeat(Math.max(0, J.max - Math.floor(J.influencia)))}`; }
   pintarDecisiones(forzar);
   // ficha del personaje tocado
   const a = fichaId && s.agentes.find((x) => x.id === fichaId);
@@ -610,7 +611,7 @@ elPlano.addEventListener('pointerup', soltarArrastre); elPlano.addEventListener(
 
 // ---------------------------------------------------------------- obras: todo lo que se puede construir, con fila
 const elObras = document.getElementById('obrasP'); let msgObras = '';
-const GRUPOS_OBRA = [['🏠 La casa', ['fachada', 'techo', 'cocina', 'bano', 'terraza', 'ventanales', 'ampliacion', 'solar', 'azotea']], ['🏊 Estilo de vida', ['piscina', 'jacuzzi', 'gimnasio', 'skatepark']], ['🍇 Cultivos de renta', ['vinedo', 'vinedo2', 'bodegaVino', 'huertaGrande', 'cultivoCaseta', 'cultivoPro']], ['🐄 La granja', ['establo2', 'gallinero2']]];
+const GRUPOS_OBRA = [['🏠 La casa', ['fachada', 'techo', 'cocina', 'bano', 'terraza', 'ventanales', 'ampliacion', 'solar', 'azotea']], ['🏊 Estilo de vida', ['piscina', 'jacuzzi', 'gimnasio', 'skatepark']], ['🍇 Cultivos de renta', ['vinedo', 'vinedo2', 'bodegaVino', 'huertaGrande', 'cultivoCaseta', 'cultivoPro']], ['🐄 La granja', ['establo2', 'gallinero2']], ['🌄 La hacienda (tierras nuevas)', ['tierraNorte', 'molino', 'trigal', 'apiario', 'quesera', 'tractor', 'tierraEste', 'tienda', 'caballeriza', 'cabanas']]];
 function cerrarPaneles(menos) { for (const el of [elObras, elCom, elVida, elDis]) if (el !== menos) el.classList.add('off'); }
 function abrirObras() { const abrir = elObras.classList.contains('off'); cerrarPaneles(elObras); elObras.classList.toggle('off', !abrir); msgObras = ''; if (abrir) { if (angosto()) escena.encuadrar(0, 0, innerHeight * 0.55 + 8); else escena.encuadrar(0, Math.min(372, innerWidth - 24), 0); pintarObras(true); } else encuadre(); }
 function pintarObras(forzar) {
@@ -620,16 +621,20 @@ function pintarObras(forzar) {
   const O = K.obra, MO = O && (M(O.id) || ['reforma', 'la reforma de estilo']);
   const trabajan = s.agentes.filter((a) => a.vivo && a.tarea?.tipo === 'renovar').map((a) => a.nombre);
   let h = `<div class="cab"><b>🔨 Obras · 🪙 ${mon}</b><button data-cerrar-obras="1" aria-label="Cerrar">×</button></div>`;
+  // el nivel de la granja: lo que se ve que crece
+  { const nv = Sim.nivelGranja(s), pg = Sim.puntosGranja(s), base = Sim.NIVELES_GRANJA[nv.i][0], sig = nv.sig, frac = sig ? (nv.puntos - base) / (sig[0] - base) : 1;
+    const ET = { obras: '🔨 obras', proyectos: '🪵 proyectos de Andrés', arte: '🗿 arte', saber: '📚 saberes', lujos: '🎁 lujos', animales: '🐄 animales', ahorro: '🪙 ahorros' };
+    h += `<div class="estado"><b style="font-size:15px">${nv.icono} ${esc(nv.nombre)}</b> · nivel ${nv.nivel} de ${Sim.NIVELES_GRANJA.length}<div class="prog"><i style="width:${Math.round(Math.min(1, frac) * 100)}%"></i></div>${sig ? `${nv.puntos} de ${sig[0]} puntos para ser <b>${esc(sig[1].toLowerCase())}</b> ${sig[2]}` : '¡La granja llegó a lo más alto!'}<br><small style="opacity:.75">${Object.entries(pg.P).filter(([, v]) => v > 0).map(([k, v]) => `${ET[k]} ${v}`).join(' · ')}</small></div>`; }
   h += O ? `<div class="estado"><b>En obra:</b> ${esc(MO[1])} · ${Math.round(O.progreso * 100)} %<div class="prog"><i style="width:${Math.round(O.progreso * 100)}%"></i></div>${trabajan.length ? `👷 Trabajando ahora: ${esc(trabajan.join(' y '))}` : '⏳ Nadie trabajando en este momento (siguen cuando terminen lo urgente)'}${O.id !== 'reforma' ? ' · <button class="cancelar" data-cancelar-obra="1" style="background:none;border:0;color:#ff9d94;font:inherit;font-size:11px;cursor:pointer;text-decoration:underline">cancelar</button>' : ''}</div>` : `<div class="estado">No hay ninguna obra en curso. Elige qué construir: lo que encargues va primero.</div>`;
   if (cola.length) h += `<h5>📋 En fila</h5>` + cola.map((id, i) => `<div class="fila"><div class="q"><b>${i + 1}. ${esc(M(id)?.[1] || id)}</b><small>${M(id)?.[2]} monedas</small></div><button data-quitar="${id}">Quitar</button></div>`).join('');
   for (const [titulo, ids] of GRUPOS_OBRA) {
     h += `<h5>${titulo}</h5>`;
     for (const id of ids) {
       const m = M(id); if (!m) continue;
-      const hecha = hechas.includes(id), enObra = O?.id === id, enCola = cola.includes(id), falta = m[5].filter((x) => !hechas.includes(x));
+      const nivelYa = Sim.nivelGranja(s).nivel, hecha = hechas.includes(id), enObra = O?.id === id, enCola = cola.includes(id), falta = m[5].filter((x) => (x.startsWith('nivel') ? nivelYa < +x.slice(5) : !hechas.includes(x)));
       const est = hecha ? '<span class="tag">✓ Hecha</span>' : enObra ? `<span class="tag oro">${Math.round(O.progreso * 100)} %</span>` : enCola ? '<span class="tag oro">En fila</span>' : '';
       const btn = hecha || enObra || enCola ? '' : `<button class="${mon >= m[2] && !O && !falta.length ? 'prim' : ''}" data-obra="${id}">${O || falta.length || mon < m[2] ? 'A la fila' : 'Construir'} · ${m[2]}</button>`;
-      h += `<div class="fila"><div class="q"><b>${esc(m[1][0].toUpperCase() + m[1].slice(1))}</b><small>${esc(m[4])} · ${m[3]} h de trabajo${falta.length && !hecha ? ` · requiere: ${esc(falta.map((x) => M(x)?.[1]).join(', '))}` : ''}</small></div>${est}${btn}</div>`;
+      h += `<div class="fila"><div class="q"><b>${esc(m[1][0].toUpperCase() + m[1].slice(1))}</b><small>${esc(m[4])} · ${m[3]} h de trabajo${falta.length && !hecha ? ` · requiere: ${esc(falta.map(Sim.nombreRequisito).join(', '))}` : ''}</small></div>${est}${btn}</div>`;
     }
   }
   h += `<div class="nota">${msgObras ? esc(msgObras) + '<br>' : ''}Construye quien sepa (Andrés es manitas) cuando no hay algo urgente. Lo que está en fila empieza solo al terminar lo anterior, si alcanza la plata.</div>`;
