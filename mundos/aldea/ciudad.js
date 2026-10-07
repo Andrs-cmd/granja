@@ -89,7 +89,10 @@ export function planificar(s, C, nec, R) {
   for (const pd of pedidos) {
     // primero crecer hacia arriba si la era lo permite y la ciudad ya está llena
     const sube = !pd.exp && pd.u !== 'campo' && !USOS[pd.u].plano && pd.u !== 'puerto' ? mias.filter((c) => c.u === pd.u && !c.o && !c.ru && c.n < pisosEra(era)).sort((a, b) => dist(a.x, a.z, C.x, C.z) - dist(b.x, b.z, C.x, C.z))[0] : null;
-    const nueva = buscarCelda(s, C, pd.u, pob);
+    let nueva = buscarCelda(s, C, pd.u, pob);
+    // sin suelo libre (p. ej. sobrevivientes en las ruinas de una ciudad enorme): se despeja una ruina
+    // o una casa sobrante de la orilla para sembrar o construir lo que falta
+    if (!nueva && ['campo', 'vivienda', 'mercado', 'taller'].includes(pd.u)) nueva = despejar(s, C, mias, pd.u, pob, capV);
     const c = sube && (!nueva || era >= 3 || dist(nueva.x, nueva.z, C.x, C.z) > radioCiudad(s, C, pob) * 0.75) ? sube : nueva;
     if (!c) continue;
     const n = c === sube ? Math.min(pisosEra(era), c.n + Math.max(1, Math.round(pisosEra(era) / 6))) : pd.exp && !USOS[pd.u].plano ? Math.max(1, Math.round(pisosEra(era) * 0.2)) : 1;
@@ -106,6 +109,14 @@ export function planificar(s, C, nec, R) {
   const ruina = mias.find((c) => c.ru && !c.o);
   if (ruina && pagar(s, C, ruina.u || 'vivienda', 0.6, R)) { iniciarObra(s, C, ruina, ruina.u || 'vivienda', 1, true); return { u: ruina.u, c: ruina, reconstruye: true }; }
   return null;
+}
+function despejar(s, C, mias, u, pob, capV) {
+  const lejos = (c) => dist(c.x, c.z, C.x, C.z);
+  let c = mias.filter((x) => x.ru && !x.o && x.t !== 'm').sort((a, b) => (u === 'campo' ? lejos(b) - lejos(a) : lejos(a) - lejos(b)))[0];
+  if (!c && u !== 'vivienda' && capV > pob * 1.6) c = mias.filter((x) => x.u === 'vivienda' && !x.o && !x.ru).sort((a, b) => lejos(b) - lejos(a))[0];
+  if (!c) return null;
+  c.u = null; c.ru = false; c.n = 0; s.vc++;
+  return c;
 }
 function pagar(s, C, u, n, R) {
   const k = USOS[u].mat * (1 + s.era * 0.7) * Math.max(0.5, n), met = s.era >= 2 ? k * 0.15 : 0;

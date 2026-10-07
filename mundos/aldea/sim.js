@@ -229,11 +229,13 @@ const estacionFactor = (s) => { const e = fecha(s).est; return (e === 3 ? 0.55 :
 function demanda(s, C, G) {
   const pob = G.length, adultos = G.filter((a) => a.edad >= 14 && a.edad < 66).length || 1, m = s.mult, e = s.era, R = C.res;
   const obras = s.celdas.filter((c) => c.o && c.al === C.id).length;
+  // el megaproyecto del destino pide recursos cada día: la ciudad pone gente a producirlos
+  const Xm = s.mega && DESTINOS[s.mega.k], mega = (r) => (Xm?.costo[r] && (s.mega.ap[r] || 0) < Xm.costo[r] ? (Xm.costo[r] * 0.004) / Math.max(1, vivas(s).length) / ((OFICIOS[r].base * (m[r] || 1)) * 0.7) : 0);
   const t = {
     comida: (G.reduce((n, a) => n + consumoComida(a), 0) * (1.12 + (R.comida < pob * 8 ? 0.35 : 0))) / (OFICIOS.comida.base * m.comida * 0.72 * estacionFactor(s)),   // 0,72: lo que rinde en promedio un trabajador
-    materiales: (pob * 0.22 + obras * 2.5) / (OFICIOS.materiales.base * m.materiales) + 0.5,
-    metal: s.tec.bronce ? (pob * 0.06 * (1 + e * 0.3)) / (OFICIOS.metal.base * m.metal) + 0.3 : 0,
-    energia: e >= 4 ? (pob * 0.45 * (e - 3)) / (OFICIOS.energia.base * m.energia) + 0.5 : 0,
+    materiales: (pob * 0.22 + obras * 2.5) / (OFICIOS.materiales.base * m.materiales) + 0.5 + mega('materiales'),
+    metal: s.tec.bronce ? (pob * 0.06 * (1 + e * 0.3)) / (OFICIOS.metal.base * m.metal) + 0.3 + mega('metal') : 0,
+    energia: e >= 4 ? (pob * 0.45 * (e - 3)) / (OFICIOS.energia.base * m.energia) + 0.5 + mega('energia') : 0,
     bienes: (pob * 0.09 * (e + 1)) / (OFICIOS.bienes.base * m.bienes),
     ciencia: adultos * (0.04 + 0.02 * e) * (1 + s.ejes.cf / 150) * (s.leyes.academias ? 1.3 : 1) * (s.gobierno === 'tecnocracia' ? 1.3 : 1),
     fe: adultos * 0.06 * (1 - s.ejes.cf / 120) * (s.gobierno === 'teocracia' ? 1.6 : 1),
@@ -281,7 +283,7 @@ function economia(s, C, G, D) {
   R.comida -= cc; C.hambre = R.comida < 0 ? Math.min(1, -R.comida / cc) : 0; if (R.comida < 0) R.comida = 0;
   R.comida = Math.min(R.comida, G.length * 60);
   R.bienes = Math.max(0, R.bienes - G.length * 0.08 * (e + 1)); C.sinBienes = R.bienes <= 0;
-  if (e >= 4) { R.energia -= G.length * 0.4 * (e - 3); C.sinEnergia = R.energia < 0; if (R.energia < 0) R.energia = 0; R.energia = Math.min(R.energia, G.length * 30); } else C.sinEnergia = false;
+  if (e >= 4) { R.energia -= G.length * 0.4 * (e - 3); C.sinEnergia = R.energia < 0; if (R.energia < 0) R.energia = 0; R.energia = Math.min(R.energia, G.length * 30 + (s.mega ? 3000 : 0)); } else C.sinEnergia = false;
   for (const k of ['materiales', 'metal', 'bienes']) R[k] = Math.min(R[k], G.length * 50 + 300);
   // obras
   const listas = U.construir(s, C, P('construir') * (1 + e * 0.15));
@@ -545,7 +547,12 @@ function investigar(s) {
   }
   if (s.era < 7) {
     const deEra = Object.keys(s.tec).filter((x) => TEC[x].era === s.era).length;
-    if (deEra >= 3 && s.gente.length >= ERAS[s.era + 1].pob) subirEra(s);
+    if (deEra >= 3) {
+      // si ya saben lo necesario pero les falta gente, con los años bastan menos (la historia no se congela)
+      if (s.listo?.era !== s.era) s.listo = { era: s.era, dia: s.dia };
+      const espera = (s.dia - s.listo.dia) / DIAS_ANIO, req = Math.ceil(ERAS[s.era + 1].pob * Math.max(0.4, 1 - espera / 90));
+      if (s.gente.length >= req) subirEra(s);
+    }
   }
 }
 function elegirTec(s, t) {
@@ -560,6 +567,7 @@ function elegirTec(s, t) {
     if (T.destino === 'estelar') v *= 0.5 + (E.aa + E.cf + 200) / 300;
     if (T.destino === 'colmena') v *= 0.4 + (E.cf - E.ic + 200) / 350;
     if (T.destino === 'gaia') v *= 0.5 + (-E.ni - E.aa + 200) / 300;
+    if (T.destino === 'gaia' && s.ecologia < 60) v *= 0.12;   // un pueblo que arrasó su bosque no piensa en Gaia
     if (s.leyes.censura && t === 'c') v *= 0.8;
     return v;
   };
@@ -605,13 +613,23 @@ export function abrirDecision(s, k, ctx = {}) {
 export function votoDe(s, a, D = s.decision) {
   if (!D) return null;
   let mejor = null, mv = -1e9;
+  const st = D.k === 'salto' ? estadSalto(s, D) : null;
   for (const o of D.ops) {
     let v = M.atractivo(a, o.w) + (hash(a.id * 977 + D.abre + o.k.length * 13) - 0.5) * 0.6;
+    // el gran salto: cada quien vota por lo que lo distingue de los demás (no por lo que todos comparten),
+    // y la cultura que dejó la historia inclina la balanza
+    if (st) { const [mu, sd] = st[o.k]; v = ((M.atractivo(a, o.w) - mu) / sd) * 0.55 + (hash(a.id * 977 + D.abre + o.k.length * 13) - 0.5) * 0.5 + (o.destino ? alineacion(s, o.destino) * 2.2 : D.ops.length <= 2 ? 0.15 : -0.35); }
     if (D.consejo[o.k]) v += D.consejo[o.k] * (0.3 + a.v.fe * 0.9);   // el susurro del espíritu convence más a los creyentes
     if (o.destino) v += alineacion(s, o.destino);   // la cultura que dejó la historia también empuja
     if (v > mv) { mv = v; mejor = o; }
   }
   return { k: mejor.k, n: mejor.n, motivo: M.motivoVoto(a, mejor.w) };
+}
+function estadSalto(s, D) {
+  const T = tmp(s); if (T.salto && T.salto.d === D && T.salto.dia === s.dia) return T.salto.st;
+  const ad = s.gente.filter((a) => a.edad >= 16), st = {};
+  for (const o of D.ops) { const xs = ad.map((a) => M.atractivo(a, o.w)), mu = xs.reduce((n, x) => n + x, 0) / Math.max(1, xs.length), sd = Math.sqrt(xs.reduce((n, x) => n + (x - mu) ** 2, 0) / Math.max(1, xs.length)) || 1; st[o.k] = [mu, Math.max(0.05, sd)]; }
+  T.salto = { d: D, dia: s.dia, st }; return st;
 }
 export function conteo(s, D = s.decision) {
   if (!D) return null;
@@ -772,7 +790,7 @@ function crisis(s) {
   // si la cultura tira hacia un destino que todavía no tiene su tecnología, la sociedad espera (un tiempo)
   const quiere = Object.keys(DESTINOS).filter((k) => DESTINOS[k].tec).sort((a, b) => alineacion(s, b) - alineacion(s, a))[0];
   const espera = quiere && !s.tec[DESTINOS[quiere].tec] && alineacion(s, quiere) > 0.2 && enEra7 < 45;
-  if (s.era >= 7 && !s.mega && s.dia > (s.esperarHasta || 0) && abiertos && !espera && (abiertos >= 2 || enEra7 > 12)) abrirDecision(s, 'salto');
+  if (s.era >= 7 && !s.mega && s.dia > (s.esperarHasta || 0) && abiertos && !espera && (abiertos >= 2 || enEra7 > 35)) abrirDecision(s, 'salto');   // con una sola puerta abierta, esperan a ver si se abren otras
 }
 function entreCiudades(s) {
   const V = vivas(s);
@@ -833,9 +851,9 @@ export function riesgosDe(s) {
 function riesgos(s) {
   const r = (s.riesgos = riesgosDe(s));
   if (s.era >= 5 && r.nuclear > 0 && prob(s, (r.nuclear / 100) * (s.guerra ? 0.03 : 0.008))) return destruir(s, 'nuclear');   // sin guerra, la bomba casi siempre se queda guardada
-  if (r.ia > 0 && prob(s, (r.ia / 100) * 0.016)) return destruir(s, 'ia');
+  if (r.ia > 0 && prob(s, (r.ia / 100) * 0.008)) return destruir(s, 'ia');
   if (s.ecologia < 12 && s.era >= 4) { s.ecoMal = (s.ecoMal || 0) + 1; if (s.ecoMal > 10 && prob(s, 0.15)) return destruir(s, 'eco'); } else s.ecoMal = 0;
-  if (r.plaga > 0 && prob(s, (r.plaga / 100) * 0.02)) return destruir(s, 'plaga');
+  if (r.plaga > 0 && prob(s, (r.plaga / 100) * 0.011)) return destruir(s, 'plaga');
   if (r.civil > 70 && s.era >= 3 && prob(s, 0.04)) return destruir(s, 'civil');
 }
 export function destruir(s, causa) {
@@ -1029,7 +1047,7 @@ export function parentesco(a, b) {
   return null;
 }
 // cuánto empujan los ejes (la historia y la cultura) hacia un destino (-1..1)
-export function alineacion(s, k) { const E = s.ejes; return ({ estelar: E.cf + E.aa + E.ni * 0.4, trascendencia: -E.cf - E.aa * 0.6 - E.ic * 0.3, gaia: -E.ni - E.aa * 0.5, colmena: -E.ic * 1.2 + E.cf * 0.6 }[k] || 0) / 120; }
+export function alineacion(s, k) { const E = s.ejes; return ({ estelar: E.cf + E.aa + E.ni * 0.4 + 14, trascendencia: -E.cf - E.aa * 0.6 - E.ic * 0.3, gaia: -E.ni * 0.55 - E.aa * 0.25, colmena: -E.ic * 1.2 + E.cf * 0.6 + 12 }[k] || 0) / 120; }
 // hacia dónde «tira» la sociedad ahora mismo (para el medidor de destino)
 export function destinoProbable(s) {
   const E = s.ejes, r = riesgosDe(s);

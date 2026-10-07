@@ -43,10 +43,10 @@ export const TEC = {
   // Ciudad mercantil
   imprenta: { n: 'Imprenta', era: 3, t: 'c', req: ['escritura'], mult: { ciencia: 1.4, cultura: 1.3 }, d: 'Libros para todos: las ideas vuelan.' },
   banca: { n: 'Banca', era: 3, t: 'c', req: ['moneda'], mult: { comercio: 1.5 }, ejes: { ic: 5, aa: 3 }, d: 'Préstamos, deudas y grandes fortunas.' },
-  navegacion: { n: 'Navegación', era: 3, t: 'c', mult: { comida: 1.1, comercio: 1.2 }, ejes: { aa: 3 }, d: 'Barcos, mapas y el deseo de ir más allá.' },
+  navegacion: { n: 'Navegación', era: 3, t: 'c', mult: { comida: 1.1, comercio: 1.2 }, ejes: { aa: 2 }, d: 'Barcos, mapas y el deseo de ir más allá.' },
   metodo: { n: 'Método científico', era: 3, t: 'c', req: ['filosofia'], mult: { ciencia: 1.5 }, ejes: { cf: 8 }, d: 'Observar, medir, probar: la ciencia moderna nace.' },
   medicina: { n: 'Medicina', era: 3, t: 'c', req: ['herbolaria'], mult: { salud: 1.5 }, d: 'Médicos que entienden el cuerpo.' },
-  polvora: { n: 'Pólvora', era: 3, t: 'c', req: ['hierro'], mult: { seguridad: 2 }, ejes: { aa: 6 }, armas: true, d: 'Cañones y mosquetes: la guerra cambia.' },
+  polvora: { n: 'Pólvora', era: 3, t: 'c', req: ['hierro'], mult: { seguridad: 2 }, ejes: { aa: 4 }, armas: true, d: 'Cañones y mosquetes: la guerra cambia.' },
   mistica: { n: 'Mística', era: 3, t: 'f', req: ['teologia'], mult: { fe: 1.4, cultura: 1.15 }, ejes: { cf: -6, aa: -3 }, d: 'Monjes que buscan al espíritu dentro de sí.' },
   // Era industrial
   vapor: { n: 'Máquina de vapor', era: 4, t: 'c', req: ['metodo'], mult: { bienes: 1.6, energia: 1.5 }, ejes: { ni: 6 }, d: 'El vapor mueve telares, barcos y trenes.' },
@@ -61,22 +61,22 @@ export const TEC = {
   acero: { n: 'Acero y concreto', era: 5, t: 'c', req: ['ferrocarril'], mult: { materiales: 1.5 }, d: 'Rascacielos.' },
   antibioticos: { n: 'Antibióticos', era: 5, t: 'c', req: ['vacunas'], mult: { salud: 1.6 }, d: 'Se vive el doble.' },
   radio: { n: 'Radio', era: 5, t: 'c', req: ['electricidad'], mult: { cultura: 1.4 }, d: 'Una voz llega a todas las casas (también la del líder).' },
-  fision: { n: 'Fisión nuclear', era: 5, t: 'c', req: ['electricidad'], mult: { energia: 2 }, ejes: { aa: 6 }, armas: true, d: 'Energía enorme… y la posibilidad de la bomba.' },
+  fision: { n: 'Fisión nuclear', era: 5, t: 'c', req: ['electricidad'], mult: { energia: 2 }, ejes: { aa: 4 }, armas: true, d: 'Energía enorme… y la posibilidad de la bomba.' },
   meditacion: { n: 'Meditación profunda', era: 5, t: 'f', req: ['renovacion'], mult: { fe: 1.5, salud: 1.1 }, ejes: { cf: -6, aa: -5 }, d: 'Escuelas de silencio y conciencia.' },
   // Era de la información
   computacion: { n: 'Computación', era: 6, t: 'c', req: ['electricidad'], mult: { ciencia: 1.8 }, ejes: { cf: 6 }, d: 'Máquinas que calculan millones de veces más rápido.' },
-  internet: { n: 'Internet', era: 6, t: 'c', req: ['computacion'], mult: { cultura: 1.4, comercio: 1.4, ciencia: 1.2 }, d: 'Todos conectados con todos.' },
+  internet: { n: 'Internet', era: 6, t: 'c', req: ['computacion'], mult: { cultura: 1.4, comercio: 1.4, ciencia: 1.2 }, ejes: { aa: -3, ic: -2 }, d: 'Todos conectados con todos.' },
   genetica: { n: 'Genética', era: 6, t: 'c', req: ['antibioticos'], mult: { comida: 1.5, salud: 1.4 }, ejes: { cf: 5 }, d: 'Leer y editar la vida.' },
-  solar: { n: 'Energía solar', era: 6, t: 'c', req: ['electricidad'], mult: { energia: 1.4 }, ejes: { ni: -10 }, limpio: 1, d: 'Energía sin humo.' },
-  cohetes: { n: 'Cohetes', era: 6, t: 'c', req: ['combustion'], mult: { ciencia: 1.1 }, ejes: { aa: 6 }, d: 'Salir del orbe por primera vez.' },
-  ecologia: { n: 'Ecología', era: 6, t: 'c', req: ['genetica'], mult: { comida: 1.1 }, ejes: { ni: -12 }, limpio: 1, d: 'Entender y sanar el bosque.' },
-  despertar: { n: 'Despertar colectivo', era: 6, t: 'f', req: ['meditacion'], mult: { fe: 1.6, cultura: 1.2 }, ejes: { cf: -8, ic: -6 }, d: 'Millones meditan a la vez y algo se siente.' },
+  solar: { n: 'Energía solar', era: 6, t: 'c', req: ['electricidad'], mult: { energia: 1.4 }, ejes: { ni: -8 }, limpio: 1, d: 'Energía sin humo.' },
+  cohetes: { n: 'Cohetes', era: 6, t: 'c', req: ['combustion'], mult: { ciencia: 1.1 }, ejes: { aa: 3 }, d: 'Salir del orbe por primera vez.' },
+  ecologia: { n: 'Ecología', era: 6, t: 'c', req: ['genetica'], mult: { comida: 1.1 }, ejes: { ni: -10, aa: -2 }, limpio: 1, d: 'Entender y sanar el bosque.' },
+  despertar: { n: 'Despertar colectivo', era: 6, t: 'f', req: ['meditacion'], mult: { fe: 1.6, cultura: 1.2 }, ejes: { cf: -8, ic: -6, aa: -5 }, d: 'Millones meditan a la vez y algo se siente.' },
   // Era futura
   ia: { n: 'Inteligencia artificial', era: 7, t: 'c', req: ['internet'], mult: { ciencia: 2.2, bienes: 1.5 }, ejes: { cf: 8 }, d: 'Mentes que no son humanas.' },
   fusion: { n: 'Fusión', era: 7, t: 'c', req: ['fision'], mult: { energia: 3 }, limpio: 1, d: 'Un sol en una botella.' },
   nanotec: { n: 'Nanotecnología', era: 7, t: 'c', req: ['computacion'], mult: { materiales: 2, metal: 2 }, d: 'Construir átomo por átomo.' },
-  viaje: { n: 'Viaje interestelar', era: 7, t: 'c', req: ['cohetes', 'fusion'], ejes: { aa: 10 }, destino: 'estelar', d: 'Naves capaces de cruzar el cristal y llegar a las estrellas.' },
-  neural: { n: 'Red neural', era: 7, t: 'c', req: ['ia', 'internet'], ejes: { ic: -10 }, destino: 'colmena', d: 'Conectar las mentes entre sí.' },
+  viaje: { n: 'Viaje interestelar', era: 7, t: 'c', req: ['cohetes', 'nanotec'], ejes: { aa: 6 }, destino: 'estelar', d: 'Naves capaces de cruzar el cristal y llegar a las estrellas.' },
+  neural: { n: 'Red neural', era: 7, t: 'c', req: ['internet', 'nanotec'], ejes: { ic: -10 }, destino: 'colmena', d: 'Conectar las mentes entre sí.' },
   gaia: { n: 'Pacto de Gaia', era: 7, t: 'c', req: ['ecologia'], ejes: { ni: -12, aa: -6 }, destino: 'gaia', d: 'Ciudades que son bosque y bosque que es ciudad.' },
   conciencia: { n: 'Conciencia pura', era: 7, t: 'f', req: ['despertar'], ejes: { cf: -12 }, destino: 'trascendencia', d: 'La mente se libera del cuerpo.' },
 };
@@ -190,7 +190,7 @@ export const DESTINOS = {
   estelar: { n: 'Imperio estelar', i: '🚀', tec: 'viaje', mega: 'Flota estelar', costo: { energia: 9000, metal: 5000, ciencia: 9000 }, w: { ambicion: 1.2, curiosidad: 1, 'o.tecnologia': 1, 'o.ciencia': 0.8, fe: -0.4 }, d: 'Naves que cruzan el cristal: la civilización sale del orbe a conquistar las estrellas.' },
   trascendencia: { n: 'Trascendencia', i: '✨', tec: 'conciencia', mega: 'Templo de cristal', costo: { fe: 9000, cultura: 3000 }, w: { fe: 1.6, empatia: 0.8, 'o.religion': 1, ambicion: -0.6 }, d: 'La gente se vuelve luz: la conciencia deja el cuerpo y el orbe brilla.' },
   gaia: { n: 'Utopía de Gaia', i: '🌿', tec: 'gaia', mega: 'Jardín de Gaia', costo: { materiales: 6000, ciencia: 5000, cultura: 2000 }, w: { empatia: 1, 'o.naturaleza': 1.6, codicia: -0.8 }, d: 'Ciudad y bosque se funden: una sociedad en paz con la naturaleza.' },
-  colmena: { n: 'Mente colmena', i: '🧠', tec: 'neural', mega: 'Red neural total', costo: { energia: 7000, ciencia: 9000 }, w: { 'o.tecnologia': 1.2, lealtad: 0.8, curiosidad: 0.4, 'o.igualdad': 0.6, ambicion: -0.2 }, d: 'Todas las mentes conectadas en una sola. ¿Utopía o fin del individuo?' },
+  colmena: { n: 'Mente colmena', i: '🧠', tec: 'neural', mega: 'Red neural total', costo: { energia: 7000, ciencia: 9000 }, w: { 'o.tecnologia': 1.3, lealtad: 1, curiosidad: 0.5, 'o.igualdad': 0.8, ambicion: -0.3 }, d: 'Todas las mentes conectadas en una sola. ¿Utopía o fin del individuo?' },
   destruccion: { n: 'Destrucción', i: '💀', d: 'La civilización se destruyó a sí misma.' },
 };
 export const CAUSAS = {
