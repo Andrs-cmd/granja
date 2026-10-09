@@ -7,7 +7,7 @@
 // El paso es de un día; lo que se ve hora a hora (ir al trabajo, volver a casa) lo anima la escena.
 // =====================================================================
 import { azar, ruido2D } from '../motor/azar.js';
-import { MIN_DIA, DIAS_EST, DIAS_ANIO, ESTACIONES, ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, NOM_M, NOM_F, APELLIDOS, NOMBRES_CIUDAD, NOMBRES_MOV, tituloOficio, ESPECIES, MAPAS, MONUMENTOS, VATIOS, PLANETAS, ORDEN_COLONIAS } from './datos.js';
+import { MIN_DIA, DIAS_EST, DIAS_ANIO, ESTACIONES, ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, NOMBRES_MAPA, NOM_M, NOM_F, APELLIDOS, NOMBRES_CIUDAD, NOMBRES_MOV, tituloOficio, ESPECIES, MAPAS, MONUMENTOS, VATIOS, PLANETAS, ORDEN_COLONIAS } from './datos.js';
 import * as M from './mente.js';
 import * as U from './ciudad.js';
 export { ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, ESTACIONES, DIAS_ANIO, MIN_DIA, tituloOficio, ESPECIES, MAPAS, MONUMENTOS, PLANETAS };
@@ -19,6 +19,7 @@ const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
 const TMP = new WeakMap();
 
 // ---------------------------------------------------------------- azar reproducible dentro del estado
+export const nombresCiudad = (s) => NOMBRES_MAPA[s.mapa] || NOMBRES_CIUDAD;
 export function rnd(s) { let t = (s.rng = (s.rng + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), 1 | t); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
 const pick = (s, l) => l[Math.floor(rnd(s) * l.length)];
 const ent = (s, a, b) => a + rnd(s) * (b - a);
@@ -87,7 +88,7 @@ export function crearAldea(semilla = Date.now(), ciclo = 1, historia = [], opts 
   crearMapa(s, sem);
   U.crearTerreno(s, azar(sem ^ 0x1234));
   s.arbolesIni = s.arboles.length; s.maxArboles = s.arboles.length + 260;
-  const C = nuevaCiudad(s, pick(s, NOMBRES_CIUDAD.slice(0, 6)), 0, 0, null);
+  const C = nuevaCiudad(s, pick(s, nombresCiudad(s).slice(0, 6)), 0, 0, null);
   Object.assign(C.res, { comida: 60, materiales: 30, metal: 0, energia: 0, bienes: 5 });
   // colonos: tres parejas (alguna con hijos), dos solteros y una persona mayor que recuerda los mitos
   const ap = () => pick(s, APELLIDOS.filter((x) => !s.gente.some((a) => a.apellido === x)));
@@ -895,7 +896,7 @@ function fundarCiudad(s) {
   const sitio = sitioCiudad(s); if (!sitio) return;
   const parejas = G.filter((a) => a.sexo === 'f' && a.pareja && a.edad >= 18 && a.edad < 40).map((m) => [m, vivo(s, m.pareja)]).filter(([, p]) => p && p.al === 0 && p.id !== C0.lider).sort((x, y) => y[0].v.ambicion + y[1].p.ape - x[0].v.ambicion - x[1].p.ape);
   if (parejas.length < 2) return;
-  const nombre = pick(s, NOMBRES_CIUDAD.filter((n) => !s.ciudades.some((C) => C.nombre === n))), B = nuevaCiudad(s, nombre, sitio.x, sitio.z, 0);
+  const nombre = pick(s, nombresCiudad(s).filter((n) => !s.ciudades.some((C) => C.nombre === n))), B = nuevaCiudad(s, nombre, sitio.x, sitio.z, 0);
   const n = Math.min(parejas.length, 2 + Math.floor(G.length / 30));
   for (const [m, p] of parejas.slice(0, n)) { mudar(s, m, B.id); mudar(s, p, B.id); vida(s, m, `Ayudó a fundar ${nombre}`); vida(s, p, `Ayudó a fundar ${nombre}`); M.recordar(m, sello(s), `Fundó ${nombre}`, 12); }
   for (const r of ['comida', 'materiales', 'metal', 'bienes']) { const q = C0.res[r] * 0.2; C0.res[r] -= q; B.res[r] += q; }
@@ -1149,6 +1150,12 @@ function terreno(s) {
     for (let i = 0; i < nInund; i++) { const c = costa[Math.floor(rnd(s) * costa.length)]; if (c.t === 'a') continue; if (c.u) { c.u = null; c.o = null; c.n = 0; } c.ru = false; c.t = 'a'; c.inund = true; U.talarCelda(s, c); c.t = 'a'; cambios++; }
     if (nInund && prob(s, 0.5)) log(s, 'El agua sube: la orilla se traga calles y campos de la costa.', 'malo');
     if (nInund && !s._avisoMar) { s._avisoMar = true; hito(s, 'Sube el nivel del agua', 'malo'); }
+  }
+  // el agua vuelve a su nivel cuando el aire se limpia (tras un colapso, o una sociedad que dejó de contaminar)
+  if (s.contaminacion < 0.15 && s.celdas.some((c) => c.inund)) {
+    s.marea = Math.max(0, +(s.marea * 0.85 - 0.05).toFixed(3));
+    for (const c of s.celdas.filter((x) => x.inund).slice(0, 4)) { c.t = 'p'; c.inund = false; c.f = Math.max(c.f || 0, 0.9); cambios++; }
+    if (!s._avisoBaja) { s._avisoBaja = true; log(s, 'El agua baja: las costas inundadas vuelven a ser tierra, llenas de limo fértil.', 'logro'); }
   }
   // terraformación: la era futura (o una sociedad verde) devuelve el verde y saca el agua de las costas
   if ((s.era >= 7 && (s.tec.nanotec || s.tec.gaia)) || s.ejes.ni < -25 || s.leyes.verde === 2) {

@@ -262,6 +262,13 @@ export const ESPECIES = {
     evo: [['Colonia', '🐜', 'Millares que trabajan sin descanso para la reina.'], ['Obreras con herramientas', '🪵', 'Hojas y piedritas: las primeras herramientas.'], ['Fuego en el hormiguero', '🔥', 'Encienden fuego en el corazón del montículo.'], ['Feromonas con significado', '🗣', 'Los olores ya son palabras.']] },
 };
 // mapas: cómo es el mundo dentro del orbe
+// nombres de ciudad según el mundo (el valle usa NOMBRES_CIUDAD)
+export const NOMBRES_MAPA = {
+  desierto: ['Arenas de Oro', 'El Oasis', 'Dunas Altas', 'Pozo del Sol', 'Palmar', 'Medina Roja', 'Tierra Seca', 'Las Caravanas', 'Ojo de Agua', 'Bajo el Faraón', 'Horizonte', 'Duna Blanca', 'Río de Arena', 'Las Esfinges', 'El Espejismo', 'Siwa Nueva'],
+  selva: ['Raíz Profunda', 'Lianas', 'Bruma Verde', 'La Ceiba', 'Cascada Alta', 'Río Negro', 'Las Orquídeas', 'Tambor', 'Hojarasca', 'Jaguar', 'Neblina', 'Selva Honda', 'Los Helechos', 'Guacamaya', 'Copal', 'Manglar'],
+  archipielago: ['Isla Mayor', 'Puerto Sal', 'Arrecife', 'La Caleta', 'Bahía Azul', 'Faro Viejo', 'Las Gaviotas', 'Coral', 'Marea Alta', 'Punta Brava', 'Atolón', 'Isla del Viento', 'Ensenada', 'Concha', 'Los Delfines', 'Puerto Nuevo'],
+  tundra: ['Cumbre Blanca', 'Escarcha', 'Paso del Lobo', 'Valle Helado', 'Nieve Eterna', 'Pino Alto', 'Glaciar', 'Aurora', 'Ventisca', 'Roca Fría', 'Los Abetos', 'Cima Gris', 'Hielo Azul', 'Refugio', 'Collado', 'El Deshielo'],
+};
 export const MAPAS = {
   valle: { n: 'Valle templado', i: '🌳', d: 'Bosques, un lago y un río, una montaña de piedra.', arboles: 1, lago: 8, montana: 1, suelo: ['#7fa35a', '#8ea552', '#a48c4c', '#dfe5ea'], agua: '#3f86b0', copa: { pino: ['#3f6a3a', '#386236', '#3a5e36', '#c4ccd0'], roble: ['#5c8a3e', '#4f7a34', '#c8782c', '#cfd6dc'] }, lluvia: 1 },
   desierto: { n: 'Desierto con oasis', i: '🏜', d: 'Arena, un río que da vida y palmeras en el oasis. Tierra de pirámides.', arboles: 0.25, lago: 5, montana: 0.8, seco: true, palmeras: true, suelo: ['#d8c088', '#e0c48a', '#d0b07a', '#cdb88a'], agua: '#3a9ab8', copa: { pino: ['#4a7a3a', '#4a7a3a', '#5a7a3a', '#5a7a3a'], roble: ['#5a8a3a', '#5a8a3a', '#6a8a3a', '#6a8a3a'] }, lluvia: 0.25 },
