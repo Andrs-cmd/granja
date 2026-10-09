@@ -116,6 +116,7 @@ export const USOS = {
   teatro: { n: 'Teatro y plaza de las artes', cap: 6, obra: 8, mat: 4 },
   palacio: { n: 'Casa de gobierno', cap: 4, obra: 14, mat: 8 },
   parque: { n: 'Parque', cap: 0, obra: 2, mat: 0, plano: true },
+  maravilla: { n: 'Maravilla', cap: 0, obra: 99, mat: 0, plano: true },
   puerto: { n: 'Puerto espacial', cap: 10, obra: 40, mat: 30 },
 };
 
@@ -241,3 +242,45 @@ export const NOMBRES_MOV = {
   renacimiento: ['Academia de las Luces', 'Círculo de los Curiosos', 'Renacimiento'],
   pacifista: ['Manos Abiertas', 'Paz Ahora', 'Liga de las Madres'],
 };
+
+// ---------------------------------------------------------------- especies de origen: de qué animal evoluciona la civilización
+// ejes: empuje inicial al destino; rasgos: suma a los valores de cada individuo; piel: pelaje/plumas/escamas;
+// forma: partes extra del cuerpo (las dibuja la escena); tinte: color de su arquitectura y monumentos;
+// casa: refugio de la prehistoria; evo: nombres de las cuatro etapas antes de la tribu
+export const ESPECIES = {
+  primates: { n: 'Primates', i: '🐒', d: 'Del mono al humano: manos hábiles, curiosos y sociales.', ejes: {}, rasgos: { curiosidad: 0.05 }, piel: [0xf1c9a5, 0xd9a77a, 0xb98058, 0x8a5a3a, 0x6a4028], pelaje: 0x5a3a22, forma: {}, tinte: 0xffffff, casa: 'cueva', terreno: 'valle',
+    evo: [['Manada de primates', '🐒', 'Viven en los árboles y bajan al suelo a buscar comida.'], ['Homínidos', '🪨', 'Caminan casi erguidos y tallan herramientas de piedra.'], ['Dominan el fuego', '🔥', 'El fuego los calienta, los protege y cocina su comida.'], ['Nace el lenguaje', '🗣', 'Ya no solo gritan: se cuentan historias.']] },
+  corvidos: { n: 'Córvidos', i: '🐦', d: 'Aves listísimas: picos, alas que se volvieron brazos, memoria de elefante.', ejes: { cf: 12 }, rasgos: { curiosidad: 0.15, lealtad: -0.05 }, piel: [0x2a2a34, 0x3a3e4e, 0x1e2230, 0x4a4a5a], pelaje: 0x1e2230, forma: { pico: 0xe0b040, alas: true }, tinte: 0xb8c4e0, casa: 'nido', terreno: 'tundra',
+    evo: [['Bandada de cuervos', '🐦', 'Graznan, roban y recuerdan cada cara.'], ['Ramitas como herramientas', '🪵', 'Con el pico doblan ramas para sacar comida.'], ['Nidos de fuego', '🔥', 'Aprenden a guardar brasas en nidos de barro.'], ['Cantos con palabras', '🎶', 'Su canto ya dice cosas que antes no podía.']] },
+  canidos: { n: 'Cánidos', i: '🐺', d: 'Lobos que se pusieron de pie: hocico, orejas y cola; la manada es sagrada.', ejes: { ic: -15, aa: 4 }, rasgos: { lealtad: 0.2, empatia: 0.05 }, piel: [0x8a8a88, 0x6a5a48, 0xb0a490, 0x4a4440], pelaje: 0x6a6460, forma: { hocico: true, orejas: 'punta', cola: 'lobo' }, tinte: 0xd8c8b0, casa: 'madriguera', terreno: 'tundra',
+    evo: [['Manada de lobos', '🐺', 'Cazan juntos y le aúllan a la luna.'], ['Cazadores en grupo', '🦴', 'Usan piedras y trampas: la manada piensa como uno.'], ['Guardianes del fuego', '🔥', 'Se turnan para que el fuego nunca se apague.'], ['Aullidos con palabras', '🗣', 'El aullido se vuelve lenguaje.']] },
+  felinos: { n: 'Felinos', i: '🐆', d: 'Grandes gatos inteligentes: orejas, cola, garras; orgullosos e independientes.', ejes: { ic: 18, aa: 6 }, rasgos: { ambicion: 0.1, lealtad: -0.15, curiosidad: 0.05 }, piel: [0xd8a050, 0xc08040, 0xe0c080, 0x8a6a3a], pelaje: 0xc08a40, forma: { orejas: 'gato', cola: 'gato' }, tinte: 0xf0d8a0, casa: 'cueva', terreno: 'selva',
+    evo: [['Clan de felinos', '🐆', 'Cazan solos y se reúnen poco.'], ['Garras de piedra', '🪨', 'Afilan lascas como garras de repuesto.'], ['El fuego en la cueva', '🔥', 'El fuego espanta a sus rivales.'], ['Ronroneos con sentido', '🗣', 'Su voz ya nombra el mundo.']] },
+  reptiles: { n: 'Reptiles', i: '🦎', d: 'Escamas, cola gruesa y sangre fría: resistentes, pacientes y ambiciosos.', ejes: { aa: 15, ni: 8 }, rasgos: { ambicion: 0.15, miedo: -0.1, empatia: -0.1 }, piel: [0x5a8a4a, 0x4a7a5a, 0x8a9a4a, 0x3a6a4a], pelaje: 0x4a7a4a, forma: { cola: 'reptil', crestas: true }, tinte: 0xc8e0a0, casa: 'nido', terreno: 'desierto',
+    evo: [['Nidada de reptiles', '🦎', 'Toman el sol y cuidan sus huevos.'], ['Lascas de obsidiana', '🪨', 'Tallan obsidiana negra con las garras.'], ['Sol y fuego', '🔥', 'El fuego les da el calor que el sol no alcanza.'], ['Siseos con palabras', '🗣', 'El siseo se vuelve idioma.']] },
+  insectos: { n: 'Insectos sociales', i: '🐜', d: 'Una colonia que piensa junta: antenas, cuatro brazos y una lealtad absoluta.', ejes: { ic: -35, cf: 5 }, rasgos: { lealtad: 0.3, ambicion: -0.1, curiosidad: -0.05, empatia: 0.05 }, piel: [0x6a3a1a, 0x8a5a2a, 0x2a1a10, 0xa86a2a], pelaje: 0x4a2a14, forma: { antenas: true, brazos4: true }, tinte: 0xe0b070, casa: 'monticulo', terreno: 'selva',
+    evo: [['Colonia', '🐜', 'Millares que trabajan sin descanso para la reina.'], ['Obreras con herramientas', '🪵', 'Hojas y piedritas: las primeras herramientas.'], ['Fuego en el hormiguero', '🔥', 'Encienden fuego en el corazón del montículo.'], ['Feromonas con significado', '🗣', 'Los olores ya son palabras.']] },
+};
+// mapas: cómo es el mundo dentro del orbe
+export const MAPAS = {
+  valle: { n: 'Valle templado', i: '🌳', d: 'Bosques, un lago y un río, una montaña de piedra.', arboles: 1, lago: 8, montana: 1, suelo: ['#7fa35a', '#8ea552', '#a48c4c', '#dfe5ea'], agua: '#3f86b0', copa: { pino: ['#3f6a3a', '#386236', '#3a5e36', '#c4ccd0'], roble: ['#5c8a3e', '#4f7a34', '#c8782c', '#cfd6dc'] }, lluvia: 1 },
+  desierto: { n: 'Desierto con oasis', i: '🏜', d: 'Arena, un río que da vida y palmeras en el oasis. Tierra de pirámides.', arboles: 0.25, lago: 5, montana: 0.8, seco: true, palmeras: true, suelo: ['#d8c088', '#e0c48a', '#d0b07a', '#cdb88a'], agua: '#3a9ab8', copa: { pino: ['#4a7a3a', '#4a7a3a', '#5a7a3a', '#5a7a3a'], roble: ['#5a8a3a', '#5a8a3a', '#6a8a3a', '#6a8a3a'] }, lluvia: 0.25 },
+  selva: { n: 'Selva', i: '🌴', d: 'Árboles por todas partes, lluvias, ríos y lagunas.', arboles: 1.9, lago: 7, montana: 0.6, suelo: ['#5f8f3a', '#5a8a36', '#6a8a3a', '#6a8a40'], agua: '#3a8a8a', copa: { pino: ['#2f6a2e', '#2a6028', '#2f6230', '#2f6a2e'], roble: ['#3f7a2e', '#3a7028', '#4a7a2e', '#3f7a2e'] }, lluvia: 2 },
+  archipielago: { n: 'Archipiélago', i: '🏝', d: 'Un mar con islas: la civilización vive entre playas y barcos.', arboles: 0.9, lago: 6, montana: 0.7, mar: true, suelo: ['#8aaa5a', '#9aaa52', '#a8945a', '#cfd8d0'], agua: '#2a7ab0', copa: { pino: ['#3f6a3a', '#386236', '#3a5e36', '#c4ccd0'], roble: ['#4f8a3e', '#4a7a34', '#a8782c', '#cfd6dc'] }, lluvia: 1.3 },
+  tundra: { n: 'Montañas heladas', i: '🏔', d: 'Nieve, coníferas y una gran montaña. Inviernos largos.', arboles: 0.7, lago: 7, montana: 1.6, frio: true, soloPinos: true, suelo: ['#a8b8a0', '#9ab090', '#b0a890', '#eef2f4'], agua: '#8ab8d0', copa: { pino: ['#2f5a3a', '#2a5636', '#2f5236', '#d8e0e4'], roble: ['#3f6a4a', '#3f6a4a', '#7a6a3a', '#e0e6ea'] }, lluvia: 0.8 },
+};
+// una maravilla por era (la sociedad la elige sola según su especie, su mapa y su cultura)
+export const MONUMENTOS = [
+  [{ k: 'menhires', n: 'Círculo de piedras', tam: 2 }],
+  [{ k: 'piramide', n: 'Gran pirámide', tam: 3 }, { k: 'zigurat', n: 'Zigurat', tam: 3 }],
+  [{ k: 'coliseo', n: 'Coliseo', tam: 3 }, { k: 'gran_templo', n: 'Gran templo', tam: 2 }],
+  [{ k: 'catedral', n: 'Catedral', tam: 2 }, { k: 'faro', n: 'Gran faro', tam: 2 }, { k: 'observatorio', n: 'Observatorio', tam: 2 }],
+  [{ k: 'torre_hierro', n: 'Torre de hierro', tam: 2 }, { k: 'gran_fabrica', n: 'Gran fábrica', tam: 3 }],
+  [{ k: 'rascacielos', n: 'Rascacielos icónico', tam: 2 }, { k: 'estadio', n: 'Gran estadio', tam: 3 }],
+  [{ k: 'torre_com', n: 'Torre de comunicaciones', tam: 2 }, { k: 'cupula_datos', n: 'Cúpula de datos', tam: 3 }],
+  [{ k: 'arcologia', n: 'Arcología', tam: 3 }, { k: 'anillo', n: 'Base del anillo orbital', tam: 3 }],
+];
+// Kardashev: vatios por habitante en cada era (P de juego); la muestra se lleva a todo el planeta con una escala fija
+export const VATIOS = [100, 300, 800, 1500, 4000, 8000, 12000, 40000, 40000];
+// los otros seis mundos del sistema, en orden orbital (el natal está entre Nuboso y Rojo); se colonizan primero los cercanos
+export const PLANETAS = ['Ígneo', 'Nuboso', 'Rojo', 'Gigante', 'Anillado', 'Helado'], ORDEN_COLONIAS = [2, 1, 0, 3, 4, 5];

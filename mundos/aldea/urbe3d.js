@@ -6,6 +6,7 @@
 // Todas las formas miden 1 de lado; la escena las escala por celda (una InstancedMesh por arquetipo).
 // =====================================================================
 import { THREE, fundirGeo, GEO } from '../motor/orbe3d.js';
+import { ESPECIES } from './datos.js';
 
 const CONO4 = new THREE.ConeGeometry(1, 1, 4), CIL6 = new THREE.CylinderGeometry(1, 1, 1, 6), CUP = new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), TOR = new THREE.TorusGeometry(1, 0.12, 6, 18), AGU = new THREE.CylinderGeometry(0.45, 1, 1, 6);
 const B = 0xf2efe8, OSC = 0x4a3a2e, TECHO = 0x8a8079;   // blanco teñible, oscuro y techo neutro (el color de la instancia los tiñe)
@@ -48,6 +49,11 @@ const DEF = {
   solar: { c: [...Array(6)].map((_, i) => [GEO.caja, 0x2a3a6a, -0.28 + (i % 3) * 0.28, 0.14, -0.2 + Math.floor(i / 3) * 0.4, 0.24, 0.02, 0.3, -0.5, 0, 0]).concat([[GEO.caja, 0x9a9a9a, 0, 0.03, 0, 0.95, 0.06, 0.95]]) },
   puerto: { c: [[GEO.cil, 0x8a8a90, 0, 0.04, 0, 0.48, 0.08, 0.48], [GEO.caja, 0xb04030, 0.28, 0.6, 0, 0.08, 1.2, 0.08], [GEO.caja, 0xb04030, 0.22, 1, 0, 0.14, 0.03, 0.06], [GEO.cil, 0xf0f0f0, 0, 0.62, 0, 0.09, 1.0, 0.09], [GEO.cono, 0xd04030, 0, 1.22, 0, 0.09, 0.22, 0.09], [GEO.cono, 0x3a3a40, 0, 0.16, 0, 0.16, 0.18, 0.16]] },
   fogata: { c: [...Array(8)].map((_, i) => { const a = (i / 8) * 6.28; return [GEO.esfera, 0x6e6a62, Math.cos(a) * 0.22, 0.04, Math.sin(a) * 0.22, 0.07, 0.05, 0.07]; }).concat([[GEO.cil, 0x5e3b22, 0, 0.05, 0, 0.03, 0.35, 0.03, 0, 0, 1.3], [GEO.cil, 0x5e3b22, 0, 0.05, 0, 0.03, 0.35, 0.03, 1.3, 0, 0]]).concat([...Array(4)].map((_, i) => { const a = (i / 4) * 6.28 + 0.4; return [GEO.cil, 0x8a5a34, Math.cos(a) * 0.42, 0.05, Math.sin(a) * 0.42, 0.05, 0.3, 0.05, 0, -a, Math.PI / 2]; })) },
+  // refugios de la prehistoria (según la especie)
+  cueva: { c: [[GEO.esfera, 0x8a8478, 0, 0.18, 0, 0.5, 0.42, 0.46], [GEO.esfera, 0x7a756c, 0.25, 0.12, -0.15, 0.3, 0.26, 0.3], [GEO.esfera, 0x1a1612, 0, 0.14, 0.38, 0.17, 0.15, 0.08]] },
+  nido: { c: [[TOR, 0x8a6a3a, 0, 0.1, 0, 0.32, 0.32, 0.5, Math.PI / 2, 0, 0], [GEO.cil, 0x6a4a2a, 0, 0.04, 0, 0.3, 0.06, 0.3], [GEO.esfera, 0xeee8d8, 0.06, 0.1, 0.04, 0.06, 0.08, 0.06], [GEO.esfera, 0xe8e0c8, -0.07, 0.1, -0.03, 0.06, 0.08, 0.06]] },
+  madriguera: { c: [[GEO.esfera, 0x7a5a3a, 0, 0.06, 0, 0.48, 0.2, 0.42], [GEO.esfera, 0x1a1410, 0, 0.1, 0.32, 0.14, 0.12, 0.08], [GEO.cil, 0x5e3b22, -0.3, 0.1, -0.2, 0.03, 0.4, 0.03, 0, 0, 1.2]] },
+  monticulo: { c: [[GEO.cono, 0x9a6a3a, 0, 0.4, 0, 0.38, 0.8, 0.38], [GEO.cono, 0x8a5a30, 0.22, 0.24, 0.1, 0.18, 0.48, 0.18], [GEO.cono, 0x8a5a30, -0.2, 0.2, -0.12, 0.15, 0.4, 0.15], [GEO.esfera, 0x2a1a10, 0, 0.12, 0.34, 0.07, 0.06, 0.04]] },
   ruina: { c: [[GEO.caja, B, -0.2, 0.15, 0, 0.4, 0.3, 0.7], [GEO.caja, B, 0.25, 0.25, -0.2, 0.3, 0.5, 0.3], [GEO.caja, B, 0.1, 0.05, 0.25, 0.6, 0.1, 0.3, 0.2, 0.3, 0]] },
 };
 export const ARQ = Object.keys(DEF);
@@ -63,7 +69,9 @@ const col = (h) => new THREE.Color(h);
 // cómo se ve una celda: { a: arquetipo, sx, sy, sz, color, brillo (0..1 de las ventanas) } o null si es plana (campo, parque)
 export function aspecto(s, c, eraCiv) {
   const e = Math.min(7, c.o && !c.u ? c.o.e : c.e), n = Math.max(1, c.n), u = c.u || c.o?.u, verde = s.ejes.ni < -15 || s.destino?.tipo === 'gaia', fe = s.ejes.cf < -20 || s.destino?.tipo === 'trascendencia';
-  if (!u || u === 'campo' || u === 'parque') return null;
+  if (!u || u === 'campo' || u === 'parque' || u === 'maravilla') return null;   // las maravillas las dibuja monumentos.js
+  const ESP = ESPECIES[s.especie] || ESPECIES.primates;
+  if (c.cueva) return { a: ESP.casa, sx: 2.6, sy: ESP.casa === 'monticulo' ? 2.6 : 2, sz: 2.6, color: col(0xffffff) };
   const W = 2.6, piso = 0.95;
   let a = 'casa', sx = W, sy = 2.4, sz = W, color = MURO[e], giro = 0;
   if (c.fogata && e <= 1) return { a: 'fogata', sx: W, sy: 1.2, sz: W, color: col(0xffffff) };
@@ -91,7 +99,9 @@ export function aspecto(s, c, eraCiv) {
     case 'puerto': a = 'puerto'; color = 0xffffff; sy = 9; sx = sz = 2.8; break;
   }
   if (c.ru) { a = 'ruina'; sy = Math.min(sy, 2.2) * 0.8; color = 0x5a5650; }
-  return { a, sx, sy, sz, color: color instanceof THREE.Color ? color : col(color), giro };
+  const cc = color instanceof THREE.Color ? color.clone() : col(color);
+  if (ESP.tinte !== 0xffffff && !c.ru) cc.lerp(col(ESP.tinte), 0.22);   // cada especie le da su color a su arquitectura
+  return { a, sx, sy, sz, color: cc, giro };
 }
 // ropa según la era y la clase
 const ROPA_ERA = [[0x8a6a4a, 0x7a5a3a, 0x9a7a5a, 0x6a5040], [0xb8a882, 0x8a7a5a, 0xa08a6a, 0x9a8a6a], [0x7a4a3a, 0x4a5a7a, 0x6a7a4a, 0x8a6a3a], [0x6a3a6a, 0x3a5a8a, 0x8a3a2a, 0x2a6a5a], [0x3a3a40, 0x4a4038, 0x5a5048, 0x2a3040], [0x2a4a8a, 0xc04a3a, 0x3a8a5a, 0xd8b04a], [0x2a2a30, 0x6a8ab0, 0xe0e0e0, 0x9a3a6a], [0xe8eef4, 0xb8c8d8, 0x8ae0e8, 0xf0f0f0]];

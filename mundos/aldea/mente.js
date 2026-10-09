@@ -111,6 +111,11 @@ export function pensar(s, a, ctx = {}) {
   const o = g(a, 'o', 'a'), E = s.era, ciudad = s.ciudades[a.al], ap = a.animo, interno = [];
   const linea = (t) => interno.push(t);
   let txt = null;
+  // en la prehistoria todavía no hay palabras: solo instintos e imágenes
+  if (s.evo != null && s.evo < 4) {
+    const L = [['Hambre… fruta… allá arriba.', 'Ruido en la hierba. ¿Peligro?', 'Calor del sol. Bueno.', 'La manada está cerca. Bien.'], ['Esta piedra corta. La guardo.', 'Si golpeo así… se rompe distinto.', 'Mi cría me imita. Aprende.', 'Otra piedra, más filosa.'], ['El fuego calienta. El fuego asusta a los otros.', 'La carne sobre el fuego sabe mejor.', 'Noche, pero hay luz.', 'Hay que cuidar la brasa.'], ['Quiero decirle que hay agua detrás del cerro.', 'Esa forma de sonido quiere decir "peligro".', '¿Cómo se llama esto?', 'Cuento lo que pasó y me escuchan.']][s.evo];
+    return { txt: a.salud < 30 ? 'Dolor… frío…' : ciudad?.hambre > 0.2 ? 'Hambre. Mucha hambre.' : L[(a.id + s.dia) % L.length], interno: [] };
+  }
   // lo urgente primero
   if (a.edad < 3) return { txt: '¡Ba-ba!', interno: [] };
   if (s.destino?.tipo === 'trascendencia') txt = 'Siento que me disuelvo en luz… no tengo miedo.';

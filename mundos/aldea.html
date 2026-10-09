@@ -51,6 +51,22 @@
   .diario li.decision { border-color: #b48ae0; } .diario li.era { border-color: #6ac8e0; } .diario li.espiritu { border-color: #e0b0ff; } .diario li.mov { border-color: #e09a5a; }
   #menu { right: 12px; bottom: calc(68px + env(safe-area-inset-bottom)); width: min(270px, calc(100vw - 24px)); }
   .etq { transition: none; }
+  /* pantalla de inicio: de qué animal, en qué mundo y con qué carácter nace la civilización */
+  #inicio { position: fixed; inset: 0; z-index: 30; background: rgba(12,11,16,.9); backdrop-filter: blur(6px); overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(14px + env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom)); }
+  #inicio.off { display: none; }
+  #inicio .caja { max-width: 760px; margin: 0 auto; position: relative; }
+  #inicio .cerrarIni { position: absolute; top: 0; right: 0; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.08); color: inherit; font-size: 16px; cursor: pointer; }
+  #inicio h2 { font-size: 20px; text-align: center; margin: 4px 0 2px; } #inicio .sub { text-align: center; opacity: .72; font-size: 13px; margin-bottom: 10px; }
+  #inicio h3 { margin-top: 16px; }
+  .tarjetas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } @media (max-width: 520px) { .tarjetas { grid-template-columns: repeat(2, 1fr); } }
+  .tarjetas button { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; padding: 10px 6px; border-radius: 14px; border: 2px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: inherit; cursor: pointer; font: inherit; }
+  .tarjetas button em { font-style: normal; font-size: 34px; line-height: 1.1; } .tarjetas button b { font-size: 13.5px; } .tarjetas button small { font-size: 11px; opacity: .7; line-height: 1.3; }
+  .tarjetas button.on { border-color: #e7c46a; background: rgba(231,196,106,.14); }
+  .desliz { display: grid; grid-template-columns: 80px 1fr 80px; gap: 8px; align-items: center; font-size: 12.5px; font-weight: 700; margin: 8px 0; } .desliz span:last-child { text-align: right; } .desliz input { width: 100%; accent-color: #e7c46a; }
+  .inicioAcc { display: flex; gap: 8px; margin-top: 16px; position: sticky; bottom: 0; padding: 8px 0; background: linear-gradient(transparent, rgba(12,11,16,.95) 30%); }
+  .inicioAcc button { flex: 1; min-height: 48px; border-radius: 14px; font-weight: 800; font-size: 15px; cursor: pointer; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.08); color: inherit; }
+  .inicioAcc button.prim { background: #e7c46a; color: #1b1a17; border-color: transparent; flex: 1.4; }
+  .kard { display: flex; align-items: center; gap: 8px; } .kard b { font-size: 22px; color: #9ad0ff; }
 </style>
 </head>
 <body>
@@ -64,12 +80,13 @@
 <section class="hoja2 off" id="ficha"></section>
 <section class="hoja2 off" id="cronica"></section>
 <nav id="dock"></nav>
+<section id="inicio" class="off"></section>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 <script type="module">
 // La aldea se gobierna sola: la gente piensa, vota, construye, inventa, pelea y elige su destino.
 // Tú eres el espíritu del orbe: solo miras, bendices o castigas.
 import { crearOrbe, THREE } from './motor/orbe3d.js';
-import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, guardarJSON, cargarJSON } from './motor/ui.js';
+import { $, esc, barraVelocidades, botonCalidad, aviso, panel, pintarSi, htmlDiario, htmlGrafica, guardarJSON, cargarJSON } from './motor/ui.js';
 import * as S from './aldea/sim.js';
 import { crearEscenaAldea } from './aldea/escena.js';
 
@@ -80,7 +97,7 @@ let s = null, avisoInicial = null;
   const viejo = cargarJSON(CLAVE);
   if (viejo && viejo.version !== S.VERSION) { try { localStorage.setItem('orbe-aldea-v2', JSON.stringify(viejo)); } catch { /* sin espacio */ } avisoInicial = 'La aldea renace con el nuevo motor de eras. Tu aldea anterior quedó guardada aparte (orbe-aldea-v2).'; }
   s = S.cargar(viejo);
-  if (!s) { s = S.crearAldea((Math.random() * 2 ** 32) >>> 0, 1, leerHistoria()); avisoInicial ||= 'Nace una tribu nueva. Ellos deciden su historia; tú eres el espíritu del orbe.'; }
+  if (!s) { s = S.crearAldea((Math.random() * 2 ** 32) >>> 0, 1, leerHistoria()); avisoInicial = null; var elegirAlInicio = true; }
   s.decision && (s.pausar = false);
 }
 function leerHistoria() { try { return JSON.parse(localStorage.getItem(CLAVE_HIST) || '[]'); } catch { return []; } }
@@ -91,11 +108,11 @@ let renaciendo = false;   // al cambiar de civilización no hay que volver a gua
 const guardar = () => { if (!renaciendo) guardarJSON(CLAVE, S.guardar(s)); };
 addEventListener('pagehide', guardar);
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardar(); });
-function nuevaCivilizacion() {
+function nuevaCivilizacion(opts = {}) {
   const h = [...(s.historia || [])]; if (s.fin && s.resumenFin && !h.some((x) => x.semilla === s.semilla && x.anios === s.resumenFin.anios)) h.push({ ciclo: s.ciclo, tipo: s.resumenFin.tipo, n: s.resumenFin.n, i: s.resumenFin.i, anios: s.resumenFin.anios, era: s.era, semilla: s.semilla });
   try { localStorage.setItem(CLAVE_HIST, JSON.stringify(h.slice(-30))); } catch { /* */ }
   renaciendo = true;
-  guardarJSON(CLAVE, S.guardar(S.crearAldea((Math.random() * 2 ** 32) >>> 0, 1, h.slice(-30)))); location.reload();
+  guardarJSON(CLAVE, S.guardar(S.crearAldea((Math.random() * 2 ** 32) >>> 0, 1, h.slice(-30), opts))); location.reload();
 }
 // el orbe un poco más arriba en el celular para que la barra no lo tape
 function encuadre() { const W = innerWidth, H = innerHeight; O.camera.setViewOffset(W, H, 0, W < 900 ? Math.min(40, H * 0.05) : 0, W, H); O.camera.updateProjectionMatrix(); }
@@ -113,11 +130,20 @@ function abrir(k) { for (const [n, el] of Object.entries(hojas)) el.classList.to
 const cerrarHojas = () => { for (const el of Object.values(hojas)) el.classList.add('off'); };
 btn('✨', 'Poderes del espíritu: bendiciones y catástrofes', () => abrir('poderes'), 'bPoderes');
 btn('📜', 'Crónica del orbe', () => abrir('cronica'));
+btn('🌌', 'Mapa espacial (escala de Kardashev)', () => abrirEspacio());
+// el mapa espacial lo dibuja aldea/espacio.js; si todavía no existe, no se rompe nada
+let espacio = null;
+async function abrirEspacio(mostrar = false) {
+  try {
+    if (!espacio) { const m = await import('./aldea/espacio.js'); espacio = m.crearEspacio(document.body, () => s); window.aldeaEspacio = espacio; }
+    if (mostrar) espacio.mostrar(true); else espacio.alternar();
+  } catch (e) { console.warn('Mapa espacial no disponible', e); aviso('El mapa espacial todavía no está disponible.'); }
+}
 const menuP = panel($('#menu'));
 btn('⋯', 'Más', () => { cerrarHojas(); menuP.alternar(); });
 { const ops = $('#menuOps'), op = (t, sub, fn) => { const b = document.createElement('button'); b.innerHTML = `${t}<small>${sub}</small>`; b.onclick = () => { menuP.cerrar(); fn(); }; ops.append(b); };
   op('🎥 Vista general', 'Dejar de seguir y ver todo el orbe', () => { seguir(null); O.volar(new THREE.Vector3(0, 2, 0), 110); });
-  op('🌱 Nueva civilización', 'Otra semilla, otra historia (la actual queda en la historia del orbe)', () => { if (confirm('¿Empezar una civilización nueva?')) nuevaCivilizacion(); });
+  op('🌱 Nueva civilización', 'Elige especie, mundo y carácter (la actual queda en la historia del orbe)', () => abrirInicio());
   const hd = document.createElement('div'); ops.append(hd); botonCalidad(hd, guardar).className = 'op'; }
 $('#espiritu').onclick = () => abrir('poderes');
 for (const el of Object.values(hojas)) el.addEventListener('click', (e) => { if (e.target.closest('[data-cerrar]')) { el.classList.add('off'); if (el === hojas.ficha) elegir(null); } });
@@ -143,18 +169,21 @@ document.addEventListener('click', (e) => {
     if (!r && s.efecto && ['meteorito', 'terremoto', 'incendio', 'inundacion', 'rayo'].includes(k)) { seguir(null); O.volar(new THREE.Vector3(s.efecto.x, 2, s.efecto.z), k === 'terremoto' ? 80 : 60); hojas.poderes.classList.add('off'); }
     pintar(true);
   }
-  if (t.closest('[data-nueva]')) nuevaCivilizacion();
+  if (t.closest('[data-nueva]')) abrirInicio();
 });
 
 // ---------------------------------------------------------------- pintar (solo mirar: aquí nadie decide por la gente)
 const fmt = (n) => (n >= 1e6 ? `${(n / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M` : n >= 1e4 ? `${Math.round(n / 1e3)} mil` : Math.round(n).toLocaleString('es-CO'));
 const pct = (x) => `${Math.round(x * 100)} %`;
+const kTxt = (k) => (k || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const tipoK = (k) => (k >= 3 ? 'Tipo III' : k >= 2 ? 'Tipo II' : k >= 1 ? 'Tipo I' : `Tipo ${kTxt(k)}`);
 const barra = (t, v, max = 100, c = '#e7c46a', txt = null) => `<div class="bar"><span>${t}</span><u><i style="width:${Math.max(0, Math.min(100, (v / max) * 100))}%;background:${c}"></i></u><em>${txt ?? Math.round(v)}</em></div>`;
 const cab = (t) => `<div class="cab"><b>${t}</b><button data-cerrar aria-label="Cerrar">×</button></div>`;
 let presionado = false; addEventListener('pointerdown', (e) => { if (e.target.closest('.hoja2')) presionado = true; }); addEventListener('pointerup', () => setTimeout(() => { presionado = false; }, 60));
 function pintar(forzar = false) {
   const Er = S.ERAS[Math.min(8, s.era)];
-  $('#titulo').textContent = `${Er.i} ${s.destino ? S.DESTINOS[s.destino.tipo].n : Er.n} · ${S.fechaTxt(s)}`;
+  const Ev = S.etapaEvo(s);
+  $('#titulo').textContent = `${Ev ? Ev.i : Er.i} ${s.destino ? S.DESTINOS[s.destino.tipo].n : Ev ? Ev.n : Er.n} · ${S.fechaTxt(s)}`;
   $('#infl').textContent = Math.floor(s.esp.influencia);
   pintarSi($('#estado'), htmlEstado());
   if (!forzar && presionado) return;
@@ -163,14 +192,15 @@ function pintar(forzar = false) {
   if (!hojas.cronica.classList.contains('off')) pintarSi(hojas.cronica, htmlCronica());
 }
 function htmlEstado() {
-  const r = S.resumen(s), V = S.vivas(s), ev = [`👥 ${r.pob} · ${fmt(r.hab)} hab.`];
+  const r = S.resumen(s), V = S.vivas(s), Ev = S.etapaEvo(s), ES = S.ESPECIES[s.especie] || S.ESPECIES.primates, ev = [`${ES.i} ${r.pob}${Ev ? '' : ` · ${fmt(r.hab)} hab.`}`, `⚡ K ${kTxt(s.kard)}`];
+  if (Ev) ev.push(`${Ev.i} ${esc(Ev.n)} ${pct(Ev.p)}`);
   if (V.length > 1) ev.push(`🏙 ${V.length} ciudades`);
   if (s.guerra) ev.push(`⚔ ${esc(s.ciudades[s.guerra.a].nombre)} vs ${esc(s.ciudades[s.guerra.b].nombre)}`);
   if (s.epidemia) ev.push('🤒 epidemia'); if (s.clima.sequia) ev.push('☀ sequía');
   if (s.mega) ev.push(`${S.DESTINOS[s.mega.k].i} ${pct(s.mega.prog)}`);
   let h = ev.map((x) => `<span>${x}</span>`).join('');
   if (s.decision) h += `<span class="deb">⚖ Debaten: ${esc(s.decision.t)}</span>`;
-  if (s.fin && finEn) h += `<span class="deb">🌱 Una nueva tribu llega en ${Math.max(0, Math.ceil(finEn - performance.now() / 1000))} s</span>`;
+  if (s.fin && cuentaInicio) h += `<span class="deb">🌱 Si no eliges, la naturaleza decide en ${Math.max(0, Math.ceil(cuentaInicio - performance.now() / 1000))} s</span>`;
   return h;
 }
 function htmlPoderes() {
@@ -195,8 +225,14 @@ function htmlFin() {
 }
 function htmlCronica() {
   const Er = S.ERAS[Math.min(8, s.era)], C = s.ciudades.find((x) => !x.vacia) || s.ciudades[0], r = S.resumen(s), L = S.vivo(s, C.lider), prob = S.destinoProbable(s);
-  const linea = S.ERAS.slice(0, 8).map((E0, i) => { const ya = s.eras.filter((x) => x.era === i).pop(); return `<div class="${i === s.era && !s.destino ? 'on' : ya ? 'ya' : ''}"><em>${E0.i}</em>${esc(E0.n.replace('Era ', '').replace('de la ', ''))}<br><small>${ya ? `año ${ya.anio}` : '—'}</small></div>`; }).join('');
-  return cab('📜 Crónica del orbe') + htmlFin() + `<div class="tarj era"><em>${Er.i}</em><div><b>${s.destino ? S.DESTINOS[s.destino.tipo].i + ' ' + S.DESTINOS[s.destino.tipo].n : Er.n}</b><span class="nota">${esc(Er.d)}</span></div></div>
+  const ES = S.ESPECIES[s.especie] || S.ESPECIES.primates, MPa = S.MAPAS[s.mapa] || S.MAPAS.valle, Ev = S.etapaEvo(s);
+  const lineaEvo = (s.evoHist || []).length ? ES.evo.map((E0, i) => { const ya = s.evoHist.find((x) => x.evo === i); return `<div class="${Ev && i === s.evo ? 'on' : ya ? 'ya' : ''}"><em>${E0[1]}</em>${esc(E0[0])}<br><small>${ya ? `año ${ya.anio}` : '—'}</small></div>`; }).join('') : '';
+  const linea = lineaEvo + S.ERAS.slice(0, 8).map((E0, i) => { const ya = s.eras.filter((x) => x.era === i).pop(); return `<div class="${i === s.era && !s.destino ? 'on' : ya ? 'ya' : ''}"><em>${E0.i}</em>${esc(E0.n.replace('Era ', '').replace('de la ', ''))}<br><small>${ya ? `año ${ya.anio}` : '—'}</small></div>`; }).join('');
+  const X = s.espacio || {}, H = s.hist;
+  const espacioTxt = X.satelites || X.colonias?.length ? `<div class="kv" style="margin-top:6px"><span>Satélites</span><b>${X.satelites}</b><span>Base en la luna</span><b>${X.lunaBase ? 'sí' : 'no'}</b>${X.colonias?.length ? `<span>Colonias</span><b>${X.colonias.length} · ${X.colonias.map((c) => esc(S.PLANETAS[c.planeta])).join(', ')}</b>` : ''}${X.dyson ? `<span>Enjambre de Dyson</span><b>${pct(X.dyson)}</b>` : ''}${X.estrellas ? `<span>Sistemas estelares</span><b>${fmt(X.estrellas)}</b>` : ''}${X.galaxia ? `<span>Galaxia</span><b>${pct(X.galaxia)}</b>` : ''}</div>` : '';
+  const mar = (s.maravillas || []).length ? `<h3>Maravillas</h3>${s.maravillas.map((m) => `<div class="nota">🏛 <b>${esc(m.n)}</b> · ${S.ERAS[m.era].n.toLowerCase()} · ${m.ru ? 'en ruinas' : m.hecha ? `terminada en el año ${m.anio}` : `en obra ${pct(m.p)}`}</div>`).join('')}` : '';
+  return cab('📜 Crónica del orbe') + htmlFin() + `<div class="nota">${ES.i} ${esc(ES.n)} · ${MPa.i} ${esc(MPa.n)}</div><div class="tarj era"><em>${Ev ? Ev.i : Er.i}</em><div><b>${s.destino ? S.DESTINOS[s.destino.tipo].i + ' ' + S.DESTINOS[s.destino.tipo].n : Ev ? esc(Ev.n) : Er.n}</b><span class="nota">${esc(Ev ? Ev.d : Er.d)}</span></div></div>
+    <h3>⚡ Escala de Kardashev</h3><div class="kard"><b>K ${kTxt(s.kard)}</b><span class="nota">${tipoK(s.kard)} · K = (log₁₀ P − 6) / 10, con P la energía que usa la civilización. Tipo I: todo su planeta; Tipo II: su estrella; Tipo III: su galaxia.</span></div>${(H.kard || []).length > 1 ? htmlGrafica([{ datos: H.kard, color: '#9ad0ff' }], 50) : ''}${espacioTxt}${mar}
     <div class="kv"><span>Ciudadanos · habitantes</span><b>${r.pob} · ${fmt(r.hab)}</b><span>Gobierno</span><b>${S.GOBIERNOS[s.gobierno].n}</b><span>Al mando</span><b>${L ? `${esc(L.nombre)}, ${esc(S.cargoDe(s, L))}` : '—'}</b><span>Ánimo · salud · estudio</span><b>${r.animo} · ${r.salud} · ${r.edu}</b><span>Ecología · contaminación</span><b>${s.ecologia} · ${pct(s.contaminacion)}</b></div>
     <h3>Línea del tiempo</h3><div class="linea">${linea}</div>
     <h3>Hacia dónde va</h3><div class="chips">${prob.map((p, i) => `<span class="chip ${i === 0 ? 'on' : ''}">${S.DESTINOS[p.k].i} ${S.DESTINOS[p.k].n}</span>`).join('')}</div>
@@ -224,14 +260,46 @@ O.cada((dt) => {
   s.pausar = false;   // nadie espera al jugador
   if (mult) S.avanzar(s, dt * mult * MIN_POR_SEG, 40);
   // cuando una civilización termina, tras un rato llega otra tribu (el orbe nunca se queda quieto)
-  if (s.fin && !finEn) { finEn = performance.now() / 1000 + 40; aviso('La historia de esta civilización terminó. Pronto llegará otra tribu.', 6000); }
-  if (finEn && performance.now() / 1000 > finEn) { finEn = 0; nuevaCivilizacion(); }
+  if (s.fin && !finEn) { finEn = 1; aviso('La historia de esta civilización terminó. Elige cómo nace la próxima.', 6000); setTimeout(() => abrirInicio(60), 2500); }
+  if (cuentaInicio && performance.now() / 1000 > cuentaInicio) { cuentaInicio = 0; const o = opcionesAzar(); nuevaCivilizacion(o); }
+  // al volverse Tipo I en el destino estelar, se abre solo el mapa espacial (una vez)
+  if (s.destino?.tipo === 'estelar' && s.kard >= 1 && !s.espacioVisto) { s.espacioVisto = true; abrirEspacio(true); }
   O.setHora(S.horaDe(s), { nublado: Math.min(0.85, (s.clima.lluvia ? 0.6 : 0) + s.contaminacion * 0.8) });
   E.actualizar(s, dt, mult);
   etiqueta();
   tUI += dt; if (tUI > 0.5) { tUI = 0; pintar(); avisosNuevos(); }
   tGuardar += dt; if (tGuardar > 20) { tGuardar = 0; guardar(); }
 });
+// ---------------------------------------------------------------- pantalla de inicio: especie, mapa y carácter de la civilización
+const EJES_INI = [['cf', 'Ciencia', 'Fe'], ['aa', 'Ambición', 'Armonía'], ['ic', 'Individuo', 'Colectivo'], ['ni', 'Industria', 'Naturaleza']];
+let eleccion = { especie: 'primates', mapa: 'valle', ejes: { cf: 0, aa: 0, ic: 0, ni: 0 } }, cuentaInicio = 0;
+function opcionesAzar() {
+  const ks = Object.keys(S.ESPECIES), ms = Object.keys(S.MAPAS), r = () => Math.round((Math.random() * 2 - 1) * 45);
+  const especie = ks[Math.floor(Math.random() * ks.length)];
+  return { especie, mapa: Math.random() < 0.4 ? S.ESPECIES[especie].terreno : ms[Math.floor(Math.random() * ms.length)], ejes: { cf: r(), aa: r(), ic: r(), ni: r() } };
+}
+function htmlInicio() {
+  const tarj = (obj, sel, attr) => Object.entries(obj).map(([k, X]) => `<button data-${attr}="${k}" class="${sel === k ? 'on' : ''}"><em>${X.i}</em><b>${esc(X.n)}</b><small>${esc(X.d)}</small></button>`).join('');
+  // los ejes se muestran como ciencia(-) ↔ fe(+) en el deslizador: el valor interno es positivo hacia la izquierda
+  const desl = EJES_INI.map(([k, a, b]) => `<div class="desliz"><span>${a}</span><input type="range" min="-60" max="60" step="5" value="${-eleccion.ejes[k]}" data-eje="${k}" aria-label="${a} o ${b}"><span>${b}</span></div>`).join('');
+  return `<div class="caja"><button class="cerrarIni" data-cerrar aria-label="Volver a la civilización actual" title="Volver">✕</button><h2>🔮 Una civilización nueva</h2><div class="sub">Escoge de qué animal evoluciona, en qué mundo nace y qué carácter tendrá. Después, ellos deciden solos.${cuentaInicio ? ' Si no eliges, la naturaleza decide por ti.' : ''}</div>
+    <h3>¿De qué animal evolucionan?</h3><div class="tarjetas">${tarj(S.ESPECIES, eleccion.especie, 'esp')}</div>
+    <h3>¿En qué mundo?</h3><div class="tarjetas">${tarj(S.MAPAS, eleccion.mapa, 'mapa')}</div>
+    <h3>¿Cómo es su carácter?</h3><div class="nota">Esto fija su cultura de partida (su especie también empuja). Con los siglos, sus decisiones la irán cambiando.</div>${desl}
+    <div class="inicioAcc"><button data-azar>🎲 Que la naturaleza decida</button><button class="prim" data-comenzar>Comenzar</button></div></div>`;
+}
+function abrirInicio(segundos = 0) { cuentaInicio = segundos ? performance.now() / 1000 + segundos : 0; const el = $('#inicio'); el.innerHTML = htmlInicio(); el.classList.remove('off'); cerrarHojas(); menuP.cerrar(); }
+$('#inicio').addEventListener('click', (e) => {
+  const t = e.target, b = t.closest('[data-esp],[data-mapa],[data-azar],[data-comenzar],[data-cerrar]'); if (!b) return;
+  if (b.hasAttribute('data-cerrar')) { $('#inicio').classList.add('off'); return; }
+  if (b.dataset.esp) { eleccion.especie = b.dataset.esp; if (!eleccion.mapaTocado) eleccion.mapa = S.ESPECIES[b.dataset.esp].terreno; }
+  if (b.dataset.mapa) { eleccion.mapa = b.dataset.mapa; eleccion.mapaTocado = true; }
+  if (b.hasAttribute('data-azar')) { const o = opcionesAzar(); eleccion = { ...o, mapaTocado: true }; }
+  if (b.hasAttribute('data-comenzar')) { cuentaInicio = 0; nuevaCivilizacion({ especie: eleccion.especie, mapa: eleccion.mapa, ejes: eleccion.ejes }); return; }
+  const y = $('#inicio').scrollTop; $('#inicio').innerHTML = htmlInicio(); $('#inicio').scrollTop = y;
+});
+$('#inicio').addEventListener('input', (e) => { const k = e.target.dataset?.eje; if (k) eleccion.ejes[k] = -(+e.target.value); });
+if (elegirAlInicio) abrirInicio();
 pintar(true); encuadre();
 $('#loader').style.opacity = '0'; setTimeout(() => $('#loader').remove(), 700);
 if (avisoInicial) aviso(avisoInicial, 6000);

@@ -16,6 +16,24 @@ import * as U from './ciudad.js';
 import { crearAereos } from './aereos.js';
 import { crearMultitud } from './multitud.js';
 import { crearEfectos } from './efectos.js';
+import { crearMonumentos } from './monumentos.js';
+import { ESPECIES, MAPAS } from './datos.js';
+
+// partes de cada especie (cola, orejas, hocico, pico, antenas, cuatro brazos, alas, crestas) en coordenadas de la figura
+function partesEspecie(ES, col = 0xffffff) {
+  const F = ES.forma || {}, cuerpo = [], cab = [], fig = [];
+  const cola = { lobo: [0.09, 0.62, -1.1], gato: [0.06, 0.75, -0.7], reptil: [0.17, 0.7, -1.35] }[F.cola];
+  if (cola) { const [g, l, rx] = cola; cuerpo.push([GEO.capsula, col, 0, 0.7, -0.32 - l * 0.25, g, l, g, rx, 0, 0]); fig.push([GEO.capsula, col, 0, 0.7, -0.32 - l * 0.25, g, l, g, rx, 0, 0]); }
+  if (F.orejas) for (const x of [-0.1, 0.1]) { const o = F.orejas === 'gato' ? [0.055, 0.12] : [0.05, 0.16]; cab.push([GEO.cono, col, x, 0.31, 0, o[0], o[1], o[0]]); fig.push([GEO.cono, col, x, 1.95, 0, o[0], o[1], o[0]]); }
+  if (F.hocico) { cab.push([GEO.esfera, col, 0, 0.08, 0.15, 0.07, 0.06, 0.1]); fig.push([GEO.esfera, col, 0, 1.72, 0.18, 0.07, 0.06, 0.1]); }
+  if (F.pico) { cab.push([GEO.cono, F.pico, 0, 0.1, 0.21, 0.045, 0.16, 0.045, Math.PI / 2, 0, 0]); fig.push([GEO.cono, F.pico, 0, 1.76, 0.24, 0.045, 0.16, 0.045, Math.PI / 2, 0, 0]); }
+  if (F.antenas) for (const x of [-0.05, 0.05]) { cab.push([GEO.cil, 0x2a1a10, x, 0.38, 0.04, 0.012, 0.3, 0.012, 0.35, 0, x * 5]); fig.push([GEO.cil, 0x2a1a10, x, 2.02, 0.06, 0.012, 0.3, 0.012, 0.35, 0, x * 5]); }
+  if (F.brazos4) for (const x of [-0.3, 0.3]) { cuerpo.push([GEO.capsula, col, x, 1.0, 0.06, 0.08, 0.38, 0.08, 0, 0, x > 0 ? -0.5 : 0.5]); fig.push([GEO.capsula, col, x, 1.0, 0.06, 0.08, 0.38, 0.08, 0, 0, x > 0 ? -0.5 : 0.5]); }
+  if (F.alas) for (const x of [-0.24, 0.24]) { cuerpo.push([GEO.caja, col, x, 1.15, -0.15, 0.06, 0.62, 0.32, 0.2, 0, x > 0 ? -0.25 : 0.25]); fig.push([GEO.caja, col, x, 1.15, -0.15, 0.06, 0.62, 0.32, 0.2, 0, x > 0 ? -0.25 : 0.25]); }
+  if (F.crestas) for (let i = 0; i < 3; i++) { cab.push([GEO.cono, col, 0, 0.3 - i * 0.04, -0.04 - i * 0.07, 0.03, 0.1, 0.05, -0.5, 0, 0]); fig.push([GEO.cono, col, 0, 1.95 - i * 0.05, -0.04 - i * 0.08, 0.03, 0.1, 0.05, -0.5, 0, 0]); }
+  return { cuerpo, cab, fig };
+}
+const INCLINA = [1.15, 0.7, 0.38, 0.16];   // de cuatro patas a erguidos, etapa por etapa
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color(), _e = new THREE.Euler(), UP = V(0, 1, 0);
@@ -40,23 +58,26 @@ export function crearEscenaAldea(O, s0) {
   const px = (x) => ((x + TAM / 2) / TAM) * RES;
   const SUELO_EST = ['#7fa35a', '#8ea552', '#a48c4c', '#dfe5ea'], CALLE = ['#8a7656', '#8a7656', '#8f8a80', '#8a857c', '#5e5a54', '#4a4c50', '#3e4146', '#c9d2dc'];
   const mezclar = (a, b, k) => { const A = new THREE.Color(a), Bc = new THREE.Color(b); return '#' + A.lerp(Bc, Math.max(0, Math.min(1, k))).getHexString(); };
+  const MP = MAPAS[s.mapa] || MAPAS.valle, ES = ESPECIES[s.especie] || ESPECIES.primates;
   function pintar() {
-    const est = Math.floor((s.dia % 24) / 6), cel = (U.CEL / TAM) * RES;
+    const est = Math.floor((s.dia % 24) / 6), cel = (U.CEL / TAM) * RES, SUELO_EST = MP.suelo;
     ctx.clearRect(0, 0, RES, RES);
     ctx.save(); ctx.beginPath(); ctx.arc(RES / 2, RES / 2, (45.6 / TAM) * RES, 0, Math.PI * 2); ctx.clip();
     ctx.fillStyle = SUELO_EST[est]; ctx.fillRect(0, 0, RES, RES);
     for (const c of s.celdas) {
       let col = SUELO_EST[est];
-      if (c.t === 'b') col = est === 3 ? '#cfd8d0' : '#5f7f43';
+      if (c.t === 'b') col = est === 3 && !MP.seco ? '#cfd8d0' : MP.seco ? '#a8a05a' : '#5f7f43';
+      if (c.t === 'd') col = est === 3 && MP.frio ? '#e8ecee' : '#d6bf86';
       if (c.t === 'r') col = '#8a8478'; if (c.t === 'm') col = c.h > 5.5 && est === 3 ? '#eef2f4' : mezclar('#857a6a', '#a89e90', c.h / 8);
-      if (c.t === 'a') col = '#c9b37a'; if (c.t === 'v') col = '#4a7a98'; if (c.t === 'c') col = '#6a7a4a';
+      if (c.t === 'a') col = null; if (c.t === 'v') col = MP.agua; if (c.t === 'c') col = '#6a7a4a';
       if (c.u === 'campo') col = c.e >= 6 ? '#5aa08a' : ['#9ab04a', '#8aa83a', '#d8b04a', '#8a7454'][est];
       else if (c.u === 'parque') col = '#4f8a3a';
       else if (c.u) col = c.fogata && c.e <= 1 ? '#8c7a56' : CALLE[Math.min(7, c.e)] === '#c9d2dc' && (s.ejes.ni < -15 || s.destino?.tipo === 'gaia') ? '#7a9a6a' : mezclar(CALLE[Math.min(7, c.e)], '#a8a29a', 0.35);
       if (c.o && !c.u) col = '#9a8460';
       if (c.ru) col = '#4a4640';
       if (c.cr) col = mezclar(col, '#2a221c', c.cr);   // cráter de meteorito: tierra quemada
-      if (c.cont > 0.05) col = mezclar(col, '#2e2a26', c.cont * 0.8);
+      if (col && c.cont > 0.05) col = mezclar(col, '#2e2a26', c.cont * 0.8);
+      if (!col) { ctx.clearRect(px(c.x - 1.5), px(c.z - 1.5), cel + 0.6, cel + 0.6); continue; }   // agua: se ve el mar de abajo
       ctx.fillStyle = col; ctx.fillRect(px(c.x - 1.5), px(c.z - 1.5), cel + 0.6, cel + 0.6);
       if (c.u === 'campo' && est !== 3) { ctx.fillStyle = 'rgba(70,50,30,.35)'; for (let k = 0; k < 4; k++) ctx.fillRect(px(c.x - 1.3), px(c.z - 1.1 + k * 0.7), cel * 0.85, 1); }
     }
@@ -69,7 +90,9 @@ export function crearEscenaAldea(O, s0) {
     tex.needsUpdate = true;
   }
   // ------------------------------------------------------------ agua: lago y río (más turbios con la contaminación)
-  const agua = new THREE.MeshStandardMaterial({ color: 0x3f86b0, roughness: 0.15, metalness: 0.15, transparent: true, opacity: 0.9 });
+  const agua = new THREE.MeshStandardMaterial({ color: MP.agua, roughness: 0.15, metalness: 0.15, transparent: true, opacity: 0.9 });
+  // el agua de fondo: se ve donde el suelo es mar, lago o costa inundada (las celdas de agua se pintan transparentes)
+  const mar = new THREE.Mesh(new THREE.CircleGeometry(45.6, 72).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: MP.agua, roughness: 0.2, metalness: 0.15, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })); mar.position.y = 0.015; mar.receiveShadow = true; M.add(mar);
   {
     const L = s.lago, g1 = new THREE.CircleGeometry(L.r, 48).rotateX(-Math.PI / 2).translate(L.x, 0.09, L.z).toNonIndexed(); g1.deleteAttribute('uv');
     const pos = [], pts = s.rio.filter(([x, z]) => Math.hypot(x, z) < 45.8);
@@ -82,26 +105,27 @@ export function crearEscenaAldea(O, s0) {
   // ------------------------------------------------------------ árboles, rocas y tumbas
   const geoPino = fundirGeo([[GEO.cil, 0x6a4a2e, 0, 0.7, 0, 0.22, 1.4, 0.22], [GEO.cono, 0xffffff, 0, 2.2, 0, 1.4, 2.2, 1.4], [GEO.cono, 0xffffff, 0, 3.3, 0, 1, 1.8, 1]]);
   const geoRoble = fundirGeo([[GEO.cil, 0x6a4a2e, 0, 0.9, 0, 0.26, 1.8, 0.26], [GEO.esfera, 0xffffff, 0, 2.6, 0, 1.5, 1.3, 1.5], [GEO.esfera, 0xffffff, 0.6, 2.2, 0.3, 0.9, 0.8, 0.9]]);
+  const geoPalma = fundirGeo([[GEO.cil, 0x8a6a42, 0, 1.4, 0, 0.16, 2.8, 0.16, 0.08, 0, 0], ...[0, 1, 2, 3, 4, 5].map((i) => [GEO.caja, 0xffffff, Math.cos(i * 1.05) * 0.7, 2.75, Math.sin(i * 1.05) * 0.7, 1.5, 0.06, 0.38, 0, -i * 1.05, -0.35])]);
   const nA = s.maxArboles || s.arboles.length + 260;
-  const pinos = new THREE.InstancedMesh(geoPino, MAT_VERTICE, nA), robles = new THREE.InstancedMesh(geoRoble, MAT_VERTICE, nA);
-  for (const im of [pinos, robles]) { im.castShadow = im.receiveShadow = true; im.frustumCulled = false; im.count = 0; for (let i = 0; i < nA; i++) im.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(im); }
+  const pinos = new THREE.InstancedMesh(geoPino, MAT_VERTICE, nA), robles = new THREE.InstancedMesh(geoRoble, MAT_VERTICE, nA), palmas = new THREE.InstancedMesh(geoPalma, MAT_VERTICE, nA);
+  for (const im of [pinos, robles, palmas]) { im.castShadow = im.receiveShadow = true; im.frustumCulled = false; im.count = 0; for (let i = 0; i < nA; i++) im.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(im); }
   const rocas = new THREE.InstancedMesh(fundirGeo([[new THREE.DodecahedronGeometry(1, 0), 0x8f8b84, 0, 0.5, 0, 1.2, 0.9, 1.1]]), MAT_VERTICE, s.rocas.length); rocas.castShadow = true; M.add(rocas);
   const tumbas = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0x8a867c, 0, 0.45, 0, 0.55, 0.9, 0.16]]), MAT_VERTICE, 81); tumbas.count = 0; M.add(tumbas);
-  const COPA = { pino: ['#3f6a3a', '#386236', '#3a5e36', '#c4ccd0'], roble: ['#5c8a3e', '#4f7a34', '#c8782c', '#cfd6dc'] };
+  const COPA = MP.copa;
   let firmaA = '';
   function bosque() {
     const est = Math.floor((s.dia % 24) / 6), muerto = s.destino?.tipo === 'destruccion' && ['nuclear', 'eco'].includes(s.destino.causa);
     const f = `${s.arboles.length}:${s.arboles.reduce((n, t, i) => n + (t.c < 0 ? 0 : Math.round(t.c * 5) + 1) * ((i % 7) + 1), 0)}:${est}:${muerto}`;
     if (f === firmaA) return; firmaA = f;
-    let np = 0, nr = 0;
+    let np = 0, nr = 0, nq = 0;
     s.arboles.forEach((t, i) => {
       if (t.c <= 0) return;
-      const esc = (0.3 + 0.7 * t.c) * (0.85 + ((i * 37) % 10) / 30), im = t.v ? robles : pinos, k = t.v ? nr++ : np++;
+      const esc = (0.3 + 0.7 * t.c) * (0.85 + ((i * 37) % 10) / 30), im = t.v === 2 ? palmas : t.v ? robles : pinos, k = t.v === 2 ? nq++ : t.v ? nr++ : np++;
       _m.compose(_p.set(t.x, alt(t.x, t.z), t.z), _q.setFromAxisAngle(UP, (i * 2.399) % 6.28), _s.setScalar(esc)); im.setMatrixAt(k, _m);
       im.setColorAt(k, _c.set(muerto ? '#5a4a3a' : (t.v ? COPA.roble : COPA.pino)[est]));
     });
-    pinos.count = np; robles.count = nr;
-    for (const im of [pinos, robles]) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; }
+    pinos.count = np; robles.count = nr; palmas.count = nq;
+    for (const im of [pinos, robles, palmas]) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; }
     s.rocas.forEach((r, i) => { _m.compose(_p.set(r.x, alt(r.x, r.z) - 0.1, r.z), _q.setFromAxisAngle(UP, r.t * 6), _s.setScalar(0.8)); rocas.setMatrixAt(i, _m); }); rocas.instanceMatrix.needsUpdate = true;
     tumbas.count = Math.min(81, s.tumbas.length); s.tumbas.slice(0, 81).forEach((t, i) => { _m.compose(_p.set(t.x, 0, t.z), _q.setFromAxisAngle(UP, s.cementerio.ang + Math.PI / 2), _s.setScalar(1)); tumbas.setMatrixAt(i, _m); }); tumbas.instanceMatrix.needsUpdate = true;
   }
@@ -158,7 +182,9 @@ export function crearEscenaAldea(O, s0) {
   // ------------------------------------------------------------ vehículos de tierra: autos (era moderna en adelante); los del cielo están en aereos.js
   const autos = new THREE.InstancedMesh(fundirGeo([[GEO.caja, 0xffffff, 0, 0.18, 0, 0.32, 0.18, 0.62], [GEO.caja, 0x2a3440, 0, 0.33, -0.04, 0.28, 0.14, 0.32]]), MAT_VERTICE, 70); autos.count = 0; for (let i = 0; i < 70; i++) autos.setColorAt(i, _c.setHSL((i * 0.137) % 1, 0.5, 0.5)); M.add(autos);
   const aereos = crearAereos(M, (x, z) => alt(x, z));
-  const multitud = crearMultitud(M, (x, z) => alt(x, z)), efectos = crearEfectos(M, (x, z) => alt(x, z));
+  const multitud = crearMultitud(M, (x, z) => alt(x, z), ES), efectos = crearEfectos(M, (x, z) => alt(x, z));
+  const monumentos = crearMonumentos(M, (x, z) => alt(x, z)), TINTES = Object.fromEntries(Object.entries(ESPECIES).map(([k, X]) => [k, X.tinte]));
+  const ruinaDe = (Mv) => Mv.celdas.some((k) => U.mapa(s).get(k)?.ru);
   const carros = [...Array(70)].map((_, i) => ({ de: null, a: null, t: 0, v: 3 + (i % 5) }));
   function moverAutos(dt, mult) {
     const n = s.era >= 5 && !s.destino ? Math.min(70, Math.floor(nodos.length / 6)) : 0;
@@ -213,6 +239,8 @@ export function crearEscenaAldea(O, s0) {
   const figGeo = fundirGeo([[GEO.capsula, 0xffffff, 0, 1.05, 0, 0.42, 0.9, 0.3], [GEO.esferaFina, 0xe8c8a8, 0, 1.78, 0, 0.17, 0.19, 0.17], [GEO.capsula, 0x555555, -0.12, 0.42, 0, 0.15, 0.6, 0.15], [GEO.capsula, 0x555555, 0.12, 0.42, 0, 0.15, 0.6, 0.15]]);
   const matFig = MAT_VERTICE;
   const figuras = new THREE.InstancedMesh(figGeo, matFig, MAXP); figuras.count = 0; figuras.castShadow = true; figuras.frustumCulled = false; for (let i = 0; i < MAXP; i++) figuras.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(figuras);
+  const PE = partesEspecie(ES), rasgosFig = PE.fig.length ? new THREE.InstancedMesh(fundirGeo(PE.fig), MAT_VERTICE, MAXP) : null;
+  if (rasgosFig) { rasgosFig.count = 0; rasgosFig.frustumCulled = false; for (let i = 0; i < MAXP; i++) rasgosFig.setColorAt(i, _c.setRGB(1, 1, 1)); M.add(rasgosFig); }
   const vis = new Map(), gruposDet = [];
   const anillo = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.75, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe7c46a, transparent: true, opacity: 0.85, depthWrite: false })); anillo.visible = false; M.add(anillo);
   let sel = null;
@@ -246,7 +274,8 @@ export function crearEscenaAldea(O, s0) {
   const MODO = { comida: 'trabaja', materiales: 'golpe', metal: 'golpe', energia: 'trabaja', bienes: 'trabaja', ciencia: 'quieto', fe: 'sentado', salud: 'trabaja', comercio: 'quieto', seguridad: 'quieto', cultura: 'baila', construir: 'trabaja' };
   function hacerPersona(a) {
     const pelo = a.edad >= 64 ? 0xe4e2dc : a.edad >= 52 ? 0x9a968e : a.ap.pelo;
-    const p = crearPersona({ piel: a.ap.piel, ropa: ropaDe(s.era, a), pantalon: s.era >= 4 ? 0x2a2e38 : 0x4a3a2a, pelo, peinado: a.ap.peinado, ancho: a.ap.ancho });
+    const pre = s.evo < 4, PP = partesEspecie(ES, a.ap.piel);
+    const p = crearPersona({ piel: a.ap.piel, ropa: pre ? a.ap.piel : ropaDe(s.era, a), pantalon: pre ? a.ap.piel : s.era >= 4 ? 0x2a2e38 : 0x4a3a2a, pelo: pre ? ES.pelaje : pelo, peinado: pre ? 'corto' : a.ap.peinado, ancho: a.ap.ancho, extra: PP.cuerpo.length ? PP.cuerpo : undefined, extraCab: PP.cab.length ? PP.cab : undefined });
     p.g.userData.id = a.id;
     p.g.traverse((o) => { if (o.isMesh) o.castShadow = o.parent === p.torso || o === p.torso; });
     return p;
@@ -262,10 +291,10 @@ export function crearEscenaAldea(O, s0) {
       tLento = 0;
       if (s.vh !== vh) { vh = s.vh; relieve(); }
       const cambio = ciudad(); if (cambio) { pintar(); ponerFaroles(); } else if (s.dia % 6 === 0 && firmaFar !== `${s.dia}`) { firmaFar = `${s.dia}`; pintar(); }
-      bosque();
-      borde.visible = s.era >= 3;
+      bosque(); monumentos.actualizar(s, TINTES, ruinaDe);
+      borde.visible = s.era >= 3 && !MP.mar;
       const cont = s.contaminacion;
-      agua.color.set(cont > 0.25 ? '#5a6a50' : Math.floor((s.dia % 24) / 6) === 3 ? '#a8c4d4' : '#3f86b0');
+      agua.color.set(cont > 0.25 ? '#5a6a50' : Math.floor((s.dia % 24) / 6) === 3 && !MP.seco ? '#a8c4d4' : MP.agua); mar.material.color.copy(agua.color);
       if (!O.scene.fog) O.scene.fog = new THREE.Fog(0x9a948a, 400, 900);
       O.scene.fog.near = 200 - cont * 170; O.scene.fog.far = 420 - cont * 260;
       O.scene.fog.color.set(D?.tipo === 'destruccion' ? '#4a3a30' : cont > 0.3 ? '#7a7060' : '#b8c0c8');
@@ -330,7 +359,7 @@ export function crearEscenaAldea(O, s0) {
     for (const a of s.gente) ix.push([a, (vis.get(a.id)?.x ?? 0) - C0.x, (vis.get(a.id)?.z ?? 0) - C0.z]);
     ix.sort((x, y) => x[1] * x[1] + x[2] * x[2] - y[1] * y[1] - y[2] * y[2]);
     let nf = 0; gruposDet.length = 0; const vivos = new Set();
-    const brillo = D?.tipo === 'trascendencia' ? fase : 0, colm = D?.tipo === 'colmena';
+    const brillo = D?.tipo === 'trascendencia' ? fase : 0, colm = D?.tipo === 'colmena', inc = s.evo < 4 ? INCLINA[s.evo] : 0, chico = s.evo < 4 ? 0.8 + s.evo * 0.05 : 1;
     ix.forEach(([a], i) => {
       vivos.add(a.id);
       const C = s.ciudades[a.al], L = lugar(a, colm ? 19 : hr, C);
@@ -341,19 +370,20 @@ export function crearEscenaAldea(O, s0) {
       const modo = L.dentro ? 'quieto' : d > 0.3 ? 'camina' : colm ? 'quieto' : L.modo;
       v.dentro = !!L.dentro && !brillo; v.modo = modo;
       const y = alt(v.x, v.z) + brillo * (hash(a.id) * 25);
-      const esc = a.ap.alto * (a.edad < 15 ? 0.36 + 0.64 * Math.min(1, a.edad / 15) : 1) * (0.9 + Math.min(7, s.era) * 0.018);   // cada era come mejor: la gente es más alta
+      const esc = chico * a.ap.alto * (a.edad < 15 ? 0.36 + 0.64 * Math.min(1, a.edad / 15) : 1) * (0.9 + Math.min(7, s.era) * 0.018);   // cada era come mejor: la gente es más alta
       const det = !lejos && i < NDET && !v.dentro;
       if (det) {
-        const k = `${s.era}:${a.clase}:${a.edad >= 64 ? 'b' : a.edad >= 52 ? 'g' : 'n'}`;
+        const k = `${s.era}:${s.evo}:${a.clase}:${a.edad >= 64 ? 'b' : a.edad >= 52 ? 'g' : 'n'}`;
         if (!v.p || v.k !== k) { if (v.p) M.remove(v.p.g); v.p = hacerPersona(a); v.k = k; M.add(v.p.g); }
         v.p.g.visible = true; v.p.g.position.set(v.x, y, v.z); v.p.g.rotation.y = v.rot; v.p.g.scale.setScalar(esc);
-        animarPersona(v.p, modo, dt, 1.4); gruposDet.push(v.p.g);
+        animarPersona(v.p, modo, dt, 1.4); if (inc) { v.p.cuerpo.rotation.x += inc; v.p.cuerpo.position.y -= inc * 0.25; } gruposDet.push(v.p.g);
       } else {
         if (v.p) v.p.g.visible = false;
-        if (!v.dentro && nf < MAXP) { _m.compose(_p.set(v.x, y, v.z), _q.setFromAxisAngle(UP, v.rot), _s.setScalar(esc)); figuras.setMatrixAt(nf, _m); figuras.setColorAt(nf, _c.setHex(colm ? 0x6ae8ff : brillo ? 0xfff2c0 : ropaDe(s.era, a))); nf++; }
+        if (!v.dentro && nf < MAXP) { _m.compose(_p.set(v.x, y, v.z), _q.setFromEuler(_e.set(inc, v.rot, 0, 'YXZ')), _s.setScalar(esc)); figuras.setMatrixAt(nf, _m); figuras.setColorAt(nf, _c.setHex(colm ? 0x6ae8ff : brillo ? 0xfff2c0 : s.evo < 4 ? a.ap.piel : ropaDe(s.era, a))); if (rasgosFig) { rasgosFig.setMatrixAt(nf, _m); rasgosFig.setColorAt(nf, _c.setHex(a.ap.piel)); } nf++; }
       }
     });
     figuras.count = nf; figuras.instanceMatrix.needsUpdate = true; figuras.instanceColor.needsUpdate = true;
+    if (rasgosFig) { rasgosFig.count = nf; rasgosFig.instanceMatrix.needsUpdate = true; rasgosFig.instanceColor.needsUpdate = true; }
     for (const [id, v] of vis) if (!vivos.has(id)) { if (v.p) M.remove(v.p.g); vis.delete(id); }
     const vs = sel != null && vis.get(sel);
     anillo.visible = !!vs && !vs.dentro; if (anillo.visible) { anillo.position.set(vs.x, alt(vs.x, vs.z) + 0.06, vs.z); anillo.scale.setScalar(1 + Math.sin(performance.now() / 250) * 0.08); }

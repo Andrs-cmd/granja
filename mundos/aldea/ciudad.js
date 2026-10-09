@@ -5,7 +5,7 @@
 // que se construyó y su contaminación. Las ciudades crecen hacia afuera y hacia arriba, renuevan sus
 // edificios cuando cambia la era, excavan montañas, talan o reforestan, y quedan en ruinas si caen.
 // =====================================================================
-import { USOS, OFICIOS, ERAS } from './datos.js';
+import { USOS, OFICIOS, ERAS, MAPAS } from './datos.js';
 
 export const CEL = 3, NG = 31, MEDIO = 15, R_UTIL = 43.5;
 const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
@@ -27,22 +27,27 @@ export function crearTerreno(s, R) {
   const L = s.lago, celdas = [];
   // la montaña se levanta junto a la zona de piedra, hacia el borde del orbe
   const cx = s.rocas.reduce((n, r) => n + r.x, 0) / s.rocas.length, cz = s.rocas.reduce((n, r) => n + r.z, 0) / s.rocas.length, a = Math.atan2(cz, cx);
-  s.montana = { x: +(Math.cos(a) * 34).toFixed(2), z: +(Math.sin(a) * 34).toFixed(2), r: 11 };
+  const MP = MAPAS[s.mapa] || MAPAS.valle;
+  s.montana = { x: +(Math.cos(a) * 34).toFixed(2), z: +(Math.sin(a) * 34).toFixed(2), r: +(11 * Math.sqrt(MP.montana)).toFixed(1) };
   for (let i = 0; i < NG; i++) for (let j = 0; j < NG; j++) {
     const x = (i - MEDIO) * CEL, z = (j - MEDIO) * CEL;
     if (Math.hypot(x, z) > R_UTIL) continue;
     const c = { k: claveCelda(i, j), x, z, t: 'p', h: 0, u: null, al: null, n: 0, e: 0, o: null, cont: 0 };
     const dm = dist(x, z, s.montana.x, s.montana.z);
+    const dAgua = Math.min(dist(x, z, L.x, L.z) - L.r, ...s.rio.map(([px, pz]) => dist(x, z, px, pz)), 99);
     if (dist(x, z, L.x, L.z) < L.r - 0.6) c.t = 'a';
+    else if (s.islas && !s.islas.some((I) => dist(x, z, I.x, I.z) < I.r)) c.t = 'a';   // mar entre las islas
     else if (s.rio.some(([px, pz]) => dist(x, z, px, pz) < 2)) c.t = 'v';
     else if (dist(x, z, s.cementerio.x, s.cementerio.z) < 6) c.t = 'c';
-    else if (dm < s.montana.r) { c.h = +(Math.pow(1 - dm / s.montana.r, 1.1) * (7 + R() * 2)).toFixed(2); c.t = c.h > 1.2 ? 'm' : 'r'; }
+    else if (dm < s.montana.r) { c.h = +(Math.pow(1 - dm / s.montana.r, 1.1) * (7 + R() * 2) * MP.montana).toFixed(2); c.t = c.h > 1.2 ? 'm' : 'r'; }
     else if (s.rocas.some((r) => dist(x, z, r.x, r.z) < 2.2)) c.t = 'r';
     else if (s.arboles.some((t) => Math.abs(t.x - x) < 1.6 && Math.abs(t.z - z) < 1.6)) c.t = 'b';
-    c.f = +(Math.max(0.3, 1.2 - Math.max(0, dist(x, z, L.x, L.z) - L.r) / 25)).toFixed(2);   // fertilidad: mejor cerca del agua
+    else if (MP.seco && dAgua > 6) c.t = 'd';   // arena: lejos del agua no crece nada
+    c.f = c.t === 'd' ? 0.15 : +(Math.max(0.3, 1.2 - Math.max(0, MP.seco || s.islas ? dAgua : dist(x, z, L.x, L.z) - L.r) / 25)).toFixed(2);   // fertilidad: mejor cerca del agua
     celdas.push(c);
   }
   s.celdas = celdas;
+  s.arboles = s.arboles.filter((t) => { const c = celdaEn(s, t.x, t.z); return c && c.t !== 'a' && c.t !== 'v'; });
   for (const t of s.arboles) { const c = celdaEn(s, t.x, t.z); t.ci = c ? c.k : -1; }
   s.vc = 1;
 }
@@ -106,13 +111,13 @@ export function planificar(s, C, nec, R) {
     if (vieja && pagar(s, C, vieja.u, 0.5, R)) { iniciarObra(s, C, vieja, vieja.u, Math.max(1, Math.min(pisosEra(era), vieja.n)), true); return { u: vieja.u, c: vieja, renueva: true }; }
   }
   // ruinas: se reconstruyen o se dejan al bosque
-  const ruina = mias.find((c) => c.ru && !c.o);
+  const ruina = mias.find((c) => c.ru && !c.o && c.u !== 'maravilla');
   if (ruina && pagar(s, C, ruina.u || 'vivienda', 0.6, R)) { iniciarObra(s, C, ruina, ruina.u || 'vivienda', 1, true); return { u: ruina.u, c: ruina, reconstruye: true }; }
   return null;
 }
 function despejar(s, C, mias, u, pob, capV) {
   const lejos = (c) => dist(c.x, c.z, C.x, C.z);
-  let c = mias.filter((x) => x.ru && !x.o && x.t !== 'm').sort((a, b) => (u === 'campo' ? lejos(b) - lejos(a) : lejos(a) - lejos(b)))[0];
+  let c = mias.filter((x) => x.ru && !x.o && x.t !== 'm' && x.u !== 'maravilla').sort((a, b) => (u === 'campo' ? lejos(b) - lejos(a) : lejos(a) - lejos(b)))[0];
   if (!c && u !== 'vivienda' && capV > pob * 1.6) c = mias.filter((x) => x.u === 'vivienda' && !x.o && !x.ru).sort((a, b) => lejos(b) - lejos(a))[0];
   if (!c) return null;
   c.u = null; c.ru = false; c.n = 0; s.vc++;

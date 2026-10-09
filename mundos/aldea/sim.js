@@ -7,10 +7,10 @@
 // El paso es de un día; lo que se ve hora a hora (ir al trabajo, volver a casa) lo anima la escena.
 // =====================================================================
 import { azar, ruido2D } from '../motor/azar.js';
-import { MIN_DIA, DIAS_EST, DIAS_ANIO, ESTACIONES, ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, NOM_M, NOM_F, APELLIDOS, NOMBRES_CIUDAD, NOMBRES_MOV, tituloOficio } from './datos.js';
+import { MIN_DIA, DIAS_EST, DIAS_ANIO, ESTACIONES, ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, NOM_M, NOM_F, APELLIDOS, NOMBRES_CIUDAD, NOMBRES_MOV, tituloOficio, ESPECIES, MAPAS, MONUMENTOS, VATIOS, PLANETAS, ORDEN_COLONIAS } from './datos.js';
 import * as M from './mente.js';
 import * as U from './ciudad.js';
-export { ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, ESTACIONES, DIAS_ANIO, MIN_DIA, tituloOficio };
+export { ERAS, TEC, OFICIOS, USOS, GOBIERNOS, DECISIONES, DESTINOS, CAUSAS, PODERES, ESTACIONES, DIAS_ANIO, MIN_DIA, tituloOficio, ESPECIES, MAPAS, MONUMENTOS, PLANETAS };
 export { M as MENTE, U as CIUDAD };
 
 export const VERSION = 3, MAX_PERSONAS = 240;
@@ -64,8 +64,9 @@ export const lazo = (s, a, b) => s.lazos[a < b ? `${a}-${b}` : `${b}-${a}`] ?? 3
 function cambiarLazo(s, a, b, d) { if (a === b) return; const k = a < b ? `${a}-${b}` : `${b}-${a}`; s.lazos[k] = Math.round(clamp(lazo(s, a, b) + d, -100, 100)); }
 
 // ---------------------------------------------------------------- mundo nuevo
-export function crearAldea(semilla = Date.now(), ciclo = 1, historia = []) {
-  const sem = semilla >>> 0;
+// opts: { especie, mapa, ejes: { cf, aa, ic, ni } (-60..60), sinPrehistoria }
+export function crearAldea(semilla = Date.now(), ciclo = 1, historia = [], opts = {}) {
+  const sem = semilla >>> 0, ESP = ESPECIES[opts.especie] ? opts.especie : 'primates', MAPA = MAPAS[opts.mapa] ? opts.mapa : 'valle';
   const s = {
     mundo: 'aldea', version: VERSION, semilla: sem, rng: sem ^ 0x5bd1e995, t: 6 * 60, dia: 0, ciclo, historia,
     era: 0, eras: [{ era: 0, anio: 1 }], tec: {}, inv: { c: null, f: null }, mult: {}, cultura: 0, puntos: { c: 0, f: 0 },
@@ -77,7 +78,12 @@ export function crearAldea(semilla = Date.now(), ciclo = 1, historia = []) {
     cont: { nacimientos: 0, muertes: 0, llegadas: 0, partidas: 0, inventos: 0, revoluciones: 0, guerras: 0, ciudades: 1 },
     diario: [], hitos: [], hist: { anio: [], pob: [], hab: [], ciencia: [], fe: [], animo: [], era: [], eco: [], desig: [] },
     vc: 1, maxPob: 0,
+    especie: ESP, mapa: MAPA, evo: opts.sinPrehistoria ? 4 : 0, evoP: 0, evoHist: [{ evo: 0, anio: 1 }], kard: 0, marea: 0, maravillas: [], sigMar: 1,
+    espacio: { k: 0, satelites: 0, lunaBase: false, colonias: [], dyson: 0, naves: 0, estrellas: 0, galaxia: 0, hitos: [] },
   };
+  s.hist.kard = [];
+  // la cultura de partida: lo que eligió el espíritu (o el azar) más el instinto de la especie
+  for (const k of Object.keys(s.ejeBase)) s.ejeBase[k] = clamp((+opts.ejes?.[k] || 0) + (ESPECIES[ESP].ejes[k] || 0), -100, 100);
   crearMapa(s, sem);
   U.crearTerreno(s, azar(sem ^ 0x1234));
   s.arbolesIni = s.arboles.length; s.maxArboles = s.arboles.length + 260;
@@ -93,33 +99,41 @@ export function crearAldea(semilla = Date.now(), ciclo = 1, historia = []) {
   nuevaPersona(s, { edad: ent(s, 17, 28), apellido: ap(), al: 0 }); nuevaPersona(s, { edad: ent(s, 17, 28), apellido: ap(), al: 0 });
   nuevaPersona(s, { edad: ent(s, 55, 66), apellido: ap(), al: 0 });
   for (const a of s.gente) for (const b of s.gente) if (a.id < b.id) { const v = familia(a, b) || a.pareja === b.id ? 70 : Math.round(ent(s, -10, 30)); relacion(a, b.id, v); relacion(b, a.id, v); }
-  // la primera fogata y unas chozas
-  const c0 = U.celdaEn(s, 0, 0); c0.u = 'teatro'; c0.n = 1; c0.al = 0; c0.fogata = true; c0.t = 'p';
-  for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) { const c = U.celdaEn(s, dx, dz); if (c && !c.u && !['a', 'v', 'm', 'c'].includes(c.t)) { c.u = 'vivienda'; c.n = 1; c.al = 0; U.talarCelda(s, c); } }
+  // la primera fogata y unas chozas (en la prehistoria: cuevas, nidos, madrigueras o montículos, y sin fuego todavía)
+  const c0 = U.celdaEn(s, 0, 0); c0.t = c0.t === 'a' ? 'p' : c0.t;
+  if (s.evo >= 4) { c0.u = 'teatro'; c0.n = 1; c0.al = 0; c0.fogata = true; c0.t = 'p'; }
+  for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 3]].slice(0, s.evo >= 4 ? 4 : 5)) { const c = U.celdaEn(s, dx, dz); if (c && !c.u && !['a', 'v', 'm', 'c'].includes(c.t)) { c.u = 'vivienda'; c.n = 1; c.al = 0; U.talarCelda(s, c); if (s.evo < 4) c.cueva = true; } }
   for (const a of s.gente) a.oficio = a.edad >= 14 ? pick(s, ['comida', 'comida', 'comida', 'materiales', 'construir']) : null;
   const sab = s.gente.filter((a) => a.edad >= 14).sort((x, y) => y.v.curiosidad - x.v.curiosidad)[0]; if (sab) sab.oficio = 'ciencia';
   const cham = s.gente.filter((a) => a.edad >= 14 && a !== sab).sort((x, y) => y.v.fe - x.v.fe)[0]; if (cham) cham.oficio = 'fe';
   elegirLider(s, C, 'fundacion');
   recalcMult(s); calcularEjes(s);
-  log(s, `${s.gente.length} personas encienden una fogata en un claro junto al lago. Así empieza ${C.nombre}${ciclo > 1 ? ', sobre las ruinas de otra civilización' : ''}.`, 'logro');
-  hito(s, ciclo > 1 ? `Ciclo ${ciclo}: una tribu nueva en el orbe` : `Nace la tribu de ${C.nombre}`, 'era');
+  if (s.evo < 4) { const E0 = ESPECIES[ESP].evo[0]; log(s, `${E0[1]} ${E0[0]}: ${s.gente.length} ${ESPECIES[ESP].n.toLowerCase()} viven en ${MAPAS[MAPA].n.toLowerCase()}. ${E0[2]}`, 'era'); hito(s, `${E0[1]} ${E0[0]} (${ESPECIES[ESP].n.toLowerCase()})`, 'era'); }
+  else { log(s, `${s.gente.length} personas encienden una fogata en un claro junto al lago. Así empieza ${C.nombre}${ciclo > 1 ? ', sobre las ruinas de otra civilización' : ''}.`, 'logro'); hito(s, ciclo > 1 ? `Ciclo ${ciclo}: una tribu nueva en el orbe` : `Nace la tribu de ${C.nombre}`, 'era'); }
+  calcKard(s);
   asignar(s, C);
   return s;
 }
 function crearMapa(s, sem) {
-  const r = azar(sem ^ 0x9e3779b9), ru = ruido2D(sem & 0xffff);
+  const r = azar(sem ^ 0x9e3779b9), ru = ruido2D(sem & 0xffff), MP = MAPAS[s.mapa];
   const aL = r() * Math.PI * 2;
-  s.lago = { x: +(Math.cos(aL) * 30).toFixed(2), z: +(Math.sin(aL) * 30).toFixed(2), r: 8 };
-  s.rio = []; for (let i = 0; i <= 7; i++) { const k = i / 7, rr = 36 + k * 9.5, a = aL + Math.sin(k * 4 + (sem % 7)) * 0.13; s.rio.push([+(Math.cos(a) * rr).toFixed(2), +(Math.sin(a) * rr).toFixed(2)]); }
+  s.lago = { x: +(Math.cos(aL) * 30).toFixed(2), z: +(Math.sin(aL) * 30).toFixed(2), r: MP.lago };
+  s.rio = []; if (!MP.mar) for (let i = 0; i <= 7; i++) { const k = i / 7, rr = 36 + k * 9.5, a = aL + Math.sin(k * 4 + (sem % 7)) * 0.13; s.rio.push([+(Math.cos(a) * rr).toFixed(2), +(Math.sin(a) * rr).toFixed(2)]); }
+  // islas del archipiélago: la del centro y unas cuantas alrededor
+  s.islas = MP.mar ? [{ x: 0, z: 0, r: 15 }, ...[0, 1, 2, 3].map((i) => { const a = aL + 0.8 + i * 1.45 + r() * 0.4, rr = 29 + r() * 6; return { x: +(Math.cos(a) * rr).toFixed(2), z: +(Math.sin(a) * rr).toFixed(2), r: +(6 + r() * 3).toFixed(1) }; })] : null;
   const aS = aL + Math.PI * (0.62 + r() * 0.4), aC = aL - Math.PI * (0.5 + r() * 0.15);
   s.cementerio = { x: +(Math.cos(aC) * 36).toFixed(2), z: +(Math.sin(aC) * 36).toFixed(2), ang: aC };
   for (let i = 0; i < 9; i++) { const a = aS + (r() - 0.5) * 0.7, rr = 27 + r() * 8; s.rocas.push({ x: +(Math.cos(a) * rr).toFixed(2), z: +(Math.sin(a) * rr).toFixed(2), t: r() }); }
   const libre = (x, z, m) => dist(x, z, s.lago.x, s.lago.z) > s.lago.r + m && dist(x, z, s.cementerio.x, s.cementerio.z) > 6.5 && s.rio.every(([px, pz]) => dist(x, z, px, pz) > 2.6);
   for (let x = -44; x <= 44; x += 3.1) for (let z = -44; z <= 44; z += 3.1) {
     const px = x + (r() - 0.5) * 2.4, pz = z + (r() - 0.5) * 2.4, rr = Math.hypot(px, pz);
-    if (rr > 43 || rr < 13) continue;
-    if (ru(px / 9 + 3, pz / 9 + 7) < 0.6 - (rr - 13) / 45 || !libre(px, pz, 2)) continue;
-    s.arboles.push({ x: +px.toFixed(2), z: +pz.toFixed(2), c: +(0.7 + r() * 0.3).toFixed(2), v: r() < 0.55 ? 0 : 1, o: 0 });
+    if (rr > 43 || rr < (MP.arboles > 1.5 ? 10 : 13)) continue;
+    // la densidad depende del mapa; en el desierto solo hay palmeras cerca del agua
+    const agua = Math.min(dist(px, pz, s.lago.x, s.lago.z) - s.lago.r, ...s.rio.map(([qx, qz]) => dist(px, pz, qx, qz)), 99), umbral = 0.6 - (rr - 13) / 45 - (MP.arboles - 1) * 0.3;
+    if (MP.seco ? agua > 9 || ru(px / 6, pz / 6) < 0.3 : ru(px / 9 + 3, pz / 9 + 7) < umbral) continue;
+    if (!libre(px, pz, 2)) continue;
+    if (s.islas && !s.islas.some((I) => dist(px, pz, I.x, I.z) < I.r - 1)) continue;
+    s.arboles.push({ x: +px.toFixed(2), z: +pz.toFixed(2), c: +(0.7 + r() * 0.3).toFixed(2), v: MP.palmeras ? 2 : MP.soloPinos ? 0 : r() < 0.55 ? 0 : 1, o: 0 });
   }
 }
 function nuevaCiudad(s, nombre, x, z, madre) {
@@ -137,13 +151,15 @@ function cultura(s, al) {
 function nuevaPersona(s, o = {}) {
   const sexo = o.sexo || (prob(s, 0.5) ? 'f' : 'm'), padres = (o.padres || []).map((id) => persona(s, id)).filter(Boolean);
   const mente = M.nuevaMente(() => rnd(s), padres.filter((p) => p.p), o.al != null ? cultura(s, o.al) : null);
+  const ES = ESPECIES[s.especie] || ESPECIES.primates;
+  for (const [k, x] of Object.entries(ES.rasgos || {})) mente.v[k] = +clamp(mente.v[k] + x, 0, 1).toFixed(2);
   const pm = padres.find((p) => p.sexo === 'f'), pp = padres.find((p) => p.sexo === 'm');
   const a = {
     id: s.sigId++, nombre: nombreLibre(s, sexo), apellido: o.apellido || pick(s, APELLIDOS), sexo, edad: +(o.edad ?? 0).toFixed(3), al: o.al ?? 0,
     ...mente, padres: padres.map((p) => p.id), hijos: [], pareja: null, rel: {}, mem: [], vida: [],
     oficio: null, hab: {}, edu: Math.round((o.edad ?? 0) > 16 ? s.era * 6 * rnd(s) : 0), riqueza: +(ent(s, 2, 8) * (1 + s.era)).toFixed(1), clase: 'media', rank: 0.5,
     hogar: null, trabajo: null, salud: 100, animo: 60, enf: 0, emb: 0, mov: null, fama: 0, inventos: 0, triste: 0,
-    ap: { piel: pm && pp ? pick(s, [pm.ap.piel, pp.ap.piel]) : pick(s, PIEL), pelo: padres.length ? pick(s, padres).ap.pelo : pick(s, PELO), alto: +(sexo === 'f' ? ent(s, 0.9, 0.99) : ent(s, 0.97, 1.08)).toFixed(3), ancho: +ent(s, 0.92, 1.12).toFixed(2), peinado: sexo === 'f' ? (prob(s, 0.8) ? 'largo' : 'corto') : prob(s, 0.12) ? 'calvo' : 'corto', tono: +rnd(s).toFixed(2) },
+    ap: { piel: pm && pp ? pick(s, [pm.ap.piel, pp.ap.piel]) : pick(s, ES.piel || PIEL), pelo: padres.length ? pick(s, padres).ap.pelo : pick(s, PELO), alto: +(sexo === 'f' ? ent(s, 0.9, 0.99) : ent(s, 0.97, 1.08)).toFixed(3), ancho: +ent(s, 0.92, 1.12).toFixed(2), peinado: sexo === 'f' ? (prob(s, 0.8) ? 'largo' : 'corto') : prob(s, 0.12) ? 'calvo' : 'corto', tono: +rnd(s).toFixed(2) },
   };
   a.sueno = { k: M.elegirSueno(() => rnd(s), a), ok: false };
   s.gente = [...s.gente, a];
@@ -186,26 +202,27 @@ function dia(s) {
   s.dia++;
   const f = fecha(s);
   tmp(s).cuenta = {};
-  if (s.destino) return epilogo(s);
+  if (s.destino) { epilogo(s); if (s.destino?.tipo !== 'estelar' || s.fin) { calcKard(s); return; } }
   if (!s.gente.length) return vacio(s, f);
   if (f.dia === 1) estacion(s, f);
+  const pre = s.evo < 4;   // prehistoria animal: sin edificios, sin ciencia, sin política
   const V = vivas(s);
   const dem = {};
   for (const C of V) { const G = gentes(s, C.id); dem[C.id] = demanda(s, C, G); economia(s, C, G, dem[C.id]); }
   for (const a of [...s.gente]) if (s.gente.includes(a)) vivir(s, a, dem[a.al] || (dem[a.al] = demanda(s, s.ciudades[a.al], gentes(s, a.al))));
-  if (s.dia % 3 === 0) for (const C of vivas(s)) planificar(s, C);
-  investigar(s);
-  if (s.dia % 6 === 0) {
+  if (s.dia % 3 === 0 && !pre) for (const C of vivas(s)) planificar(s, C);
+  if (pre) evolucionar(s); else investigar(s);
+  if (s.dia % 6 === 0 && pre) { for (const C of vivas(s)) asignar(s, C); U.ambiente(s, 0); calcularEjes(s); clases(s); }
+  else if (s.dia % 6 === 0) {
     for (const C of vivas(s)) asignar(s, C);
     U.ambiente(s, s.mult.limpio || 0);
     if ((s.ejes.ni < -20 || s.leyes.verde === 2) && s.era >= 3) U.reforestar(s, 3);
     if (s.dia % 24 === 0) for (const C of s.ciudades) if (C.vacia) U.reforestar(s, 1);
-    calcularEjes(s); clases(s); movimientos(s); crisis(s); entreCiudades(s);
+    calcularEjes(s); clases(s); movimientos(s); if (!s.destino) crisis(s); entreCiudades(s);
   }
   if (s.dia % 6 === 3) for (const t of s.arboles) if (t.c >= 0 && t.c < 1) t.c = Math.min(1, t.c + 0.048);
-  guerraDia(s); epidemiaDia(s);
-  decisionDia(s);
-  megaDia(s);
+  if (!pre && !s.destino) { guerraDia(s); epidemiaDia(s); decisionDia(s); megaDia(s); maravillaDia(s); }   // en la fase espacial el destino ya está escrito
+  if (s.dia % 6 === 1) calcKard(s);
   if (f.est === 0 && f.dia === 1) anual(s, f);
   for (const C of s.ciudades) if (!C.vacia && !gentes(s, C.id).length) { C.vacia = true; log(s, `${C.nombre} queda vacía.`, 'malo'); }
   if (!s.gente.length) vacio(s, f);
@@ -508,14 +525,16 @@ function estacion(s, f) {
 }
 function anual(s, f) {
   const H = s.hist, pob = s.gente.length;
+  calcKard(s); (H.kard ||= []).push(s.kard);
   H.anio.push(f.anio); H.pob.push(pob); H.hab.push(habitantes(s)); H.ciencia.push(Math.round(s.puntosAnio?.c || 0)); H.fe.push(Math.round(s.puntosAnio?.f || 0)); H.animo.push(Math.round(s.gente.reduce((n, a) => n + a.animo, 0) / Math.max(1, pob))); H.era.push(s.era); H.eco.push(s.ecologia); H.desig.push(Math.round((s.ciudades[0]?.gini || 0) * 100));
   if (H.anio.length > 400) for (const k of Object.keys(H)) H[k] = H[k].filter((_, i) => i % 2 === 0);
   s.puntosAnio = { c: 0, f: 0 };
   for (const k of Object.keys(s.ejeBase)) s.ejeBase[k] *= 0.995;   // la historia pesa, pero se va desdibujando
   if ((s.era <= 2 && pob < 40 && prob(s, 0.35)) || (pob < 25 && prob(s, 0.45))) llegan(s, 1 + Math.floor(rnd(s) * 3));
   for (const C of vivas(s)) { if (!vivo(s, C.lider) || C.mandato <= f.anio) elegirLider(s, C, 'mandato'); }
-  riesgos(s);
+  if (!s.destino) riesgos(s);
   if (!s.destino) fundarCiudad(s);
+  if (s.evo >= 4) { terreno(s); espacioAnual(s); }
   for (const c of s.celdas) if (c.cr) { c.cr = +(c.cr * 0.85).toFixed(2); if (c.cr < 0.08) delete c.cr; s.vc++; }   // los cráteres se cubren de hierba
 }
 function llegan(s, n, C = vivas(s)[0] || s.ciudades[0]) {
@@ -925,11 +944,12 @@ function megaDia(s) {
   }
 }
 // epílogo: dos años de animación final y luego la historia termina (o renace de las cenizas)
-export const DUR_EPI = DIAS_ANIO * 2;
+export const DUR_EPI = DIAS_ANIO * 2, DUR_ESTELAR = DIAS_ANIO * 50;
 function epilogo(s) {
-  const D = s.destino, k = (s.dia - D.dia) / DUR_EPI;
+  const D = s.destino, k = (s.dia - D.dia) / (D.tipo === 'estelar' ? DUR_ESTELAR : DUR_EPI);
   D.fase = +Math.min(1, k).toFixed(3);
-  if (D.tipo === 'estelar' || D.tipo === 'trascendencia') {
+  if (D.tipo === 'estelar') faseEspacial(s, D);
+  if (D.tipo === 'trascendencia') {
     D.pob0 ??= s.gente.length;
     const deben = Math.ceil(D.pob0 * (1 - D.fase)), sobran = s.gente.length - deben;
     for (const a of s.gente.slice(0, Math.max(0, sobran))) { s.gente = s.gente.filter((x) => x !== a); s.idos.unshift(registro(s, a, { causa: D.tipo === 'estelar' ? 'partió a las estrellas' : 'trascendió como luz', estado: D.tipo === 'estelar' ? 'partió' : 'trascendió' })); }
@@ -1059,4 +1079,159 @@ export function guardar(s) {
   for (const t of s.arboles) t.c = Math.round(t.c * 100) / 100;
   return s;
 }
-export function cargar(o) { return o && o.mundo === 'aldea' && o.version === VERSION && Array.isArray(o.gente) ? o : null; }
+export function cargar(o) {
+  if (!(o && o.mundo === 'aldea' && o.version === VERSION && Array.isArray(o.gente))) return null;
+  // partidas de antes de las especies y los mapas: primates en el valle, ya fuera de la prehistoria
+  if (!o.especie) Object.assign(o, { especie: 'primates', mapa: 'valle', evo: 4, evoP: 0, evoHist: [], kard: 0, marea: 0, maravillas: [], sigMar: 1, espacio: { k: 0, satelites: 0, lunaBase: false, colonias: [], dyson: 0, naves: 0, estrellas: 0, galaxia: 0, hitos: [] } });
+  o.hist.kard ||= [];
+  return o;
+}
+// etapa de la prehistoria (o null si ya son una tribu)
+export function etapaEvo(s) { if (s.evo >= 4) return null; const E = (ESPECIES[s.especie] || ESPECIES.primates).evo[s.evo]; return { n: E[0], i: E[1], d: E[2], p: s.evoP || 0, evo: s.evo }; }
+
+// ---------------------------------------------------------------- prehistoria: de animal a tribu
+function evolucionar(s) {
+  const G = s.gente, n = G.length; if (!n) return;
+  const C = s.ciudades[0], cur = G.reduce((x, a) => x + a.v.curiosidad, 0) / n, MP = MAPAS[s.mapa];
+  const amb = (C.hambre > 0.2 ? 0.4 : 1) * (s.clima.sequia ? 0.75 : 1) * (MP.frio && fecha(s).est === 3 ? 0.8 : 1);
+  s.evoP = +(s.evoP + ((0.55 + Math.min(1.5, n / 25)) * (0.55 + cur) * amb) / 300).toFixed(4);
+  // más refugios si la manada crece (otra cueva, otro nido)
+  const capV = U.capacidad(s, 0, 'vivienda');
+  if (n > capV * 0.9 && s.dia % 12 === 0) { const c = s.celdas.filter((x) => !x.u && !x.o && !['a', 'v', 'm', 'c'].includes(x.t) && Math.hypot(x.x - C.x, x.z - C.z) < 14).sort((a, b) => Math.hypot(a.x - C.x, a.z - C.z) - Math.hypot(b.x - C.x, b.z - C.z))[0]; if (c) { c.u = 'vivienda'; c.n = 1; c.al = 0; c.cueva = true; U.talarCelda(s, c); s.vc++; } }
+  if (s.evoP < 1 || n < 6) return;
+  s.evoP = 0; s.evo++; s.evoHist.push({ evo: s.evo, anio: anio(s) });
+  const ES = ESPECIES[s.especie];
+  if (s.evo < 4) {
+    const E = ES.evo[s.evo];
+    log(s, `${E[1]} ${E[0]}. ${E[2]}`, 'era'); hito(s, `${E[1]} ${E[0]}`, 'era');
+    if (s.evo === 2) { const c0 = U.celdaEn(s, C.x, C.z); if (c0 && !c0.u) { c0.u = 'teatro'; c0.n = 1; c0.al = 0; c0.fogata = true; c0.t = 'p'; U.talarCelda(s, c0); } }
+    for (const a of G) if (a.edad > 6) M.recordar(a, sello(s), E[0], 4);
+  } else {
+    // ya hablan, ya tienen fuego: empieza la historia (la Tribu, la era 0)
+    for (const c of s.celdas) if (c.cueva) { c.cueva = false; c.e = 0; }
+    const c0 = U.celdaEn(s, C.x, C.z); if (c0 && !c0.u) { c0.u = 'teatro'; c0.n = 1; c0.al = 0; c0.fogata = true; }
+    s.eras = [{ era: 0, anio: anio(s), ciclo: s.ciclo }];
+    log(s, `🔥 Comienza la historia: ${ES.n.toLowerCase()} que hablan, encienden fuego y levantan chozas. Nace la tribu de ${C.nombre}.`, 'era');
+    hito(s, `🔥 Tribu de ${C.nombre}`, 'era');
+    recalcMult(s);
+  }
+  s.vc++;
+}
+
+// ---------------------------------------------------------------- el terreno cambia con la civilización
+function terreno(s) {
+  const MP = MAPAS[s.mapa], m = U.mapa(s), C = vivas(s)[0] || s.ciudades[0], libre = (c) => !c.u && !c.o && !c.ru;
+  const agua = s.celdas.filter((c) => c.t === 'a' || c.t === 'v');
+  const cerca = (c, r) => Math.hypot(c.x - C.x, c.z - C.z) < r;
+  let cambios = 0;
+  // desertificación: tala y humo prolongados (o un mapa seco maltratado) secan la tierra
+  if ((s.ecologia < 45 && s.contaminacion > 0.12) || (MP.seco && s.ecologia < 75 && s.era >= 2)) {
+    const cand = s.celdas.filter((c) => libre(c) && c.t === 'p' && cerca(c, 38));
+    for (let i = 0; i < 6 && cand.length; i++) { const c = cand.splice(Math.floor(rnd(s) * cand.length), 1)[0]; c.t = 'd'; c.f = 0.15; cambios++; }
+    if (cambios && !s._avisoDesierto) { s._avisoDesierto = true; log(s, 'La tierra se seca: donde había pasto ahora hay polvo.', 'malo'); hito(s, 'Avanza el desierto', 'malo'); }
+  }
+  // canales de riego desde el río y el lago hasta los campos (eras agrícolas en adelante)
+  if (s.tec.irrigacion && s.era >= 1) for (let n = 0; n < 2; n++) {
+    const campo = s.celdas.find((c) => c.u === 'campo' && !c.ru && !U.vecinas(s, c).some((v) => v.t === 'v' || v.t === 'a') && agua.length);
+    if (!campo) break;
+    const w = agua.reduce((b, x) => (Math.hypot(x.x - campo.x, x.z - campo.z) < Math.hypot(b.x - campo.x, b.z - campo.z) ? x : b), agua[0]);
+    const paso = U.vecinas(s, campo).filter((v) => libre(v) && !['m', 'c', 'a', 'v'].includes(v.t)).sort((a, b) => Math.hypot(a.x - w.x, a.z - w.z) - Math.hypot(b.x - w.x, b.z - w.z))[0];
+    if (!paso || Math.hypot(paso.x - w.x, paso.z - w.z) > 30) break;
+    paso.t = 'v'; paso.canal = true; agua.push(paso); cambios++;
+    for (const v of U.vecinas(s, paso)) { v.f = Math.max(v.f || 0, 1); if (v.t === 'd') v.t = 'p'; }
+    if (!s._avisoCanal) { s._avisoCanal = true; log(s, 'Cavan canales desde el agua hasta los campos: la tierra seca se vuelve fértil.', 'logro'); hito(s, 'Primeros canales de riego', 'tec'); }
+  }
+  // el mar sube con la contaminación de las eras modernas y se traga las costas bajas
+  if (s.era >= 5 && s.contaminacion > 0.3) {
+    s.marea = +(s.marea + s.contaminacion * 0.06).toFixed(3);
+    const costa = s.celdas.filter((c) => c.t !== 'a' && c.t !== 'm' && c.h < 0.5 && !c.mv && U.vecinas(s, c).some((v) => v.t === 'a'));
+    const nInund = Math.min(costa.length, Math.floor(s.marea * (MP.mar ? 3 : 1.2)));
+    for (let i = 0; i < nInund; i++) { const c = costa[Math.floor(rnd(s) * costa.length)]; if (c.t === 'a') continue; if (c.u) { c.u = null; c.o = null; c.n = 0; } c.ru = false; c.t = 'a'; c.inund = true; U.talarCelda(s, c); c.t = 'a'; cambios++; }
+    if (nInund && prob(s, 0.5)) log(s, 'El agua sube: la orilla se traga calles y campos de la costa.', 'malo');
+    if (nInund && !s._avisoMar) { s._avisoMar = true; hito(s, 'Sube el nivel del agua', 'malo'); }
+  }
+  // terraformación: la era futura (o una sociedad verde) devuelve el verde y saca el agua de las costas
+  if ((s.era >= 7 && (s.tec.nanotec || s.tec.gaia)) || s.ejes.ni < -25 || s.leyes.verde === 2) {
+    for (const c of s.celdas.filter((x) => x.t === 'd' && libre(x)).slice(0, 4)) { c.t = 'p'; c.f = Math.max(c.f || 0, 0.8); cambios++; }
+    if (s.era >= 7) for (const c of s.celdas.filter((x) => x.inund).slice(0, 3)) { c.t = 'p'; c.inund = false; cambios++; }
+    if (cambios && !s._avisoVerde) { s._avisoVerde = true; log(s, 'La tierra reverdece: el desierto retrocede.', 'logro'); hito(s, 'Reverdece la tierra', 'tec'); }
+    U.reforestar(s, 2);
+  }
+  if (cambios) { s.vc++; s.vh = (s.vh || 0) + 1; }
+}
+
+// ---------------------------------------------------------------- maravillas: una por era, la sociedad la elige y la levanta sola
+function elegirMaravilla(s) {
+  const op = MONUMENTOS[Math.min(7, s.era)], E = s.ejes, MP = MAPAS[s.mapa];
+  const sc = { menhires: 1, piramide: (MP.seco ? 3 : 0.6) + (s.especie === 'reptiles' || s.especie === 'insectos' ? 1 : 0), zigurat: 1 + (MP.seco ? 0 : 0.6), coliseo: 1 + E.aa / 40, gran_templo: 1 - E.cf / 40, catedral: 1 - E.cf / 30, faro: (MP.mar ? 3 : 0.8), observatorio: 1 + E.cf / 30, torre_hierro: 1 + E.cf / 60, gran_fabrica: 1 + E.ni / 30, rascacielos: 1 + E.ic / 30, estadio: 1 - E.ic / 40 + E.aa / 60, torre_com: 1 + E.cf / 50, cupula_datos: 1 - E.ic / 50, arcologia: 1 - E.ni / 30 - E.ic / 60, anillo: 1 + (s.tec.cohetes ? 1 : 0) + E.aa / 40 };
+  return op.map((x) => [x, (sc[x.k] || 1) + rnd(s) * 0.5]).sort((a, b) => b[1] - a[1])[0][0];
+}
+function maravillaDia(s) {
+  if (s.destino) return;
+  let Mv = s.maravillas.find((m) => !m.hecha && !m.ru);
+  if (!Mv) { if (s.dia % 24 !== 12 || s.maravillas.some((m) => m.era === s.era && (m.ciclo || 1) === s.ciclo) || s.gente.length < 8) return; Mv = iniciarMaravilla(s); if (!Mv) return; }
+  const C = s.ciudades[Mv.al];
+  if (!C || C.vacia || Mv.celdas.some((k) => U.mapa(s).get(k)?.ru)) { Mv.ru = true; return; }
+  const q = Math.min(C.res.materiales * 0.04, Mv.costo / (DIAS_ANIO * 7)); C.res.materiales -= q; Mv.ap += q; Mv.p = +Math.min(1, Mv.ap / Mv.costo).toFixed(4);
+  if (Mv.p >= 1) {
+    Mv.hecha = true; Mv.p = 1; Mv.anio = anio(s);
+    log(s, `🏛 ${C.nombre} termina su maravilla: ${Mv.n}. Vienen a verla de todo el orbe.`, 'logro'); hito(s, `🏛 ${Mv.n}`, 'era');
+    for (const a of gentes(s, C.id)) M.recordar(a, sello(s), `Terminaron ${Mv.n.toLowerCase()}`, 8);
+    s.vc++;
+  }
+}
+function iniciarMaravilla(s) {
+  const C = vivas(s)[0]; if (!C) return null;
+  const X = elegirMaravilla(s), m = U.mapa(s), N = U.NG, tam = X.tam;
+  let mejor = null, md = 1e9;
+  for (const c of s.celdas) {
+    const i0 = Math.floor(c.k / N), j0 = c.k % N, bloque = [];
+    for (let di = 0; di < tam && bloque.length === di * tam; di++) for (let dj = 0; dj < tam; dj++) { const v = m.get((i0 + di) * N + j0 + dj); if (!v || v.u || v.o || v.ru || ['a', 'v', 'c', 'm'].includes(v.t) || (v.al != null && v.al !== C.id)) break; bloque.push(v); }
+    if (bloque.length !== tam * tam) continue;
+    const cx = bloque.reduce((n, v) => n + v.x, 0) / bloque.length, cz = bloque.reduce((n, v) => n + v.z, 0) / bloque.length, d = Math.hypot(cx - C.x, cz - C.z);
+    if (d < 7 || d > 40) continue;
+    if (d < md) { md = d; mejor = { bloque, cx, cz }; }
+  }
+  if (!mejor) return null;
+  const Mv = { id: s.sigMar++, k: X.k, n: X.n, era: s.era, tam, x: +mejor.cx.toFixed(2), z: +mejor.cz.toFixed(2), celdas: mejor.bloque.map((v) => v.k), ap: 0, p: 0, costo: Math.round(220 * (1 + s.era * 1.5)), al: C.id, hecha: false, ru: false, especie: s.especie, anio: null, ciclo: s.ciclo };
+  for (const v of mejor.bloque) { v.u = 'maravilla'; v.mv = Mv.id; v.al = C.id; v.n = 1; v.e = s.era; U.talarCelda(s, v); }
+  s.maravillas.push(Mv); s.vc++;
+  log(s, `🏗 ${C.nombre} empieza a levantar ${X.n.toLowerCase()}: la obra de toda una generación.`, 'logro');
+  return Mv;
+}
+
+// ---------------------------------------------------------------- escala de Kardashev (fórmula de Sagan: K = (log10 P − 6) / 10)
+const ESCALA_K = 1e4;   // la muestra simulada representa a todo el planeta
+function calcKard(s) {
+  const D = s.destino;
+  if (D && (D.tipo === 'estelar' || D.tipo === 'trascendencia' || D.tipo === 'gaia')) return;   // el estelar lo lleva la fase espacial; los otros dos se congelan
+  const hab = habitantes(s), W = VATIOS[Math.min(8, s.era)] * (s.evo < 4 ? 0.4 : 1), mt = Math.sqrt(s.mult?.energia || 1);
+  let K = (Math.log10(Math.max(1, hab * W * mt * ESCALA_K)) - 6) / 10;
+  K = Math.max(0, Math.min(0.97, K));   // el Tipo I solo se alcanza con un destino
+  if (D?.tipo === 'colmena') K = K + (0.99 - K) * (D.fase || 0);   // la colmena roza el Tipo I, pero no sale del planeta
+  s.kard = +K.toFixed(3); if (s.espacio) s.espacio.k = s.kard;
+}
+function hitoEspacio(s, texto, k = s.kard) { s.espacio.hitos.push({ k: +k.toFixed(2), texto, anio: anio(s) }); log(s, `🌌 ${texto}`, 'logro'); hito(s, `🌌 ${texto}`, 'destino'); }
+function espacioAnual(s) {
+  const X = s.espacio; if (!X || s.destino) return;
+  if (s.tec.cohetes && X.satelites < (s.era >= 7 ? 20 : 12)) { X.satelites++; if (X.satelites === 1) hitoEspacio(s, 'Primer satélite en órbita'); }
+  if (s.era >= 7 && (s.tec.fusion || s.tec.viaje) && !X.lunaBase) { X.lunaBase = true; hitoEspacio(s, 'Base en la luna'); }
+}
+// el destino estelar no termina: la civilización sale del orbe y sube de Tipo I a Tipo III en unos cincuenta años
+function faseEspacial(s, D) {
+  const X = s.espacio, f = D.fase, antes = s.kard;
+  const K = +(1 + 2 * Math.pow(f, 1.15)).toFixed(3); s.kard = X.k = K;
+  if (antes < 1 && K >= 1) hitoEspacio(s, 'Tipo I: dominan toda la energía del planeta', 1);
+  X.satelites = Math.max(X.satelites, 30); X.lunaBase = true;
+  const nCol = Math.min(6, Math.floor((K - 1) * 4) + (K >= 1.05 ? 1 : 0));
+  while (X.colonias.length < nCol) { const i = X.colonias.length, pl = ORDEN_COLONIAS[i]; X.colonias.push({ planeta: pl, desde: anio(s) }); if (i === 0) hitoEspacio(s, `Primera colonia en el planeta ${PLANETAS[pl]}`); else log(s, `🌌 Nueva colonia en el planeta ${PLANETAS[pl]}.`, 'logro'); }
+  const dy = Math.max(0, Math.min(1, (K - 1.3) / 0.7)); if (X.dyson === 0 && dy > 0) hitoEspacio(s, 'Comienza el enjambre de Dyson'); X.dyson = +dy.toFixed(3);
+  X.naves = Math.round(20 + (K - 1) * 400);
+  if (antes < 2 && K >= 2) hitoEspacio(s, 'Tipo II: la energía de su estrella', 2);
+  const est = K >= 2 ? Math.floor((K - 2) * 120) + 1 : 0; if (X.estrellas === 0 && est > 0) hitoEspacio(s, 'Primer sistema estelar colonizado'); X.estrellas = est;
+  X.galaxia = K >= 2 ? +Math.min(1, Math.pow(K - 2, 2)).toFixed(3) : 0;
+  if (antes < 2.99 && K >= 2.99) hitoEspacio(s, 'Tipo III: la galaxia es suya', 3);
+  // poco a poco la gente se va a las colonias (la ciudad sigue viva, pero se vacía)
+  D.pob0 ??= s.gente.length;
+  if (s.gente.length > D.pob0 * 0.45 && prob(s, 0.15)) { const a = pick(s, s.gente.filter((x) => x.edad >= 18 && x.edad < 50)); if (a) { s.gente = s.gente.filter((x) => x !== a); s.idos.unshift(registro(s, a, { causa: 'partió a las estrellas', estado: 'partió' })); if (s.idos.length > 80) s.idos.length = 80; } }
+}

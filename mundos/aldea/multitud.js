@@ -15,13 +15,14 @@ const MAX = 900;
 const DENS = [0, 0.35, 0.55, 0.75, 0.95, 1.15, 1.35, 1.5];
 const PIEL = [0xf1c9a5, 0xd9a77a, 0xb98058, 0x8a5a3a, 0xe8b890, 0x6a4028];
 
-export function crearMultitud(M, alt) {
+export function crearMultitud(M, alt, especie = null) {
+  const pieles = especie?.piel || PIEL;   // la gente de la calle tiene el pelaje, las plumas o las escamas de su especie
   const cuerpo = new THREE.InstancedMesh(fundirGeo([
     [GEO.capsula, 0xffffff, 0, 1.02, 0, 0.36, 0.62, 0.25], [GEO.capsula, 0xbdbdbd, -0.1, 0.4, 0, 0.12, 0.5, 0.12], [GEO.capsula, 0xbdbdbd, 0.1, 0.4, 0, 0.12, 0.5, 0.12],
   ]), MAT_VERTICE, MAX);
   const cabeza = new THREE.InstancedMesh(fundirGeo([[GEO.esfera, 0xffffff, 0, 1.62, 0, 0.16, 0.18, 0.16]]), MAT_VERTICE, MAX);
   for (const im of [cuerpo, cabeza]) { im.count = 0; im.frustumCulled = false; M.add(im); }
-  for (let i = 0; i < MAX; i++) cabeza.setColorAt(i, _c.setHex(PIEL[Math.floor(hash(i * 3 + 1) * PIEL.length)]));
+  for (let i = 0; i < MAX; i++) cabeza.setColorAt(i, _c.setHex(pieles[Math.floor(hash(i * 3 + 1) * pieles.length)]));
   const andan = [...Array(MAX)].map((_, i) => ({ de: null, a: null, t: hash(i * 5), v: 0.9 + hash(i * 11) * 0.7 }));
   let firmaColor = '', firmaLug = '', lugares = [], urb = 0;
 
